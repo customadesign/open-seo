@@ -1,0 +1,9 @@
+{
+  "projects": [
+    {
+      "project_id": 101,
+      "project_name": "Example",
+      "domain": "example.com"
+    }
+  ]
+}

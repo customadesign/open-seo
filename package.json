@@ -52,6 +52,9 @@
     "gdpr:erase-user": "tsx scripts/erase-user-data.ts",
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",
+    "semrush:archive": "tsx scripts/semrush/archive.ts",
+    "semrush:import": "tsx scripts/semrush/import.ts",
+    "test:semrush": "vitest run scripts/semrush/semrush.test.ts",
     "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware"
   },
   "cloudflare": {

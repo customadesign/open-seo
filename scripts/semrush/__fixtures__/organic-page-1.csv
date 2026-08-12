@@ -1,0 +1,3 @@
+Database;Domain;Keyword;Position;Previous Position;Search Volume;CPC;Url;Traffic %;Traffic Cost %;Competition;Number of Results;Trends;Timestamp
+us;example.com;blue widgets;1;2;1000;1.25;https://example.com/blue;50;60;0.8;100000;10,20,30;2026-08-13
+us;example.com;red widgets;4;5;500;0.75;https://example.com/red;20;10;0.4;50000;5,10,20;2026-08-13

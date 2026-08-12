@@ -7,6 +7,8 @@ import * as sqliteBilling from "./billing.schema";
 import * as sqliteGa4 from "./ga4.schema";
 import * as sqliteGsc from "./gsc.schema";
 import * as sqliteTelemetry from "./telemetry.schema";
+import * as sqliteLocalSeo from "./local-seo.schema";
+import * as sqliteReport from "./report.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -15,6 +17,8 @@ import * as pgBilling from "./pg/billing.schema";
 import * as pgGa4 from "./pg/ga4.schema";
 import * as pgGsc from "./pg/gsc.schema";
 import * as pgTelemetry from "./pg/telemetry.schema";
+import * as pgLocalSeo from "./pg/local-seo.schema";
+import * as pgReport from "./pg/report.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -33,7 +37,9 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteBilling &
   typeof sqliteGa4 &
   typeof sqliteGsc &
-  typeof sqliteTelemetry;
+  typeof sqliteTelemetry &
+  typeof sqliteLocalSeo &
+  typeof sqliteReport;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -46,6 +52,8 @@ const runtimeSchema =
         ...pgGa4,
         ...pgGsc,
         ...pgTelemetry,
+        ...pgLocalSeo,
+        ...pgReport,
       }
     : {
         ...sqliteApp,
@@ -56,6 +64,8 @@ const runtimeSchema =
         ...sqliteGa4,
         ...sqliteGsc,
         ...sqliteTelemetry,
+        ...sqliteLocalSeo,
+        ...sqliteReport,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -93,4 +103,19 @@ export const {
   ga4Connections,
   gscConnections,
   telemetryState,
+  localBusinessProfiles,
+  localListingConnections,
+  geoGridConfigs,
+  geoGridRuns,
+  geoGridCells,
+  citationAuditRuns,
+  citationObservations,
+  reportTemplates,
+  reportTemplateSections,
+  reportSchedules,
+  reportRecipients,
+  reportRuns,
+  reportArtifacts,
+  reportShareLinks,
+  reportDeliveries,
 } = schema;

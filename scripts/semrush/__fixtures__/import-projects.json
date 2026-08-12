@@ -1,0 +1,19 @@
+{
+  "projects": [
+    {
+      "project_id": 201,
+      "project_name": "Example primary",
+      "domain": "https://www.example.com/"
+    },
+    {
+      "project_id": 202,
+      "project_name": "Example duplicate",
+      "domain": "example.com"
+    },
+    {
+      "project_id": 203,
+      "project_name": "Missing analytics",
+      "domain": "missing.test"
+    }
+  ]
+}
