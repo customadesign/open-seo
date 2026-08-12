@@ -2,7 +2,10 @@ import { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import {
   getIssueDescriptor,
-  ISSUE_SEVERITY_ORDER,
+  type AuditFixOrder,
+  type AuditIssueCategory,
+  type AuditIssueEffort,
+  type AuditIssueImpact,
   type IssueSeverity,
 } from "@/shared/audit-issues";
 import type { AuditResultsData } from "@/client/features/audit/results/types";
@@ -23,19 +26,43 @@ const SEVERITY_RULE: Record<IssueSeverity, string> = {
   info: "border-l-base-content/20",
 };
 
-const SEVERITY_LABEL: Record<IssueSeverity, string> = {
-  critical: "Critical",
-  warning: "Warning",
-  info: "Info",
-};
-
 interface IssueGroup {
   issueType: string;
   severity: IssueSeverity;
   title: string;
   explanation: string;
   howToFix: string;
+  howToVerify: string;
+  category: AuditIssueCategory;
+  fixOrder: AuditFixOrder;
+  impact: AuditIssueImpact;
+  effort: AuditIssueEffort;
   issues: AuditIssueRow[];
+}
+
+const FIX_ORDER_RANK: Record<AuditFixOrder, number> = {
+  now: 0,
+  next: 1,
+  improve: 2,
+  monitor: 3,
+};
+
+const IMPACT_RANK: Record<AuditIssueImpact, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+const EFFORT_RANK: Record<AuditIssueEffort, number> = {
+  small: 0,
+  medium: 1,
+  large: 2,
+};
+
+function defaultFixOrder(severity: IssueSeverity): AuditFixOrder {
+  if (severity === "critical") return "now";
+  if (severity === "warning") return "next";
+  return "improve";
 }
 
 export function resolveIssueSeverity(issue: {
@@ -55,12 +82,19 @@ function groupIssues(issues: AuditIssueRow[]): IssueGroup[] {
     let group = groups.get(issue.issueType);
     if (!group) {
       const descriptor = getIssueDescriptor(issue.issueType);
+      const severity = resolveIssueSeverity(issue);
       group = {
         issueType: issue.issueType,
-        severity: resolveIssueSeverity(issue),
+        severity,
         title: descriptor?.title ?? issue.issueType,
         explanation: descriptor?.explanation ?? "",
         howToFix: descriptor?.howToFix ?? "",
+        howToVerify:
+          descriptor?.howToVerify ?? "Re-run the audit after fixing.",
+        category: descriptor?.category ?? "technical",
+        fixOrder: descriptor?.fixOrder ?? defaultFixOrder(severity),
+        impact: descriptor?.impact ?? "medium",
+        effort: descriptor?.effort ?? "medium",
         issues: [],
       };
       groups.set(issue.issueType, group);
@@ -70,7 +104,9 @@ function groupIssues(issues: AuditIssueRow[]): IssueGroup[] {
 
   return Array.from(groups.values()).toSorted(
     (a, b) =>
-      ISSUE_SEVERITY_ORDER[a.severity] - ISSUE_SEVERITY_ORDER[b.severity] ||
+      FIX_ORDER_RANK[a.fixOrder] - FIX_ORDER_RANK[b.fixOrder] ||
+      IMPACT_RANK[a.impact] - IMPACT_RANK[b.impact] ||
+      EFFORT_RANK[a.effort] - EFFORT_RANK[b.effort] ||
       b.issues.length - a.issues.length,
   );
 }
@@ -80,10 +116,10 @@ export function IssuesView({ issues }: { issues: AuditIssueRow[] }) {
 
   const sections = useMemo(
     () =>
-      (["critical", "warning", "info"] as const)
-        .map((severity) => ({
-          severity,
-          groups: groups.filter((group) => group.severity === severity),
+      (["now", "next", "improve", "monitor"] as const)
+        .map((fixOrder) => ({
+          fixOrder,
+          groups: groups.filter((group) => group.fixOrder === fixOrder),
         }))
         .filter((section) => section.groups.length > 0),
     [groups],
@@ -102,10 +138,19 @@ export function IssuesView({ issues }: { issues: AuditIssueRow[] }) {
   }
 
   return (
-    <div className="border border-base-300 rounded-lg overflow-hidden">
-      {sections.map((section) => (
-        <IssueSection key={section.severity} section={section} />
-      ))}
+    <div className="space-y-3">
+      <div>
+        <h3 className="font-semibold">Recommended fix order</h3>
+        <p className="text-sm text-base-content/60">
+          Ranked by likely search impact, effort, and the number of affected
+          pages. Monitor items are informational and may need no change.
+        </p>
+      </div>
+      <div className="border border-base-300 rounded-lg overflow-hidden">
+        {sections.map((section) => (
+          <IssueSection key={section.fixOrder} section={section} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -113,7 +158,7 @@ export function IssuesView({ issues }: { issues: AuditIssueRow[] }) {
 function IssueSection({
   section,
 }: {
-  section: { severity: IssueSeverity; groups: IssueGroup[] };
+  section: { fixOrder: AuditFixOrder; groups: IssueGroup[] };
 }) {
   const issueCount = section.groups.reduce(
     (sum, group) => sum + group.issues.length,
@@ -124,10 +169,10 @@ function IssueSection({
     <div className="border-t border-base-300 first:border-t-0">
       <div className="flex items-center gap-2 bg-base-200/60 px-4 py-1.5 border-b border-base-300/60">
         <span
-          className={`size-1.5 rounded-full ${SEVERITY_DOT[section.severity]}`}
+          className={`size-1.5 rounded-full ${FIX_ORDER_DOT[section.fixOrder]}`}
         />
         <span className="text-[11px] font-semibold uppercase tracking-wider text-base-content/60">
-          {SEVERITY_LABEL[section.severity]}
+          {FIX_ORDER_LABEL[section.fixOrder]}
         </span>
         <span className="text-[11px] tabular-nums text-base-content/40">
           {issueCount}
@@ -165,6 +210,9 @@ function IssueRow({ group }: { group: IssueGroup }) {
         <span className="text-sm font-medium flex-1 min-w-0 truncate">
           {group.title}
         </span>
+        <span className="badge badge-ghost badge-sm hidden sm:inline-flex">
+          {formatCategory(group.category)}
+        </span>
         <span className="text-xs tabular-nums text-base-content/50 shrink-0">
           {group.issues.length} {group.issues.length === 1 ? "page" : "pages"}
         </span>
@@ -188,11 +236,49 @@ function IssueRow({ group }: { group: IssueGroup }) {
               <span className="text-base-content/80">{group.howToFix}</span>
             </p>
           )}
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="badge badge-outline badge-sm capitalize">
+              {group.impact} impact
+            </span>
+            <span className="badge badge-outline badge-sm capitalize">
+              {group.effort} effort
+            </span>
+            <span className="badge badge-ghost badge-sm sm:hidden">
+              {formatCategory(group.category)}
+            </span>
+          </div>
+          {group.howToVerify && (
+            <p className="text-sm max-w-prose">
+              <span className="font-medium">How to verify: </span>
+              <span className="text-base-content/80">{group.howToVerify}</span>
+            </p>
+          )}
           <AffectedUrlList issues={group.issues} />
         </div>
       )}
     </div>
   );
+}
+
+const FIX_ORDER_DOT: Record<AuditFixOrder, string> = {
+  now: "bg-error",
+  next: "bg-warning",
+  improve: "bg-info",
+  monitor: "bg-base-content/30",
+};
+
+const FIX_ORDER_LABEL: Record<AuditFixOrder, string> = {
+  now: "Fix now",
+  next: "Fix next",
+  improve: "Improve",
+  monitor: "Monitor",
+};
+
+function formatCategory(category: AuditIssueCategory): string {
+  if (category === "aeo" || category === "geo") {
+    return category.toUpperCase();
+  }
+  return category.replace("-", " ");
 }
 
 function AffectedUrlList({ issues }: { issues: AuditIssueRow[] }) {
@@ -260,12 +346,16 @@ function IssueDetails({ detailsJson }: { detailsJson: string | null }) {
     <span className="text-xs text-base-content/50 truncate">
       {entries
         .map(([key, value]) => {
-          const rendered = Array.isArray(value)
-            ? value.join(" → ")
-            : String(value);
+          const rendered = formatDetailValue(value);
           return `${key}: ${rendered}`;
         })
         .join(" · ")}
     </span>
   );
+}
+
+function formatDetailValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === undefined) return "undefined";
+  return JSON.stringify(value) ?? "unavailable";
 }

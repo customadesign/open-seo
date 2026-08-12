@@ -23,6 +23,7 @@ async function listDueSchedules(nowIso: string) {
         ne(reportSchedules.frequency, "manual"),
         lte(reportSchedules.nextRunAt, nowIso),
         eq(reportTemplates.organizationId, projects.organizationId),
+        isNull(reportTemplates.deletedAt),
         isNull(projects.archivedAt),
       ),
     )

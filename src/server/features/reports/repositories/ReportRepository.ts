@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- report aggregate reads and writes stay behind one project-scoped repository boundary */
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 import { db } from "@/db";
@@ -33,6 +34,7 @@ async function listTemplates(organizationId: string, projectId: string) {
       and(
         eq(reportTemplates.organizationId, organizationId),
         templateProjectScope(projectId),
+        isNull(reportTemplates.deletedAt),
       ),
     )
     .orderBy(desc(reportTemplates.isDefault), asc(reportTemplates.name));
@@ -51,6 +53,7 @@ async function getTemplateScoped(input: {
         eq(reportTemplates.id, input.templateId),
         eq(reportTemplates.organizationId, input.organizationId),
         templateProjectScope(input.projectId),
+        isNull(reportTemplates.deletedAt),
       ),
     )
     .limit(1);
@@ -78,6 +81,55 @@ async function createTemplate(
   return values.id;
 }
 
+/** Soft-delete a project-owned template so historical report runs remain
+ * readable. Organization-global templates are deliberately excluded from a
+ * project-scoped delete. Any schedules using the template are stopped in the
+ * same cross-dialect batch. */
+async function deleteTemplate(input: {
+  templateId: string;
+  organizationId: string;
+  projectId: string;
+}): Promise<boolean> {
+  const [template] = await db
+    .select({ id: reportTemplates.id })
+    .from(reportTemplates)
+    .where(
+      and(
+        eq(reportTemplates.id, input.templateId),
+        eq(reportTemplates.organizationId, input.organizationId),
+        eq(reportTemplates.projectId, input.projectId),
+        isNull(reportTemplates.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!template) return false;
+
+  const deletedAt = new Date().toISOString();
+  await runBatch((tx) => [
+    tx
+      .update(reportSchedules)
+      .set({ isActive: false, nextRunAt: null, updatedAt: deletedAt })
+      .where(
+        and(
+          eq(reportSchedules.templateId, template.id),
+          eq(reportSchedules.projectId, input.projectId),
+        ),
+      ),
+    tx
+      .update(reportTemplates)
+      .set({ isDefault: false, deletedAt, updatedAt: deletedAt })
+      .where(
+        and(
+          eq(reportTemplates.id, template.id),
+          eq(reportTemplates.organizationId, input.organizationId),
+          eq(reportTemplates.projectId, input.projectId),
+          isNull(reportTemplates.deletedAt),
+        ),
+      ),
+  ]);
+  return true;
+}
+
 async function listSchedules(organizationId: string, projectId: string) {
   return db
     .select({ schedule: reportSchedules, templateName: reportTemplates.name })
@@ -91,6 +143,7 @@ async function listSchedules(organizationId: string, projectId: string) {
         eq(reportSchedules.projectId, projectId),
         eq(reportTemplates.organizationId, organizationId),
         templateProjectScope(projectId),
+        isNull(reportTemplates.deletedAt),
       ),
     )
     .orderBy(desc(reportSchedules.createdAt), desc(reportSchedules.id));
@@ -114,6 +167,7 @@ async function getScheduleScoped(input: {
         eq(reportSchedules.projectId, input.projectId),
         eq(reportTemplates.organizationId, input.organizationId),
         templateProjectScope(input.projectId),
+        isNull(reportTemplates.deletedAt),
       ),
     )
     .limit(1);
@@ -368,6 +422,7 @@ export const ReportRepository = {
   getTemplateScoped,
   getTemplateSections,
   createTemplate,
+  deleteTemplate,
   listSchedules,
   getScheduleScoped,
   createSchedule,

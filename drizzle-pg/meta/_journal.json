@@ -148,6 +148,13 @@
       "when": 1786563648397,
       "tag": "0020_gray_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786572967336,
+      "tag": "0021_serious_vampiro",
+      "breakpoints": true
     }
   ]
 }

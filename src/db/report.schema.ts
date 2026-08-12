@@ -36,6 +36,7 @@ export const reportTemplates = sqliteTable(
     updatedAt: text("updated_at")
       .notNull()
       .default(sql`(current_timestamp)`),
+    deletedAt: text("deleted_at"),
   },
   (table) => [
     index("report_templates_organization_project_idx").on(

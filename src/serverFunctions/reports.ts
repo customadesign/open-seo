@@ -5,6 +5,7 @@ import {
   createReportScheduleSchema,
   createReportShareLinkSchema,
   createReportTemplateSchema,
+  deleteReportTemplateSchema,
   listReportsSchema,
   retryReportRunSchema,
   runReportSchema,
@@ -25,6 +26,17 @@ export const createReportTemplate = createServerFn({ method: "POST" })
       organizationId: context.organizationId,
       userId: context.userId,
       data: { ...data, projectId: context.projectId },
+    }),
+  );
+
+export const deleteReportTemplate = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(deleteReportTemplateSchema)
+  .handler(({ data, context }) =>
+    ReportService.deleteTemplate({
+      organizationId: context.organizationId,
+      projectId: context.projectId,
+      templateId: data.templateId,
     }),
   );
 

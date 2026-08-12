@@ -33,6 +33,7 @@ export const reportTemplates = pgTable(
     }),
     createdAt: text("created_at").notNull().default(isoNow),
     updatedAt: text("updated_at").notNull().default(isoNow),
+    deletedAt: text("deleted_at"),
   },
   (table) => [
     index("report_templates_organization_project_idx").on(

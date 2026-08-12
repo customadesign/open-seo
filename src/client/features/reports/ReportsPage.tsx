@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, FileText, Play, RefreshCw } from "lucide-react";
+import { CalendarClock, FileText, Play, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
@@ -7,6 +7,7 @@ import {
   createReportShareLink,
   createReportSchedule,
   createReportTemplate,
+  deleteReportTemplate,
   getReportDashboard,
   retryReportRun,
   runReport,
@@ -20,11 +21,31 @@ function reportPeriod() {
   return { periodStart: start.toISOString(), periodEnd: end.toISOString() };
 }
 
+function confirmTemplateDeletion(name: string, onConfirm: () => void) {
+  if (
+    window.confirm(
+      `Delete "${name}"? Existing report snapshots will stay available, and active schedules for this template will stop.`,
+    )
+  ) {
+    onConfirm();
+  }
+}
+
 function statusClass(status: string) {
   if (status === "completed") return "badge-success";
   if (status === "failed") return "badge-error";
   if (status === "sending" || status === "rendering") return "badge-info";
   return "badge-ghost";
+}
+
+function ReportsLoading() {
+  return (
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-6" aria-busy>
+      <div className="skeleton h-9 w-48" />
+      <div className="skeleton h-40" />
+      <div className="skeleton h-56" />
+    </div>
+  );
 }
 
 export function ReportsPage({ projectId }: { projectId: string }) {
@@ -48,6 +69,15 @@ export function ReportsPage({ projectId }: { projectId: string }) {
         },
       }),
     onSuccess: () => void refresh(),
+    onError: (error) => toast.error(getStandardErrorMessage(error)),
+  });
+  const deleteTemplateMutation = useMutation({
+    mutationFn: (templateId: string) =>
+      deleteReportTemplate({ data: { projectId, templateId } }),
+    onSuccess: () => {
+      void refresh();
+      toast.success("Report template deleted. Existing snapshots were kept.");
+    },
     onError: (error) => toast.error(getStandardErrorMessage(error)),
   });
   const runMutation = useMutation({
@@ -102,13 +132,7 @@ export function ReportsPage({ projectId }: { projectId: string }) {
   });
 
   if (dashboard.isPending) {
-    return (
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-6" aria-busy>
-        <div className="skeleton h-9 w-48" />
-        <div className="skeleton h-40" />
-        <div className="skeleton h-56" />
-      </div>
-    );
+    return <ReportsLoading />;
   }
   if (dashboard.isError || !dashboard.data) {
     return (
@@ -187,17 +211,42 @@ export function ReportsPage({ projectId }: { projectId: string }) {
                           .join(" · ")}
                       </p>
                     </div>
-                    {template.isDefault && (
-                      <span className="badge badge-outline badge-sm">
-                        Default
-                      </span>
-                    )}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {template.isDefault && (
+                        <span className="badge badge-outline badge-sm">
+                          Default
+                        </span>
+                      )}
+                      {template.projectId === projectId && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm text-error"
+                          aria-label={`Delete ${template.name}`}
+                          disabled={
+                            deleteTemplateMutation.isPending &&
+                            deleteTemplateMutation.variables === template.id
+                          }
+                          onClick={() =>
+                            confirmTemplateDeletion(template.name, () =>
+                              deleteTemplateMutation.mutate(template.id),
+                            )
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
                       className="btn btn-outline btn-sm"
-                      disabled={runMutation.isPending}
+                      disabled={
+                        runMutation.isPending ||
+                        (deleteTemplateMutation.isPending &&
+                          deleteTemplateMutation.variables === template.id)
+                      }
                       onClick={() => runMutation.mutate(template.id)}
                     >
                       <Play className="size-4" />
@@ -208,6 +257,8 @@ export function ReportsPage({ projectId }: { projectId: string }) {
                       className="btn btn-ghost btn-sm"
                       disabled={
                         scheduleMutation.isPending ||
+                        (deleteTemplateMutation.isPending &&
+                          deleteTemplateMutation.variables === template.id) ||
                         schedules.some(
                           ({ schedule }) =>
                             schedule.templateId === template.id &&

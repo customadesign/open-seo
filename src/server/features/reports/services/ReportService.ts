@@ -101,6 +101,16 @@ async function createTemplate(input: {
   return { id };
 }
 
+async function deleteTemplate(input: {
+  organizationId: string;
+  projectId: string;
+  templateId: string;
+}) {
+  const deleted = await ReportRepository.deleteTemplate(input);
+  if (!deleted) throw new AppError("NOT_FOUND");
+  return { id: input.templateId };
+}
+
 async function createSchedule(input: {
   organizationId: string;
   data: CreateReportScheduleInput;
@@ -323,6 +333,7 @@ async function processDueSchedules(now: Date = new Date()) {
 export const ReportService = {
   getDashboard,
   createTemplate,
+  deleteTemplate,
   createSchedule,
   runNow,
   retryRun,

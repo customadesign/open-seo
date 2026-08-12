@@ -79,6 +79,11 @@ export const createReportTemplateSchema = z.object({
     .default(REPORT_SECTION_KEYS.map((key) => ({ key, enabled: true }))),
 });
 
+export const deleteReportTemplateSchema = z.object({
+  projectId: idField,
+  templateId: idField,
+});
+
 export const createReportScheduleSchema = z.object({
   projectId: idField,
   templateId: idField,

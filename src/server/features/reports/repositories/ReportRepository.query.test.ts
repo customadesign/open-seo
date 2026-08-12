@@ -14,7 +14,13 @@ beforeAll(async () => {
   client = createClient({ url: "file::memory:" });
   const testDb = drizzle(client);
   vi.doMock("@/db", () => ({ db: testDb }));
-  vi.doMock("@/db/runBatch", () => ({ runBatch: vi.fn() }));
+  vi.doMock("@/db/runBatch", () => ({
+    runBatch: async (
+      build: (tx: typeof testDb) => readonly Promise<unknown>[],
+    ) => {
+      for (const statement of build(testDb)) await statement;
+    },
+  }));
   await client.executeMultiple(`
     CREATE TABLE projects (
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, name TEXT NOT NULL,
@@ -26,7 +32,8 @@ beforeAll(async () => {
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, project_id TEXT,
       name TEXT NOT NULL, is_default INTEGER NOT NULL DEFAULT 0,
       brand_name TEXT, logo_url TEXT, primary_color TEXT, accent_color TEXT,
-      created_by_user_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_by_user_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      deleted_at TEXT
     );
     CREATE TABLE report_runs (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL, template_id TEXT NOT NULL,
@@ -59,11 +66,12 @@ async function seed() {
       ('project-a2', 'org-a', 'A2', 'a2.example', 2840, 'en', '2026-01-01', NULL),
       ('project-b', 'org-b', 'B', 'b.example', 2840, 'en', '2026-01-01', NULL);
     INSERT INTO report_templates VALUES
-      ('global-a', 'org-a', NULL, 'Global A', 1, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01'),
-      ('template-a', 'org-a', 'project-a', 'A report', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01'),
-      ('template-a2', 'org-a', 'project-a2', 'A2 report', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01'),
-      ('template-b', 'org-b', 'project-b', 'B report', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01'),
-      ('spoofed-b', 'org-b', 'project-a', 'Spoofed', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01');
+      ('global-a', 'org-a', NULL, 'Global A', 1, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01', NULL),
+      ('template-a', 'org-a', 'project-a', 'A report', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01', NULL),
+      ('deleted-a', 'org-a', 'project-a', 'Deleted A', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01', '2026-08-01T00:00:00.000Z'),
+      ('template-a2', 'org-a', 'project-a2', 'A2 report', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01', NULL),
+      ('template-b', 'org-b', 'project-b', 'B report', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01', NULL),
+      ('spoofed-b', 'org-b', 'project-a', 'Spoofed', 0, NULL, NULL, NULL, NULL, NULL, '2026-01-01', '2026-01-01', NULL);
     INSERT INTO report_runs VALUES
       ('run-a', 'project-a', 'template-a', NULL, 'completed', '2026-01-01', '2026-02-01', '{}', 0, NULL, '2026-02-01', '2026-02-01'),
       ('run-cross-template', 'project-a', 'spoofed-b', NULL, 'completed', '2026-01-01', '2026-02-01', '{}', 0, NULL, '2026-02-01', '2026-02-01'),
@@ -105,6 +113,56 @@ describe("ReportRepository tenant and project isolation", () => {
     await seed();
     const rows = await ReportRepository.listRuns("org-a", "project-a");
     expect(rows.map(({ run }) => run.id)).toEqual(["run-a"]);
+  });
+
+  it("soft deletes only project-owned templates and preserves report history", async () => {
+    await seed();
+    await expect(
+      ReportRepository.deleteTemplate({
+        templateId: "global-a",
+        organizationId: "org-a",
+        projectId: "project-a",
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      ReportRepository.deleteTemplate({
+        templateId: "template-a2",
+        organizationId: "org-a",
+        projectId: "project-a",
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      ReportRepository.deleteTemplate({
+        templateId: "template-a",
+        organizationId: "org-a",
+        projectId: "project-a",
+      }),
+    ).resolves.toBe(true);
+
+    await expect(
+      ReportRepository.listTemplates("org-a", "project-a"),
+    ).resolves.toMatchObject([{ id: "global-a" }]);
+    await expect(
+      ReportRepository.getTemplateScoped({
+        templateId: "template-a",
+        organizationId: "org-a",
+        projectId: "project-a",
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      ReportRepository.listSchedules("org-a", "project-a"),
+    ).resolves.toEqual([]);
+    await expect(
+      ReportRepository.listRuns("org-a", "project-a"),
+    ).resolves.toMatchObject([{ run: { id: "run-a" } }]);
+
+    const schedule = await client.execute(
+      "SELECT is_active, next_run_at FROM report_schedules WHERE id = 'due-a'",
+    );
+    expect(schedule.rows[0]).toMatchObject({
+      is_active: 0,
+      next_run_at: null,
+    });
   });
 
   it("selects tenant-consistent due schedules and claims each instant once", async () => {

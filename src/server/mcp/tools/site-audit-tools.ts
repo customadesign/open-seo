@@ -6,7 +6,7 @@ import { captureServerEvent } from "@/server/lib/posthog";
 import {
   AUDIT_ISSUE_TYPES,
   getIssueDescriptor,
-  ISSUE_SEVERITY_ORDER,
+  type AuditFixOrder,
 } from "@/shared/audit-issues";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
@@ -21,6 +21,13 @@ const auditIdSchema = z
   .string()
   .optional()
   .describe("Audit ID. If omitted, uses the project's most recent audit.");
+
+const FIX_ORDER_RANK: Record<AuditFixOrder, number> = {
+  now: 0,
+  next: 1,
+  improve: 2,
+  monitor: 3,
+};
 
 async function resolveAudit(projectId: string, auditId?: string) {
   const audit = auditId
@@ -249,12 +256,17 @@ export const getAuditIssuesTool = {
       severity: args.severity,
       issueType: args.issueType,
     });
-    // Severity-first so truncation drops info rows, never critical ones.
-    const rows = unsorted.toSorted(
-      (a, b) =>
-        ISSUE_SEVERITY_ORDER[a.severity] - ISSUE_SEVERITY_ORDER[b.severity] ||
-        a.issueType.localeCompare(b.issueType),
-    );
+    // Use the same impact/effort-aware fix order as the UI so agents receive
+    // the actionable work first and informational monitors last.
+    const rows = unsorted.toSorted((a, b) => {
+      const aDescriptor = getIssueDescriptor(a.issueType);
+      const bDescriptor = getIssueDescriptor(b.issueType);
+      return (
+        FIX_ORDER_RANK[aDescriptor?.fixOrder ?? "monitor"] -
+          FIX_ORDER_RANK[bDescriptor?.fixOrder ?? "monitor"] ||
+        a.issueType.localeCompare(b.issueType)
+      );
+    });
 
     const counts = new Map<string, number>();
     for (const row of rows) {
@@ -267,12 +279,16 @@ export const getAuditIssuesTool = {
           issueType,
           title: descriptor?.title ?? issueType,
           severity: descriptor?.severity ?? "info",
+          category: descriptor?.category ?? "technical",
+          fixOrder: descriptor?.fixOrder ?? "monitor",
+          impact: descriptor?.impact ?? "low",
+          effort: descriptor?.effort ?? "medium",
           count,
         };
       })
       .toSorted(
         (a, b) =>
-          ISSUE_SEVERITY_ORDER[a.severity] - ISSUE_SEVERITY_ORDER[b.severity] ||
+          FIX_ORDER_RANK[a.fixOrder] - FIX_ORDER_RANK[b.fixOrder] ||
           b.count - a.count,
       );
 
@@ -283,11 +299,16 @@ export const getAuditIssuesTool = {
         severity: row.severity,
         issueType: row.issueType,
         title: descriptor?.title ?? row.issueType,
+        category: descriptor?.category ?? "technical",
+        fixOrder: descriptor?.fixOrder ?? "monitor",
+        impact: descriptor?.impact ?? "low",
+        effort: descriptor?.effort ?? "medium",
         url: row.pageUrl,
         details: row.detailsJson
           ? (JSON.parse(row.detailsJson) as unknown)
           : null,
         howToFix: descriptor?.howToFix ?? null,
+        howToVerify: descriptor?.howToVerify ?? null,
       };
     });
 
@@ -301,9 +322,9 @@ export const getAuditIssuesTool = {
             "By type:",
             ...summary.map(
               (entry) =>
-                `- [${entry.severity}] ${entry.title} (${entry.issueType}): ${entry.count}`,
+                `- [${entry.fixOrder}; ${entry.impact} impact; ${entry.effort} effort] ${entry.title} (${entry.issueType}): ${entry.count}`,
             ),
-            "Full issue rows with how_to_fix instructions are in structuredContent.issues.",
+            "Full issue rows with remediation and verification instructions are in structuredContent.issues.",
           ].join("\n");
 
     return mcpResponse({
