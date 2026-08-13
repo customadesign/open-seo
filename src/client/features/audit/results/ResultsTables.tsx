@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createColumnHelper,
   type ColumnDef,
@@ -39,11 +39,13 @@ export function PerformanceTable({
   projectId,
   lighthouse,
   pages,
+  failureFocusToken,
 }: {
   auditId: string;
   projectId: string;
   lighthouse: AuditResultsData["lighthouse"];
   pages: AuditResultsData["pages"];
+  failureFocusToken: number;
 }) {
   const [filters, setFilters] = useState<PerformanceFilters>(
     EMPTY_PERFORMANCE_FILTERS,
@@ -52,6 +54,11 @@ export function PerformanceTable({
   const [sorting, setSorting] = useState<SortingState>([
     { id: "performanceScore", desc: false },
   ]);
+  useEffect(() => {
+    if (failureFocusToken === 0) return;
+    setFilters((current) => ({ ...current, status: "failed" }));
+    setShowFilters(true);
+  }, [failureFocusToken]);
   const rows = useMemo(
     () =>
       lighthouse.map((result) => {
