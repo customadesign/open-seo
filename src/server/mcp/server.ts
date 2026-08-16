@@ -58,6 +58,14 @@ import {
   runSiteAuditTool,
 } from "@/server/mcp/tools/site-audit-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
+import {
+  getCitationAuditsTool,
+  getGeoGridHistoryTool,
+  getLocalListingStatusTool,
+  recordCitationEvidenceTool,
+  runCitationAuditTool,
+  runGeoGridTool,
+} from "@/server/mcp/tools/local-seo-tools";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
 
@@ -119,9 +127,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
     {
       name: "OpenSEO MCP",
       title: "OpenSEO",
-      version: "0.0.11",
+      version: "0.0.12",
       description:
-        "SEO research tools for AI agents: keyword research and metrics, SERP and local SERP results, domain and backlink analysis, rank tracking, and Google Search Console performance.",
+        "SEO research and operations for AI agents: keyword and competitor research, backlinks, rank tracking, local SEO geo-grids and citation evidence, site audits, and Google performance data.",
       websiteUrl: "https://openseo.so",
       icons: [
         {
@@ -164,6 +172,12 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getLocalSerpResultsTool);
   register(getGoogleBusinessQuestionsTool);
   register(getKeywordMetricsTool);
+  register(getLocalListingStatusTool);
+  register(getGeoGridHistoryTool);
+  register(runGeoGridTool);
+  register(getCitationAuditsTool);
+  register(recordCitationEvidenceTool);
+  register(runCitationAuditTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
   register(getGoogleAnalyticsOrganicLandingPagesTool);

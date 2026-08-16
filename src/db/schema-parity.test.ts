@@ -13,6 +13,7 @@ import * as sqliteGa4 from "./ga4.schema";
 import * as sqliteGsc from "./gsc.schema";
 import * as sqliteTelemetry from "./telemetry.schema";
 import * as sqliteGoogleAds from "./google-ads.schema";
+import * as sqliteLocalSeo from "./local-seo.schema";
 import * as sqliteReports from "./report.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
@@ -23,6 +24,7 @@ import * as pgGa4 from "./pg/ga4.schema";
 import * as pgGsc from "./pg/gsc.schema";
 import * as pgTelemetry from "./pg/telemetry.schema";
 import * as pgGoogleAds from "./pg/google-ads.schema";
+import * as pgLocalSeo from "./pg/local-seo.schema";
 import * as pgReports from "./pg/report.schema";
 
 // Guards the ONE structural artifact `db:generate` does not regenerate: the
@@ -154,6 +156,7 @@ const sqliteAppTables = tablesFrom(
   sqliteGsc,
   sqliteTelemetry,
   sqliteGoogleAds,
+  sqliteLocalSeo,
   sqliteReports,
 );
 const pgAppTables = tablesFrom(
@@ -165,6 +168,7 @@ const pgAppTables = tablesFrom(
   pgGsc,
   pgTelemetry,
   pgGoogleAds,
+  pgLocalSeo,
   pgReports,
 );
 const sqliteAuthTables = tablesFrom(sqliteAuth);

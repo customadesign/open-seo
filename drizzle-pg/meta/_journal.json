@@ -155,6 +155,13 @@
       "when": 1786913236828,
       "tag": "0021_dry_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786919491667,
+      "tag": "0022_special_norman_osborn",
+      "breakpoints": true
     }
   ]
 }

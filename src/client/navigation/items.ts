@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Link2,
   FileBarChart,
+  MapPinned,
   MessageSquare,
   Search,
   Sparkles,
@@ -37,6 +38,11 @@ const projectNavItems = [
     to: "/p/$projectId/rank-tracking" as const,
     label: "Rank Tracking",
     icon: TrendingUp,
+  },
+  {
+    to: "/p/$projectId/local-seo" as const,
+    label: "Local SEO",
+    icon: MapPinned,
   },
   {
     to: "/p/$projectId/search-performance" as const,
@@ -127,6 +133,7 @@ export function getProjectNavGroups(
       items: [
         byPath("/p/$projectId/search-performance"),
         byPath("/p/$projectId/rank-tracking"),
+        byPath("/p/$projectId/local-seo"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
         byPath("/p/$projectId/reports"),
@@ -146,6 +153,7 @@ export function getProjectNavGroups(
               (item) =>
                 item.to === "/p/$projectId/search-performance" ||
                 item.to === "/p/$projectId/rank-tracking" ||
+                item.to === "/p/$projectId/local-seo" ||
                 item.to === "/p/$projectId/saved" ||
                 item.to === "/p/$projectId/audit" ||
                 item.to === "/p/$projectId/reports",

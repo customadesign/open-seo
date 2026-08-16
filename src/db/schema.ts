@@ -8,6 +8,7 @@ import * as sqliteGa4 from "./ga4.schema";
 import * as sqliteGsc from "./gsc.schema";
 import * as sqliteTelemetry from "./telemetry.schema";
 import * as sqliteGoogleAds from "./google-ads.schema";
+import * as sqliteLocalSeo from "./local-seo.schema";
 import * as sqliteReports from "./report.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
@@ -18,6 +19,7 @@ import * as pgGa4 from "./pg/ga4.schema";
 import * as pgGsc from "./pg/gsc.schema";
 import * as pgTelemetry from "./pg/telemetry.schema";
 import * as pgGoogleAds from "./pg/google-ads.schema";
+import * as pgLocalSeo from "./pg/local-seo.schema";
 import * as pgReports from "./pg/report.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
@@ -39,6 +41,7 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteGsc &
   typeof sqliteTelemetry &
   typeof sqliteGoogleAds &
+  typeof sqliteLocalSeo &
   typeof sqliteReports;
 
 const runtimeSchema =
@@ -53,6 +56,7 @@ const runtimeSchema =
         ...pgGsc,
         ...pgTelemetry,
         ...pgGoogleAds,
+        ...pgLocalSeo,
         ...pgReports,
       }
     : {
@@ -65,6 +69,7 @@ const runtimeSchema =
         ...sqliteGsc,
         ...sqliteTelemetry,
         ...sqliteGoogleAds,
+        ...sqliteLocalSeo,
         ...sqliteReports,
       };
 
@@ -105,6 +110,13 @@ export const {
   ga4Connections,
   gscConnections,
   googleAdsConnections,
+  localBusinessProfiles,
+  localListingConnections,
+  geoGridConfigs,
+  geoGridRuns,
+  geoGridCells,
+  citationAuditRuns,
+  citationObservations,
   reportSettings,
   reportSections,
   reportRuns,
