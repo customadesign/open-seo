@@ -15,6 +15,7 @@ import { runImport } from "./import";
 import {
   type ArchiveManifest,
   loadArchiveManifest,
+  redactSecrets,
   recordFile,
   writeArchiveState,
 } from "./shared";
@@ -136,6 +137,8 @@ describe("SEMrush archive", () => {
 
     expect(caught).not.toBeNull();
     expect(caught?.message).not.toContain(apiKey);
+    expect(caught?.cause).toBeUndefined();
+    expect(redactSecrets(caught)).not.toContain(apiKey);
     const manifestText = await readFile(
       path.join(outputDir, "manifest.json"),
       "utf8",

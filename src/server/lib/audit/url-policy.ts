@@ -151,23 +151,34 @@ async function resolveAddressRecords(
     },
   );
 
-  if (!response.ok) return [];
+  if (!response.ok) {
+    throw new Error(`DNS validation failed with HTTP ${response.status}`);
+  }
 
-  const body: DnsJsonResponse = await response.json();
-  if (body.Status !== 0 || !Array.isArray(body.Answer)) return [];
+  const body: unknown = await response.json();
+  if (
+    !body ||
+    typeof body !== "object" ||
+    typeof (body as DnsJsonResponse).Status !== "number" ||
+    (body as DnsJsonResponse).Status !== 0 ||
+    ((body as DnsJsonResponse).Answer !== undefined &&
+      !Array.isArray((body as DnsJsonResponse).Answer))
+  ) {
+    throw new Error("DNS validation returned an invalid response");
+  }
 
   const expectedType = type === "A" ? 1 : 28;
-  return body.Answer.filter(
-    (answer): answer is Required<Pick<DnsJsonAnswer, "data" | "type">> =>
-      answer.type === expectedType && typeof answer.data === "string",
-  ).map((answer) => normalizeHost(answer.data));
+  return ((body as DnsJsonResponse).Answer ?? [])
+    .filter(
+      (answer): answer is Required<Pick<DnsJsonAnswer, "data" | "type">> =>
+        answer.type === expectedType && typeof answer.data === "string",
+    )
+    .map((answer) => normalizeHost(answer.data));
 }
 
-async function hostnameResolvesToBlockedAddress(
-  hostname: string,
-): Promise<boolean> {
+async function assertHostnameResolvesPublic(hostname: string): Promise<void> {
   const host = normalizeHost(hostname);
-  if (!host || isIpLiteral(host)) return false;
+  if (!host || isIpLiteral(host)) return;
 
   try {
     const [v4, v6] = await Promise.all([
@@ -176,13 +187,20 @@ async function hostnameResolvesToBlockedAddress(
     ]);
 
     const addresses = [...v4, ...v6];
-    if (addresses.length === 0) return false;
+    if (addresses.length === 0) {
+      throw new AppError("CRAWL_TARGET_BLOCKED");
+    }
 
-    return addresses.some(
-      (address) => isPrivateIpv4(address) || isPrivateIpv6(address),
-    );
-  } catch {
-    return false;
+    if (
+      addresses.some(
+        (address) => isPrivateIpv4(address) || isPrivateIpv6(address),
+      )
+    ) {
+      throw new AppError("CRAWL_TARGET_BLOCKED");
+    }
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError("CRAWL_TARGET_BLOCKED");
   }
 }
 
@@ -231,9 +249,7 @@ export async function normalizeAndValidateStartUrl(
     throw new AppError("CRAWL_TARGET_BLOCKED");
   }
 
-  if (await hostnameResolvesToBlockedAddress(parsed.hostname)) {
-    throw new AppError("CRAWL_TARGET_BLOCKED");
-  }
+  await assertHostnameResolvesPublic(parsed.hostname);
 
   parsed.hash = "";
   return parsed.toString();

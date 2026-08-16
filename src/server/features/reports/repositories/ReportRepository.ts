@@ -149,31 +149,6 @@ async function listSchedules(organizationId: string, projectId: string) {
     .orderBy(desc(reportSchedules.createdAt), desc(reportSchedules.id));
 }
 
-async function getScheduleScoped(input: {
-  scheduleId: string;
-  organizationId: string;
-  projectId: string;
-}) {
-  const [row] = await db
-    .select({ schedule: reportSchedules, template: reportTemplates })
-    .from(reportSchedules)
-    .innerJoin(
-      reportTemplates,
-      eq(reportSchedules.templateId, reportTemplates.id),
-    )
-    .where(
-      and(
-        eq(reportSchedules.id, input.scheduleId),
-        eq(reportSchedules.projectId, input.projectId),
-        eq(reportTemplates.organizationId, input.organizationId),
-        templateProjectScope(input.projectId),
-        isNull(reportTemplates.deletedAt),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
-}
-
 async function createSchedule(
   values: InferInsertModel<typeof reportSchedules>,
   recipients: Array<InferInsertModel<typeof reportRecipients>>,
@@ -424,7 +399,6 @@ export const ReportRepository = {
   createTemplate,
   deleteTemplate,
   listSchedules,
-  getScheduleScoped,
   createSchedule,
   listRecipients,
   listRuns,

@@ -217,7 +217,7 @@ export async function runArchive(
     );
     return manifest;
   } catch (error) {
-    throw new Error(redactSecrets(error, [apiKey]), { cause: error });
+    throw new Error(redactSecrets(error, [apiKey]));
   }
 }
 

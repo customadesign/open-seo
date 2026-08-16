@@ -3,6 +3,7 @@
  */
 import robotsParser from "robots-parser";
 import { XMLParser } from "fast-xml-parser";
+import { normalizeAndValidateStartUrl } from "./url-policy";
 import { isSameOrigin, normalizeUrl } from "./url-utils";
 
 const SITEMAP_FETCH_TIMEOUT_MS = 15_000;
@@ -21,6 +22,7 @@ const SITEMAP_RETRIES = 1;
 // shards are skipped whole — truncated XML would not parse anyway, and real
 // generators shard far below this.
 const MAX_SITEMAP_BYTES = 10 * 1024 * 1024;
+const DISCOVERY_REDIRECT_HOPS = 5;
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -42,6 +44,40 @@ export interface AiCrawlerAccess {
 export interface LlmsTxtStatus {
   available: boolean;
   statusCode: number | null;
+}
+
+/** Follow only same-origin redirects and re-run the full SSRF policy before
+ * each network request. Native auto-follow validates the final URL too late:
+ * the private-target request has already happened by then. */
+export async function fetchAuditDiscoveryResource(
+  input: string,
+  init: RequestInit,
+): Promise<{ response: Response; finalUrl: string }> {
+  const initialUrl = await normalizeAndValidateStartUrl(input);
+  let currentUrl = initialUrl;
+
+  for (let hop = 0; hop <= DISCOVERY_REDIRECT_HOPS; hop += 1) {
+    const response = await fetch(currentUrl, { ...init, redirect: "manual" });
+    if (response.status < 300 || response.status >= 400) {
+      return { response, finalUrl: currentUrl };
+    }
+
+    const location = response.headers.get("location");
+    if (!location) return { response, finalUrl: currentUrl };
+    if (hop === DISCOVERY_REDIRECT_HOPS) {
+      throw new Error("Audit discovery redirect limit exceeded");
+    }
+
+    const nextUrl = await normalizeAndValidateStartUrl(
+      new URL(location, currentUrl).toString(),
+    );
+    if (!isSameOrigin(nextUrl, initialUrl)) {
+      throw new Error("Audit discovery redirect changed origin");
+    }
+    currentUrl = nextUrl;
+  }
+
+  throw new Error("Audit discovery redirect limit exceeded");
 }
 
 const SEARCH_AND_RETRIEVAL_CRAWLERS = [
@@ -98,10 +134,13 @@ export function analyzeAiCrawlerAccess(
 
 async function fetchLlmsTxtStatus(origin: string): Promise<LlmsTxtStatus> {
   try {
-    const response = await fetch(`${origin}/llms.txt`, {
-      headers: { "User-Agent": "OpenSEO-Audit/1.0" },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const { response } = await fetchAuditDiscoveryResource(
+      `${origin}/llms.txt`,
+      {
+        headers: { "User-Agent": "OpenSEO-Audit/1.0" },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
     const contentType = response.headers.get("content-type")?.toLowerCase();
     return {
       available:
@@ -122,10 +161,13 @@ async function fetchLlmsTxtStatus(origin: string): Promise<LlmsTxtStatus> {
  */
 async function fetchRobotsTxtText(origin: string): Promise<string | null> {
   try {
-    const response = await fetch(`${origin}/robots.txt`, {
-      headers: { "User-Agent": "OpenSEO-Audit/1.0" },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const { response } = await fetchAuditDiscoveryResource(
+      `${origin}/robots.txt`,
+      {
+        headers: { "User-Agent": "OpenSEO-Audit/1.0" },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
 
     if (!response.ok) return null;
     return (await response.text()).slice(0, MAX_ROBOTS_TXT_BYTES);
@@ -255,15 +297,13 @@ async function fetchSitemapDocumentWithRetry(sitemapUrl: string): Promise<{
 
   for (let attempt = 0; attempt <= SITEMAP_RETRIES; attempt++) {
     try {
-      const response = await fetch(normalizedSitemapUrl, {
-        headers: { "User-Agent": "OpenSEO-Audit/1.0" },
-        signal: AbortSignal.timeout(SITEMAP_FETCH_TIMEOUT_MS),
-      });
-
-      const finalUrl = normalizeUrl(response.url, normalizedSitemapUrl);
-      if (!finalUrl || !isSameOrigin(finalUrl, normalizedSitemapUrl)) {
-        return { nestedSitemaps: [], pageUrls: [], timedOut: false };
-      }
+      const { response, finalUrl } = await fetchAuditDiscoveryResource(
+        normalizedSitemapUrl,
+        {
+          headers: { "User-Agent": "OpenSEO-Audit/1.0" },
+          signal: AbortSignal.timeout(SITEMAP_FETCH_TIMEOUT_MS),
+        },
+      );
 
       if (!response.ok) {
         return { nestedSitemaps: [], pageUrls: [], timedOut: false };
