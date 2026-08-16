@@ -18,6 +18,7 @@ import {
   ExportDropdown,
   PerformanceTable,
 } from "@/client/features/audit/results/ResultsTables";
+import { AuditComparisonPanel } from "@/client/features/audit/results/AuditComparisonPanel";
 
 type ResultsTab = "issues" | "pages" | "performance";
 
@@ -75,6 +76,10 @@ export function ResultsView({
         onShowIssues={() => setSummaryModal("issues")}
         onShowLighthouseFailures={() => setSummaryModal("lighthouse-failures")}
       />
+
+      {audit.status === "completed" ? (
+        <AuditComparisonPanel projectId={projectId} auditId={audit.id} />
+      ) : null}
 
       <div className="card bg-base-100 border border-base-300">
         <div className="card-body gap-3">

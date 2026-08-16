@@ -8,11 +8,12 @@ import { reportSnapshotSchema } from "@/types/schemas/reports";
 import { executeReportRun } from "../ReportRunExecutor";
 import { defaultReportSectionDataSource } from "../ReportSectionDataSource";
 import {
-  unconfiguredReportEmailProvider,
-  unconfiguredReportPdfRenderer,
-} from "../providers";
+  defaultReportEmailProvider,
+  defaultReportPdfRenderer,
+} from "../defaultProviders";
 import { ReportRepository } from "../repositories/ReportRepository";
 import { ReportScheduleRepository } from "../repositories/ReportScheduleRepository";
+import { ReportChangeEventService } from "./ReportChangeEventService";
 import {
   createReportShareToken,
   hashReportShareToken,
@@ -27,8 +28,8 @@ import {
 const executionDependencies = {
   repository: ReportRepository,
   source: defaultReportSectionDataSource,
-  pdfRenderer: unconfiguredReportPdfRenderer,
-  emailProvider: unconfiguredReportEmailProvider,
+  pdfRenderer: defaultReportPdfRenderer,
+  emailProvider: defaultReportEmailProvider,
   now: () => new Date(),
 };
 
@@ -193,6 +194,12 @@ async function runNow(input: {
     },
     executionDependencies,
   );
+  await ReportChangeEventService.recordExecution({
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    runId: run.id,
+    status: execution.status,
+  });
   return { runId: run.id, ...execution };
 }
 
@@ -218,6 +225,13 @@ async function retryRun(input: {
     return { runId: input.runId, status: scoped.run.status, executed: false };
   }
   const execution = await executeReportRun(input, executionDependencies);
+  await ReportChangeEventService.recordExecution({
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    runId: input.runId,
+    status: execution.status,
+    recovered: scoped.run.status === "failed",
+  });
   return { runId: input.runId, ...execution };
 }
 
@@ -321,6 +335,12 @@ async function processDueSchedules(now: Date = new Date()) {
       },
       executionDependencies,
     );
+    await ReportChangeEventService.recordExecution({
+      organizationId,
+      projectId: schedule.projectId,
+      runId: run.id,
+      status: execution.status,
+    });
     results.push({
       scheduleId: schedule.id,
       runId: run.id,

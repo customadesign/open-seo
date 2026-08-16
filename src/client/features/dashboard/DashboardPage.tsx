@@ -22,6 +22,7 @@ import {
 } from "@/client/features/dashboard/DashboardCards";
 import { McpConnectCard } from "@/client/features/dashboard/McpConnectCard";
 import { WorkspaceMergeBanner } from "@/client/features/dashboard/WorkspaceMergeBanner";
+import { ChangeEventsCard } from "@/client/features/dashboard/ChangeEventsCard";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import type { DashboardActivation } from "@/server/features/dashboard/services/DashboardService";
 import {
@@ -30,6 +31,7 @@ import {
   markDashboardCompetitorClicked,
   refreshDashboardBacklinkSnapshot,
 } from "@/serverFunctions/dashboard";
+import { getChangeEventFeed } from "@/serverFunctions/change-events";
 import { setProjectDomain } from "@/serverFunctions/projects";
 import { GA4_OAUTH_APP_PENDING } from "@/shared/ga4";
 import type { DashboardHeroStep } from "@/types/schemas/dashboard";
@@ -250,6 +252,13 @@ export function DashboardPage({ projectId }: { projectId: string }) {
     queryKey: ["dashboardOverview", projectId],
     queryFn: () => getDashboardOverview({ data: { projectId } }),
   });
+  const changesQuery = useQuery({
+    queryKey: ["changeEvents", projectId, "dashboard"],
+    queryFn: () =>
+      getChangeEventFeed({
+        data: { projectId, unreadOnly: false, limit: 3 },
+      }),
+  });
 
   const activation = activationQuery.data;
   const overview = overviewQuery.data;
@@ -288,7 +297,7 @@ export function DashboardPage({ projectId }: { projectId: string }) {
   // Wait for the overview too: rendering cards from `overview === undefined`
   // flashes their empty states (and reshuffles the data-first sort) once the
   // real data lands. An overview error falls through so the page still loads.
-  if (!activation || overviewQuery.isPending) {
+  if (!activation || overviewQuery.isPending || changesQuery.isPending) {
     return (
       <div
         className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-4 md:px-6 md:py-6"
@@ -343,6 +352,11 @@ export function DashboardPage({ projectId }: { projectId: string }) {
                     ),
                   },
                 ]),
+            {
+              key: "changes",
+              hasData: (changesQuery.data?.events.length ?? 0) > 0,
+              node: <ChangeEventsCard projectId={projectId} />,
+            },
             {
               key: "gsc",
               hasData: gscConnected,

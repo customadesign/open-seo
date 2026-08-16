@@ -98,4 +98,4 @@ This deletes the Worker, the stage-suffixed D1/KV/R2 resources (including your d
 
 ## Next steps
 
-See [Operations](./SELF_HOSTING_CLOUDFLARE_OPERATIONS.md) for connecting MCP clients and telemetry.
+See [Operations](./SELF_HOSTING_CLOUDFLARE_OPERATIONS.md) for connecting MCP clients and telemetry. Configure the optional PDF and email providers in [`REPORT_DELIVERY.md`](./REPORT_DELIVERY.md) if you want scheduled client reports.

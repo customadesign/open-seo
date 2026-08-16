@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, FileText, Play, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarClock, FileText, Mail, Play, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import {
+  ReportRunsSection,
+  ReportSchedulesSection,
+} from "./ReportsPageSections";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import {
   createReportShareLink,
@@ -31,13 +35,6 @@ function confirmTemplateDeletion(name: string, onConfirm: () => void) {
   }
 }
 
-function statusClass(status: string) {
-  if (status === "completed") return "badge-success";
-  if (status === "failed") return "badge-error";
-  if (status === "sending" || status === "rendering") return "badge-info";
-  return "badge-ghost";
-}
-
 function ReportsLoading() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-6" aria-busy>
@@ -51,6 +48,7 @@ function ReportsLoading() {
 export function ReportsPage({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [scheduleRecipient, setScheduleRecipient] = useState("");
   const dashboard = useQuery({
     queryKey: ["reports", projectId],
     queryFn: () => getReportDashboard({ data: { projectId } }),
@@ -87,20 +85,21 @@ export function ReportsPage({ projectId }: { projectId: string }) {
     onError: (error) => toast.error(getStandardErrorMessage(error)),
   });
   const scheduleMutation = useMutation({
-    mutationFn: (templateId: string) =>
+    mutationFn: (input: { templateId: string; email: string }) =>
       createReportSchedule({
         data: {
           projectId,
-          templateId,
+          templateId: input.templateId,
           name: "Monthly SEO report",
           frequency: "monthly",
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-          recipients: [],
+          recipients: [{ email: input.email }],
         },
       }),
     onSuccess: () => {
       void refresh();
-      toast.success("Monthly snapshot schedule created.");
+      setScheduleRecipient("");
+      toast.success("Monthly email schedule created.");
     },
     onError: (error) => toast.error(getStandardErrorMessage(error)),
   });
@@ -190,6 +189,32 @@ export function ReportsPage({ projectId }: { projectId: string }) {
               New starter template
             </button>
           </div>
+          {templates.length > 0 && (
+            <label className="form-control max-w-md">
+              <span className="label py-1 text-sm font-medium">
+                Monthly delivery email
+              </span>
+              <span className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-base-content/50" />
+                <input
+                  type="email"
+                  className="input input-bordered w-full pl-10"
+                  placeholder="client@example.com"
+                  value={scheduleRecipient}
+                  onChange={(event) =>
+                    setScheduleRecipient(event.currentTarget.value)
+                  }
+                  aria-describedby="report-recipient-help"
+                />
+              </span>
+              <span
+                id="report-recipient-help"
+                className="label py-1 text-xs text-base-content/60"
+              >
+                Used when you choose Schedule monthly below.
+              </span>
+            </label>
+          )}
           {templates.length === 0 ? (
             <div className="rounded-xl border border-base-300 bg-base-100 p-6 text-sm text-base-content/70">
               Create a starter template to generate your first report.
@@ -257,6 +282,7 @@ export function ReportsPage({ projectId }: { projectId: string }) {
                       className="btn btn-ghost btn-sm"
                       disabled={
                         scheduleMutation.isPending ||
+                        scheduleRecipient.trim() === "" ||
                         (deleteTemplateMutation.isPending &&
                           deleteTemplateMutation.variables === template.id) ||
                         schedules.some(
@@ -266,10 +292,15 @@ export function ReportsPage({ projectId }: { projectId: string }) {
                             schedule.isActive,
                         )
                       }
-                      onClick={() => scheduleMutation.mutate(template.id)}
+                      onClick={() =>
+                        scheduleMutation.mutate({
+                          templateId: template.id,
+                          email: scheduleRecipient.trim(),
+                        })
+                      }
                     >
                       <CalendarClock className="size-4" />
-                      Schedule monthly
+                      Schedule monthly email
                     </button>
                   </div>
                 </article>
@@ -278,97 +309,14 @@ export function ReportsPage({ projectId }: { projectId: string }) {
           )}
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Schedules</h2>
-          {schedules.length === 0 ? (
-            <p className="text-sm text-base-content/60">No schedules yet.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-base-300">
-              <table className="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Frequency</th>
-                    <th>Recipients</th>
-                    <th>Next run</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {schedules.map(({ schedule, recipients }) => (
-                    <tr key={schedule.id}>
-                      <td>{schedule.name}</td>
-                      <td className="capitalize">{schedule.frequency}</td>
-                      <td>{recipients.length}</td>
-                      <td>{schedule.nextRunAt ?? "Manual"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Recent runs</h2>
-          {runs.length === 0 ? (
-            <p className="text-sm text-base-content/60">
-              No reports generated yet.
-            </p>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-base-300">
-              <table className="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Template</th>
-                    <th>Period</th>
-                    <th>Status</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.map(({ run, templateName }) => (
-                    <tr key={run.id}>
-                      <td>{templateName}</td>
-                      <td className="text-xs">
-                        {run.periodStart.slice(0, 10)} –{" "}
-                        {run.periodEnd.slice(0, 10)}
-                      </td>
-                      <td>
-                        <span
-                          className={`badge badge-sm ${statusClass(run.status)}`}
-                        >
-                          {run.status}
-                        </span>
-                      </td>
-                      <td className="text-right">
-                        {run.status === "completed" && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
-                            disabled={shareMutation.isPending}
-                            onClick={() => shareMutation.mutate(run.id)}
-                          >
-                            Copy share link
-                          </button>
-                        )}
-                        {run.status === "failed" && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
-                            disabled={retryMutation.isPending}
-                            onClick={() => retryMutation.mutate(run.id)}
-                          >
-                            <RefreshCw className="size-3.5" /> Retry
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+        <ReportSchedulesSection schedules={schedules} />
+        <ReportRunsSection
+          runs={runs}
+          sharePending={shareMutation.isPending}
+          retryPending={retryMutation.isPending}
+          onShare={(runId) => shareMutation.mutate(runId)}
+          onRetry={(runId) => retryMutation.mutate(runId)}
+        />
       </div>
     </div>
   );

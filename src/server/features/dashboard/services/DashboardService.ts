@@ -3,6 +3,7 @@ import { ActivationRepository } from "@/server/features/activation/repositories/
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { getIssueTypePageCountsForAudit } from "@/server/features/audit/repositories/auditSummaryQueries";
 import { BacklinkSnapshotRepository } from "@/server/features/dashboard/repositories/BacklinkSnapshotRepository";
+import { BacklinkChangeEventService } from "@/server/features/dashboard/services/BacklinkChangeEventService";
 import { Ga4ConnectionRepository } from "@/server/features/ga4/repositories/Ga4ConnectionRepository";
 import { GscConnectionRepository } from "@/server/features/gsc/repositories/GscConnectionRepository";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
@@ -250,7 +251,7 @@ async function ensureBacklinkSnapshot(input: {
     const summary = await dataforseo.backlinks.summary({
       target: normalized.apiTarget,
     });
-    await BacklinkSnapshotRepository.insert({
+    const inserted = await BacklinkSnapshotRepository.insert({
       projectId,
       domain,
       rank: summary.rank ?? null,
@@ -267,6 +268,16 @@ async function ensureBacklinkSnapshot(input: {
         null,
       capturedAt: new Date().toISOString(),
     });
+    try {
+      await BacklinkChangeEventService.recordChange(
+        latestMatchesDomain ? latest : null,
+        inserted,
+      );
+    } catch (eventError) {
+      // The paid snapshot is already stored and remains the source of truth.
+      // Alert persistence must not make the dashboard repeat the metered call.
+      console.error("dashboard: backlink change event failed", eventError);
+    }
   } catch (error) {
     if (latestMatchesDomain) {
       console.error("dashboard: backlink snapshot refresh failed", error);

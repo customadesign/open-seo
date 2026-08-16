@@ -18,6 +18,7 @@ import {
 } from "@/server/lib/audit/url-utils";
 import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { AuditComparisonService } from "@/server/features/audit/services/AuditComparisonService";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import { runMultipageChecks } from "@/server/lib/audit/issues/multipage";
@@ -415,6 +416,18 @@ async function finalizeAudit(args: {
     // Crawl scratch state (frontier, links, mirror) is no longer needed.
     await getAuditScratchpad(auditId).destroy();
   });
+
+  // Change events are valuable but must never turn a successfully persisted
+  // crawl into a failed audit. Inserts are deduplicated by audit id, so a
+  // workflow replay or a later backfill can safely retry this best-effort step.
+  try {
+    await AuditComparisonService.recordChangeEvents(auditId, projectId);
+  } catch (error) {
+    console.error(
+      `Audit ${auditId}: failed to record comparison events`,
+      error,
+    );
+  }
 }
 
 /**

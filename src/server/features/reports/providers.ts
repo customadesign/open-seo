@@ -44,10 +44,3 @@ export const unconfiguredReportPdfRenderer: ReportPdfRenderer = {
     return { status: "unconfigured" };
   },
 };
-
-export const unconfiguredReportEmailProvider: ReportEmailProvider = {
-  configured: false,
-  async send() {
-    return { status: "unconfigured" };
-  },
-};

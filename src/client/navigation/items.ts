@@ -1,5 +1,6 @@
 import {
   Bookmark,
+  Bell,
   Bot,
   ClipboardCheck,
   Globe,
@@ -23,6 +24,11 @@ const projectNavItems = [
     // Without exact matching, the index path is a prefix of every project
     // route and the Dashboard item would render active everywhere.
     activeOptions: { exact: true, includeSearch: false },
+  },
+  {
+    to: "/p/$projectId/changes" as const,
+    label: "Changes",
+    icon: Bell,
   },
   {
     to: "/p/$projectId/keywords" as const,
@@ -113,7 +119,7 @@ export function getProjectNavGroups(projectId: string) {
   return [
     {
       label: "Overview",
-      items: [byPath("/p/$projectId")],
+      items: [byPath("/p/$projectId"), byPath("/p/$projectId/changes")],
     },
     {
       label: "Research",

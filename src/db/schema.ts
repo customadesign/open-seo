@@ -9,6 +9,7 @@ import * as sqliteGsc from "./gsc.schema";
 import * as sqliteTelemetry from "./telemetry.schema";
 import * as sqliteLocalSeo from "./local-seo.schema";
 import * as sqliteReport from "./report.schema";
+import * as sqliteChangeEvents from "./change-events.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -19,6 +20,7 @@ import * as pgGsc from "./pg/gsc.schema";
 import * as pgTelemetry from "./pg/telemetry.schema";
 import * as pgLocalSeo from "./pg/local-seo.schema";
 import * as pgReport from "./pg/report.schema";
+import * as pgChangeEvents from "./pg/change-events.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -39,7 +41,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteGsc &
   typeof sqliteTelemetry &
   typeof sqliteLocalSeo &
-  typeof sqliteReport;
+  typeof sqliteReport &
+  typeof sqliteChangeEvents;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -54,6 +57,7 @@ const runtimeSchema =
         ...pgTelemetry,
         ...pgLocalSeo,
         ...pgReport,
+        ...pgChangeEvents,
       }
     : {
         ...sqliteApp,
@@ -66,6 +70,7 @@ const runtimeSchema =
         ...sqliteTelemetry,
         ...sqliteLocalSeo,
         ...sqliteReport,
+        ...sqliteChangeEvents,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -118,4 +123,6 @@ export const {
   reportArtifacts,
   reportShareLinks,
   reportDeliveries,
+  projectChangeEvents,
+  projectChangeEventStates,
 } = schema;

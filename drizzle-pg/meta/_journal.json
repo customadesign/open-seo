@@ -155,6 +155,13 @@
       "when": 1786572967336,
       "tag": "0021_serious_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786914762550,
+      "tag": "0022_large_red_ghost",
+      "breakpoints": true
     }
   ]
 }
