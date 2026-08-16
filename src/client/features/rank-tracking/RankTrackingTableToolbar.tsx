@@ -21,6 +21,7 @@ export function RankTrackingTableToolbar({
   checkBusy,
   checkDisabled,
   hasData,
+  readOnly = false,
 }: {
   showFilters: boolean;
   onToggleFilters: () => void;
@@ -43,6 +44,7 @@ export function RankTrackingTableToolbar({
   checkBusy: boolean;
   checkDisabled: boolean;
   hasData: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <div className="shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 border-y border-base-300">
@@ -114,14 +116,16 @@ export function RankTrackingTableToolbar({
         hasData={hasData}
       />
 
-      <MoreMenu
-        onCheckNow={onCheckNow}
-        checkBusy={checkBusy}
-        checkDisabled={checkDisabled}
-        onRefreshMetrics={onRefreshMetrics}
-        metricsRefreshing={metricsRefreshing}
-        hasData={hasData}
-      />
+      {!readOnly ? (
+        <MoreMenu
+          onCheckNow={onCheckNow}
+          checkBusy={checkBusy}
+          checkDisabled={checkDisabled}
+          onRefreshMetrics={onRefreshMetrics}
+          metricsRefreshing={metricsRefreshing}
+          hasData={hasData}
+        />
+      ) : null}
     </div>
   );
 }

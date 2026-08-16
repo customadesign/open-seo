@@ -12,7 +12,10 @@ import {
   updateSavedKeywordTagsSchema,
 } from "@/types/schemas/keywords";
 import { KeywordResearchService } from "@/server/features/keywords/services/KeywordResearchService";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import {
+  requireProjectContext,
+  requireProjectUse,
+} from "@/serverFunctions/middleware";
 import { resolveMarket } from "@/shared/keyword-locations";
 
 function shouldUseKeywordE2eFixtures() {
@@ -24,7 +27,7 @@ async function getKeywordE2eFixtures() {
 }
 
 export const researchKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(researchKeywordsSchema)
   .handler(async ({ data, context }) => {
     const input = {
@@ -41,7 +44,7 @@ export const researchKeywords = createServerFn({ method: "POST" })
   });
 
 export const saveKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(saveKeywordsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.saveKeywords({
@@ -72,7 +75,7 @@ export const exportSavedKeywords = createServerFn({ method: "POST" })
   });
 
 export const updateSavedKeywordTags = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(updateSavedKeywordTagsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.updateSavedKeywordTags({
@@ -82,7 +85,7 @@ export const updateSavedKeywordTags = createServerFn({ method: "POST" })
   });
 
 export const updateSavedKeywordTag = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(updateSavedKeywordTagSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.updateSavedKeywordTag({
@@ -92,7 +95,7 @@ export const updateSavedKeywordTag = createServerFn({ method: "POST" })
   });
 
 export const deleteSavedKeywordTag = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(deleteSavedKeywordTagSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.deleteSavedKeywordTag({
@@ -104,14 +107,14 @@ export const deleteSavedKeywordTag = createServerFn({ method: "POST" })
 export const removeSavedKeywords = createServerFn({
   method: "POST",
 })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(removeSavedKeywordsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.removeSavedKeywords(context.projectId, data);
   });
 
 export const refreshSavedKeywordMetrics = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(refreshSavedKeywordMetricsSchema)
   .handler(async ({ context }) => {
     return KeywordResearchService.refreshSavedKeywordMetrics(
@@ -121,7 +124,7 @@ export const refreshSavedKeywordMetrics = createServerFn({ method: "POST" })
   });
 
 export const getSerpAnalysis = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(serpAnalysisSchema)
   .handler(async ({ data, context }) =>
     KeywordResearchService.getSerpAnalysis(

@@ -33,9 +33,11 @@ const issueTitles: Record<string, string | undefined> = Object.fromEntries(
 export function GscCard({
   projectId,
   connected,
+  canManageConnection = true,
 }: {
   projectId: string;
   connected: boolean;
+  canManageConnection?: boolean;
 }) {
   const reportQuery = useQuery({
     queryKey: ["dashboardGscReport", projectId],
@@ -49,6 +51,16 @@ export function GscCard({
   // Not connected (or a dead grant discovered by the report call): the
   // connection card sells and runs the whole flow itself.
   if (!connected || (reportQuery.data && !reportQuery.data.connected)) {
+    if (!canManageConnection) {
+      return (
+        <CardShell title="Search performance" stamp="Google Search Console">
+          <EmptyCardBody
+            message="Search Console is not connected. Ask the workspace owner to connect it for this project."
+            cta={null}
+          />
+        </CardShell>
+      );
+    }
     return (
       <div id="connect-gsc">
         <SearchConsoleConnectionCard projectId={projectId} />

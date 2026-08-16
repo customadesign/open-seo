@@ -4,12 +4,23 @@ import { AppError } from "@/server/lib/errors";
 import { errorHandlingMiddleware } from "@/middleware/errorHandling";
 import type { EnsuredUserContext } from "@/middleware/ensure-user/types";
 import { ensureUserMiddleware } from "@/middleware/ensureUser";
+import {
+  canManageWorkspace,
+  canUseProjectTools,
+} from "@/shared/workspace-access";
 
 const ensuredUserContextSchema: z.ZodType<EnsuredUserContext> = z.object({
   userId: z.string(),
   userEmail: z.string(),
   emailVerified: z.boolean(),
   organizationId: z.string(),
+  access: z.object({
+    memberId: z.string().nullable(),
+    role: z.enum(["owner", "employee", "client"]),
+    projectScope: z.enum(["all", "selected"]),
+    projectIds: z.array(z.string()),
+    delegated: z.boolean(),
+  }),
   project: z.any().optional(),
 });
 
@@ -57,5 +68,61 @@ export const requireProjectContext = [
         projectId: authenticatedContext.project.id,
       },
     });
+  }),
+] as const;
+
+export const requireProjectUse = [
+  ...requireProjectContext,
+  createMiddleware({ type: "function" }).server(async ({ next, context }) => {
+    const authenticatedContext = getAuthenticatedContext(context);
+    if (!canUseProjectTools(authenticatedContext.access)) {
+      throw new AppError(
+        "FORBIDDEN",
+        "Client accounts have read-only report access.",
+      );
+    }
+    return next({ context });
+  }),
+] as const;
+
+export const requireWorkspaceUse = [
+  ...requireAuthenticatedContext,
+  createMiddleware({ type: "function" }).server(async ({ next, context }) => {
+    const authenticatedContext = getAuthenticatedContext(context);
+    if (!canUseProjectTools(authenticatedContext.access)) {
+      throw new AppError(
+        "FORBIDDEN",
+        "Client accounts have read-only report access.",
+      );
+    }
+    return next({ context: authenticatedContext });
+  }),
+] as const;
+
+export const requireWorkspaceOwner = [
+  ...requireAuthenticatedContext,
+  createMiddleware({ type: "function" }).server(async ({ next, context }) => {
+    const authenticatedContext = getAuthenticatedContext(context);
+    if (!canManageWorkspace(authenticatedContext.access)) {
+      throw new AppError(
+        "FORBIDDEN",
+        "Only the workspace owner can manage this setting.",
+      );
+    }
+    return next({ context: authenticatedContext });
+  }),
+] as const;
+
+export const requireProjectOwner = [
+  ...requireProjectContext,
+  createMiddleware({ type: "function" }).server(async ({ next, context }) => {
+    const authenticatedContext = getAuthenticatedContext(context);
+    if (!canManageWorkspace(authenticatedContext.access)) {
+      throw new AppError(
+        "FORBIDDEN",
+        "Only the workspace owner can manage this setting.",
+      );
+    }
+    return next({ context });
   }),
 ] as const;

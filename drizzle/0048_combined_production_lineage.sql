@@ -1,0 +1,4 @@
+-- Canonical migration-lineage checkpoint after combining the already-applied
+-- Local SEO and native account/reporting histories. The preceding migration
+-- files contain the DDL; this marker gives future Drizzle generations one
+-- unambiguous snapshot without renaming production-applied files.

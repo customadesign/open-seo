@@ -13,11 +13,13 @@ const SEARCH_THRESHOLD = 8;
 export function ProjectSwitcher({
   activeProjectId,
   onCloseDrawer,
+  canManageProjects = true,
 }: {
   activeProjectId: string | null;
   // Mobile sidebar passes this so switching / navigating away also closes the
   // drawer overlay.
   onCloseDrawer?: () => void;
+  canManageProjects?: boolean;
 }) {
   const navigate = useNavigate();
   const [creating, setCreating] = React.useState(false);
@@ -297,43 +299,45 @@ export function ProjectSwitcher({
             </ul>
           ) : null}
 
-          <ul
-            className={`menu w-full shrink-0 p-2 ${
-              projects.length > 0 ? "border-t border-base-300" : ""
-            }`}
-          >
-            <li>
-              <button
-                type="button"
-                onClick={() => {
-                  closePanel();
-                  // Deliberately leave the mobile drawer open: the modal is
-                  // rendered inside it, so closing the drawer would unmount the
-                  // modal. The drawer closes when the modal does.
-                  setCreating(true);
-                }}
-              >
-                <Plus className="size-4" />
-                New project
-              </button>
-            </li>
-            <li>
-              <Link
-                to="/projects"
-                onClick={() => {
-                  closePanel();
-                  onCloseDrawer?.();
-                }}
-              >
-                <FolderCog className="size-4" />
-                Manage projects
-              </Link>
-            </li>
-          </ul>
+          {canManageProjects ? (
+            <ul
+              className={`menu w-full shrink-0 p-2 ${
+                projects.length > 0 ? "border-t border-base-300" : ""
+              }`}
+            >
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closePanel();
+                    // Deliberately leave the mobile drawer open: the modal is
+                    // rendered inside it, so closing the drawer would unmount the
+                    // modal. The drawer closes when the modal does.
+                    setCreating(true);
+                  }}
+                >
+                  <Plus className="size-4" />
+                  New project
+                </button>
+              </li>
+              <li>
+                <Link
+                  to="/projects"
+                  onClick={() => {
+                    closePanel();
+                    onCloseDrawer?.();
+                  }}
+                >
+                  <FolderCog className="size-4" />
+                  Manage projects
+                </Link>
+              </li>
+            </ul>
+          ) : null}
         </div>
       ) : null}
 
-      {creating ? (
+      {creating && canManageProjects ? (
         <CreateProjectModal
           onClose={() => {
             setCreating(false);

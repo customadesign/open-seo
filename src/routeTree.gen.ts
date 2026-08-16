@@ -36,8 +36,8 @@ import { Route as AppHelpOpenrouterApiKeyRouteImport } from './routes/_app/help/
 import { Route as AppHelpDataforseoApiKeyRouteImport } from './routes/_app/help/dataforseo-api-key'
 import { Route as ProjectPProjectIdRouteRouteImport } from './routes/_project/p/$projectId/route'
 import { Route as ProjectPProjectIdIndexRouteImport } from './routes/_project/p/$projectId/index'
-import { Route as ApiReportsShareTokenRouteImport } from './routes/api/reports/share/$token'
 import { Route as ApiGscOauthCallbackRouteImport } from './routes/api/gsc/oauth/callback'
+import { Route as ApiGoogleAdsOauthCallbackRouteImport } from './routes/api/google-ads/oauth/callback'
 import { Route as ApiGa4OauthCallbackRouteImport } from './routes/api/ga4/oauth/callback'
 import { Route as ProjectPProjectIdSettingsRouteImport } from './routes/_project/p/$projectId/settings'
 import { Route as ProjectPProjectIdSearchPerformanceRouteImport } from './routes/_project/p/$projectId/search-performance'
@@ -192,16 +192,17 @@ const ProjectPProjectIdIndexRoute = ProjectPProjectIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProjectPProjectIdRouteRoute,
 } as any)
-const ApiReportsShareTokenRoute = ApiReportsShareTokenRouteImport.update({
-  id: '/api/reports/share/$token',
-  path: '/api/reports/share/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiGscOauthCallbackRoute = ApiGscOauthCallbackRouteImport.update({
   id: '/api/gsc/oauth/callback',
   path: '/api/gsc/oauth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleAdsOauthCallbackRoute =
+  ApiGoogleAdsOauthCallbackRouteImport.update({
+    id: '/api/google-ads/oauth/callback',
+    path: '/api/google-ads/oauth/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiGa4OauthCallbackRoute = ApiGa4OauthCallbackRouteImport.update({
   id: '/api/ga4/oauth/callback',
   path: '/api/ga4/oauth/callback',
@@ -343,8 +344,8 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
+  '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
-  '/api/reports/share/$token': typeof ApiReportsShareTokenRoute
   '/p/$projectId/': typeof ProjectPProjectIdIndexRoute
   '/p/$projectId/rank-tracking/$configId': typeof ProjectPProjectIdRankTrackingConfigIdRoute
   '/p/$projectId/audit/': typeof ProjectPProjectIdAuditIndexRoute
@@ -385,8 +386,8 @@ export interface FileRoutesByTo {
   '/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
+  '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
-  '/api/reports/share/$token': typeof ApiReportsShareTokenRoute
   '/p/$projectId': typeof ProjectPProjectIdIndexRoute
   '/p/$projectId/rank-tracking/$configId': typeof ProjectPProjectIdRankTrackingConfigIdRoute
   '/p/$projectId/audit': typeof ProjectPProjectIdAuditIndexRoute
@@ -435,8 +436,8 @@ export interface FileRoutesById {
   '/_project/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/_project/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
+  '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
-  '/api/reports/share/$token': typeof ApiReportsShareTokenRoute
   '/_project/p/$projectId/': typeof ProjectPProjectIdIndexRoute
   '/_project/p/$projectId/rank-tracking/$configId': typeof ProjectPProjectIdRankTrackingConfigIdRoute
   '/_project/p/$projectId/audit/': typeof ProjectPProjectIdAuditIndexRoute
@@ -482,8 +483,8 @@ export interface FileRouteTypes {
     | '/p/$projectId/search-performance'
     | '/p/$projectId/settings'
     | '/api/ga4/oauth/callback'
+    | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
-    | '/api/reports/share/$token'
     | '/p/$projectId/'
     | '/p/$projectId/rank-tracking/$configId'
     | '/p/$projectId/audit/'
@@ -524,8 +525,8 @@ export interface FileRouteTypes {
     | '/p/$projectId/search-performance'
     | '/p/$projectId/settings'
     | '/api/ga4/oauth/callback'
+    | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
-    | '/api/reports/share/$token'
     | '/p/$projectId'
     | '/p/$projectId/rank-tracking/$configId'
     | '/p/$projectId/audit'
@@ -573,8 +574,8 @@ export interface FileRouteTypes {
     | '/_project/p/$projectId/search-performance'
     | '/_project/p/$projectId/settings'
     | '/api/ga4/oauth/callback'
+    | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
-    | '/api/reports/share/$token'
     | '/_project/p/$projectId/'
     | '/_project/p/$projectId/rank-tracking/$configId'
     | '/_project/p/$projectId/audit/'
@@ -595,8 +596,8 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAutumnSplatRoute: typeof ApiAutumnSplatRoute
   ApiGa4OauthCallbackRoute: typeof ApiGa4OauthCallbackRoute
+  ApiGoogleAdsOauthCallbackRoute: typeof ApiGoogleAdsOauthCallbackRoute
   ApiGscOauthCallbackRoute: typeof ApiGscOauthCallbackRoute
-  ApiReportsShareTokenRoute: typeof ApiReportsShareTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -790,18 +791,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectPProjectIdIndexRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
-    '/api/reports/share/$token': {
-      id: '/api/reports/share/$token'
-      path: '/api/reports/share/$token'
-      fullPath: '/api/reports/share/$token'
-      preLoaderRoute: typeof ApiReportsShareTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/gsc/oauth/callback': {
       id: '/api/gsc/oauth/callback'
       path: '/api/gsc/oauth/callback'
       fullPath: '/api/gsc/oauth/callback'
       preLoaderRoute: typeof ApiGscOauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google-ads/oauth/callback': {
+      id: '/api/google-ads/oauth/callback'
+      path: '/api/google-ads/oauth/callback'
+      fullPath: '/api/google-ads/oauth/callback'
+      preLoaderRoute: typeof ApiGoogleAdsOauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ga4/oauth/callback': {
@@ -1092,8 +1093,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAutumnSplatRoute: ApiAutumnSplatRoute,
   ApiGa4OauthCallbackRoute: ApiGa4OauthCallbackRoute,
+  ApiGoogleAdsOauthCallbackRoute: ApiGoogleAdsOauthCallbackRoute,
   ApiGscOauthCallbackRoute: ApiGscOauthCallbackRoute,
-  ApiReportsShareTokenRoute: ApiReportsShareTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

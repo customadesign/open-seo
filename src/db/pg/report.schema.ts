@@ -7,209 +7,146 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { organization, user } from "./better-auth-schema";
 import { projects } from "./app.schema";
+import { organization, user } from "./better-auth-schema";
 
-const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
-
-export const reportTemplates = pgTable(
-  "report_templates",
-  {
-    id: text("id").primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    projectId: text("project_id").references(() => projects.id, {
-      onDelete: "cascade",
-    }),
-    name: text("name").notNull(),
-    isDefault: boolean("is_default").notNull().default(false),
-    brandName: text("brand_name"),
-    logoUrl: text("logo_url"),
-    primaryColor: text("primary_color"),
-    accentColor: text("accent_color"),
-    createdByUserId: text("created_by_user_id").references(() => user.id, {
-      onDelete: "set null",
-    }),
-    createdAt: text("created_at").notNull().default(isoNow),
-    updatedAt: text("updated_at").notNull().default(isoNow),
-    deletedAt: text("deleted_at"),
-  },
-  (table) => [
-    index("report_templates_organization_project_idx").on(
-      table.organizationId,
-      table.projectId,
-    ),
-  ],
-);
-
-export const reportTemplateSections = pgTable(
-  "report_template_sections",
-  {
-    id: text("id").primaryKey(),
-    templateId: text("template_id")
-      .notNull()
-      .references(() => reportTemplates.id, { onDelete: "cascade" }),
-    sectionKey: text("section_key").notNull(),
-    sortOrder: integer("sort_order").notNull(),
-    isEnabled: boolean("is_enabled").notNull().default(true),
-  },
-  (table) => [
-    uniqueIndex("report_template_sections_template_key_idx").on(
-      table.templateId,
-      table.sectionKey,
-    ),
-    uniqueIndex("report_template_sections_template_order_idx").on(
-      table.templateId,
-      table.sortOrder,
-    ),
-  ],
-);
-
-export const reportSchedules = pgTable(
-  "report_schedules",
+export const reportSettings = pgTable(
+  "monthly_report_settings",
   {
     id: text("id").primaryKey(),
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    templateId: text("template_id")
+    organizationId: text("organization_id")
       .notNull()
-      .references(() => reportTemplates.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    frequency: text("frequency", { enum: ["manual", "weekly", "monthly"] })
-      .notNull()
-      .default("monthly"),
-    timezone: text("timezone").notNull().default("UTC"),
-    isActive: boolean("is_active").notNull().default(true),
+      .references(() => organization.id, { onDelete: "cascade" }),
+    timeZone: text("time_zone").notNull().default("UTC"),
+    runDay: integer("run_day").notNull().default(4),
+    runHour: integer("run_hour").notNull().default(9),
+    isEnabled: boolean("is_enabled").notNull().default(false),
     nextRunAt: text("next_run_at"),
     lastRunAt: text("last_run_at"),
-    createdAt: text("created_at").notNull().default(isoNow),
-    updatedAt: text("updated_at").notNull().default(isoNow),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
   },
   (table) => [
-    index("report_schedules_project_due_idx").on(
-      table.projectId,
-      table.isActive,
+    uniqueIndex("monthly_report_settings_project_idx").on(table.projectId),
+    index("monthly_report_settings_due_idx").on(
+      table.isEnabled,
       table.nextRunAt,
     ),
   ],
 );
 
-export const reportRecipients = pgTable(
-  "report_recipients",
+export const reportSections = pgTable(
+  "monthly_report_sections",
   {
     id: text("id").primaryKey(),
-    scheduleId: text("schedule_id")
+    settingsId: text("settings_id")
       .notNull()
-      .references(() => reportSchedules.id, { onDelete: "cascade" }),
-    email: text("email").notNull(),
-    name: text("name"),
-    createdAt: text("created_at").notNull().default(isoNow),
+      .references(() => reportSettings.id, { onDelete: "cascade" }),
+    sectionKey: text("section_key", {
+      enum: ["rankings", "gsc", "ga4", "google_ads", "audit", "backlinks"],
+    }).notNull(),
+    sortOrder: integer("sort_order").notNull(),
+    isEnabled: boolean("is_enabled").notNull().default(true),
   },
   (table) => [
-    uniqueIndex("report_recipients_schedule_email_idx").on(
-      table.scheduleId,
-      table.email,
+    uniqueIndex("monthly_report_sections_settings_key_idx").on(
+      table.settingsId,
+      table.sectionKey,
+    ),
+    uniqueIndex("monthly_report_sections_settings_order_idx").on(
+      table.settingsId,
+      table.sortOrder,
     ),
   ],
 );
 
 export const reportRuns = pgTable(
-  "report_runs",
+  "monthly_report_runs",
   {
     id: text("id").primaryKey(),
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    templateId: text("template_id")
+    settingsId: text("settings_id")
       .notNull()
-      .references(() => reportTemplates.id, { onDelete: "restrict" }),
-    scheduleId: text("schedule_id").references(() => reportSchedules.id, {
-      onDelete: "set null",
-    }),
+      .references(() => reportSettings.id, { onDelete: "cascade" }),
+    trigger: text("trigger", { enum: ["manual", "scheduled"] }).notNull(),
     status: text("status", {
-      enum: ["queued", "rendering", "sending", "completed", "failed"],
+      enum: ["queued", "running", "published", "failed"],
     })
       .notNull()
       .default("queued"),
+    scheduledKey: text("scheduled_key"),
+    workflowInstanceId: text("workflow_instance_id"),
     periodStart: text("period_start").notNull(),
     periodEnd: text("period_end").notNull(),
+    compareStart: text("compare_start").notNull(),
+    compareEnd: text("compare_end").notNull(),
+    snapshotVersion: integer("snapshot_version").notNull().default(1),
     snapshotJson: text("snapshot_json"),
-    deliveryAttempts: integer("delivery_attempts").notNull().default(0),
     errorMessage: text("error_message"),
-    startedAt: text("started_at").notNull().default(isoNow),
-    completedAt: text("completed_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+    startedAt: text("started_at"),
+    publishedAt: text("published_at"),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
   },
   (table) => [
-    index("report_runs_project_started_idx").on(
+    uniqueIndex("monthly_report_runs_scheduled_key_idx").on(table.scheduledKey),
+    uniqueIndex("monthly_report_runs_workflow_idx").on(
+      table.workflowInstanceId,
+    ),
+    index("monthly_report_runs_project_created_idx").on(
       table.projectId,
-      table.startedAt,
+      table.createdAt,
     ),
-    index("report_runs_schedule_started_idx").on(
-      table.scheduleId,
-      table.startedAt,
+    index("monthly_report_runs_project_status_idx").on(
+      table.projectId,
+      table.status,
     ),
   ],
 );
 
-export const reportArtifacts = pgTable(
-  "report_artifacts",
+export const reportCommentaryItems = pgTable(
+  "monthly_report_commentary_items",
   {
     id: text("id").primaryKey(),
     runId: text("run_id")
       .notNull()
       .references(() => reportRuns.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["html", "pdf", "json"] }).notNull(),
-    storageKey: text("storage_key").notNull(),
-    mimeType: text("mime_type").notNull(),
-    sizeBytes: integer("size_bytes"),
-    checksumSha256: text("checksum_sha256"),
-    createdAt: text("created_at").notNull().default(isoNow),
-  },
-  (table) => [
-    uniqueIndex("report_artifacts_run_kind_idx").on(table.runId, table.kind),
-  ],
-);
-
-export const reportShareLinks = pgTable(
-  "report_share_links",
-  {
-    id: text("id").primaryKey(),
-    runId: text("run_id")
-      .notNull()
-      .references(() => reportRuns.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull().unique(),
-    expiresAt: text("expires_at").notNull(),
-    revokedAt: text("revoked_at"),
-    lastAccessedAt: text("last_accessed_at"),
-    createdAt: text("created_at").notNull().default(isoNow),
-  },
-  (table) => [index("report_share_links_run_idx").on(table.runId)],
-);
-
-export const reportDeliveries = pgTable(
-  "report_deliveries",
-  {
-    id: text("id").primaryKey(),
-    runId: text("run_id")
-      .notNull()
-      .references(() => reportRuns.id, { onDelete: "cascade" }),
-    recipientId: text("recipient_id").references(() => reportRecipients.id, {
+    kind: text("kind", {
+      enum: ["overview", "win", "watch", "next_step"],
+    }).notNull(),
+    text: text("text").notNull(),
+    evidenceKey: text("evidence_key"),
+    sortOrder: integer("sort_order").notNull(),
+    isGenerated: boolean("is_generated").notNull().default(true),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
-    email: text("email").notNull(),
-    status: text("status", { enum: ["pending", "sent", "failed"] })
+    createdAt: text("created_at")
       .notNull()
-      .default("pending"),
-    attempts: integer("attempts").notNull().default(0),
-    providerMessageId: text("provider_message_id"),
-    errorMessage: text("error_message"),
-    sentAt: text("sent_at"),
-    createdAt: text("created_at").notNull().default(isoNow),
+      .default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
   },
   (table) => [
-    uniqueIndex("report_deliveries_run_email_idx").on(table.runId, table.email),
-    index("report_deliveries_run_status_idx").on(table.runId, table.status),
+    uniqueIndex("monthly_report_commentary_run_kind_order_idx").on(
+      table.runId,
+      table.kind,
+      table.sortOrder,
+    ),
+    index("monthly_report_commentary_run_idx").on(table.runId),
   ],
 );

@@ -5,7 +5,10 @@ import { RankTrackingService } from "@/server/features/rank-tracking/services/Ra
 import { getLatestResults } from "@/server/features/rank-tracking/services/rankTrackingResults";
 import { AppError, asAppError } from "@/server/lib/errors";
 import { captureServerEvent } from "@/server/lib/posthog";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import {
+  requireProjectContext,
+  requireProjectUse,
+} from "@/serverFunctions/middleware";
 import {
   getConfigsSchema,
   createConfigSchema,
@@ -70,7 +73,7 @@ export const getRankTrackingConfigSummaries = createServerFn({ method: "POST" })
   });
 
 export const createRankTrackingConfig = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(createConfigSchema)
   .handler(async ({ data, context }) => {
     const result = await RankTrackingService.createConfig({
@@ -103,7 +106,7 @@ export const createRankTrackingConfig = createServerFn({ method: "POST" })
   });
 
 export const updateRankTrackingConfig = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(updateConfigSchema)
   .handler(async ({ data, context }) => {
     await RankTrackingService.updateConfig(data.configId, context.projectId, {
@@ -120,7 +123,7 @@ export const updateRankTrackingConfig = createServerFn({ method: "POST" })
   });
 
 export const triggerRankCheck = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(triggerCheckSchema)
   .handler(async ({ data, context }) => {
     const result = await RankTrackingService.triggerCheck({
@@ -167,7 +170,7 @@ export const getLatestRankRun = createServerFn({ method: "POST" })
   });
 
 export const estimateRankCheckCost = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(estimateCostSchema)
   .handler(async ({ data, context }) => {
     return RankTrackingService.estimateCost(data.configId, context.projectId);
@@ -185,7 +188,7 @@ function logAutoActionFailure(action: string, err: unknown) {
 }
 
 export const addTrackingKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(addKeywordsSchema)
   .handler(async ({ data, context }) => {
     const result = await RankTrackingService.addKeywords(
@@ -233,7 +236,7 @@ export const addTrackingKeywords = createServerFn({ method: "POST" })
   });
 
 export const removeTrackingKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(removeKeywordsSchema)
   .handler(async ({ data, context }) => {
     return RankTrackingService.removeKeywords(
@@ -244,7 +247,7 @@ export const removeTrackingKeywords = createServerFn({ method: "POST" })
   });
 
 export const refreshTrackingKeywordMetrics = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(refreshMetricsSchema)
   .handler(async ({ data, context }) => {
     const result = await RankTrackingService.refreshKeywordMetrics(

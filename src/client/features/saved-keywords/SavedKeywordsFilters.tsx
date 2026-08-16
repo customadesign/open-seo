@@ -18,6 +18,7 @@ export function SavedKeywordsFilters({
   onClearTagSelection,
   onUpdateTag,
   onDeleteTag,
+  readOnly = false,
 }: {
   filtersForm: SavedKeywordsFilterForm;
   activeFilterCount: number;
@@ -35,6 +36,7 @@ export function SavedKeywordsFilters({
     color?: TagColorKey | null;
   }) => void;
   onDeleteTag: (tagId: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <>
@@ -61,6 +63,7 @@ export function SavedKeywordsFilters({
           onClearSelection={onClearTagSelection}
           onUpdateTag={onUpdateTag}
           onDeleteTag={onDeleteTag}
+          readOnly={readOnly}
         />
       </div>
 

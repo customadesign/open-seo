@@ -1,267 +1,234 @@
-/* eslint-disable max-lines -- report aggregate reads and writes stay behind one project-scoped repository boundary */
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import type { InferInsertModel } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { runBatch } from "@/db/runBatch";
 import {
   projects,
-  reportArtifacts,
-  reportDeliveries,
-  reportRecipients,
+  reportCommentaryItems,
   reportRuns,
-  reportSchedules,
-  reportShareLinks,
-  reportTemplateSections,
-  reportTemplates,
+  reportSections,
+  reportSettings,
 } from "@/db/schema";
+import { runBatch } from "@/db/runBatch";
+import type {
+  ReportCommentaryKind,
+  ReportSectionKey,
+} from "@/types/schemas/reports";
 
-type ReportRunStatus = (typeof reportRuns.status.enumValues)[number];
-type ReportRun = typeof reportRuns.$inferSelect;
-type ReportDelivery = typeof reportDeliveries.$inferSelect;
+export const DEFAULT_REPORT_SECTIONS: Array<{
+  key: ReportSectionKey;
+  enabled: boolean;
+}> = [
+  { key: "rankings", enabled: true },
+  { key: "gsc", enabled: true },
+  { key: "ga4", enabled: true },
+  { key: "google_ads", enabled: true },
+  { key: "audit", enabled: true },
+  { key: "backlinks", enabled: true },
+];
 
-function templateProjectScope(projectId: string) {
-  return or(
-    eq(reportTemplates.projectId, projectId),
-    isNull(reportTemplates.projectId),
+async function getSettings(projectId: string) {
+  const rows = await db
+    .select()
+    .from(reportSettings)
+    .where(eq(reportSettings.projectId, projectId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+async function getSections(settingsId: string) {
+  return db
+    .select()
+    .from(reportSections)
+    .where(eq(reportSections.settingsId, settingsId))
+    .orderBy(asc(reportSections.sortOrder));
+}
+
+async function createDefaultSettings(input: {
+  projectId: string;
+  organizationId: string;
+  timeZone: string;
+  nextRunAt: string;
+}) {
+  const id = crypto.randomUUID();
+  const inserted = await db
+    .insert(reportSettings)
+    .values({ id, ...input, isEnabled: true })
+    .onConflictDoNothing()
+    .returning();
+  const settings = inserted[0] ?? (await getSettings(input.projectId));
+  if (!settings) return null;
+  await runBatch((tx) =>
+    DEFAULT_REPORT_SECTIONS.map((section, sortOrder) =>
+      tx
+        .insert(reportSections)
+        .values({
+          id: crypto.randomUUID(),
+          settingsId: settings.id,
+          sectionKey: section.key,
+          sortOrder,
+          isEnabled: section.enabled,
+        })
+        .onConflictDoNothing(),
+    ),
   );
+  return settings;
 }
 
-async function listTemplates(organizationId: string, projectId: string) {
-  return db
-    .select()
-    .from(reportTemplates)
-    .where(
-      and(
-        eq(reportTemplates.organizationId, organizationId),
-        templateProjectScope(projectId),
-        isNull(reportTemplates.deletedAt),
-      ),
-    )
-    .orderBy(desc(reportTemplates.isDefault), asc(reportTemplates.name));
-}
-
-async function getTemplateScoped(input: {
-  templateId: string;
-  organizationId: string;
-  projectId: string;
+async function updateSettings(input: {
+  settingsId: string;
+  timeZone: string;
+  runDay: number;
+  runHour: number;
+  isEnabled: boolean;
+  nextRunAt: string | null;
+  sections: Array<{ key: ReportSectionKey; enabled: boolean }>;
 }) {
-  const [row] = await db
-    .select()
-    .from(reportTemplates)
-    .where(
-      and(
-        eq(reportTemplates.id, input.templateId),
-        eq(reportTemplates.organizationId, input.organizationId),
-        templateProjectScope(input.projectId),
-        isNull(reportTemplates.deletedAt),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
-}
-
-async function getTemplateSections(templateId: string) {
-  return db
-    .select()
-    .from(reportTemplateSections)
-    .where(eq(reportTemplateSections.templateId, templateId))
-    .orderBy(asc(reportTemplateSections.sortOrder));
-}
-
-async function createTemplate(
-  values: InferInsertModel<typeof reportTemplates>,
-  sections: Array<InferInsertModel<typeof reportTemplateSections>>,
-) {
   await runBatch((tx) => [
-    tx.insert(reportTemplates).values(values),
-    ...sections.map((section) =>
-      tx.insert(reportTemplateSections).values(section),
+    tx
+      .update(reportSettings)
+      .set({
+        timeZone: input.timeZone,
+        runDay: input.runDay,
+        runHour: input.runHour,
+        isEnabled: input.isEnabled,
+        nextRunAt: input.nextRunAt,
+        updatedAt: sql`(current_timestamp)`,
+      })
+      .where(eq(reportSettings.id, input.settingsId)),
+    tx
+      .delete(reportSections)
+      .where(eq(reportSections.settingsId, input.settingsId)),
+    ...input.sections.map((section, sortOrder) =>
+      tx.insert(reportSections).values({
+        id: crypto.randomUUID(),
+        settingsId: input.settingsId,
+        sectionKey: section.key,
+        sortOrder,
+        isEnabled: section.enabled,
+      }),
     ),
   ]);
-  return values.id;
 }
 
-/** Soft-delete a project-owned template so historical report runs remain
- * readable. Organization-global templates are deliberately excluded from a
- * project-scoped delete. Any schedules using the template are stopped in the
- * same cross-dialect batch. */
-async function deleteTemplate(input: {
-  templateId: string;
-  organizationId: string;
+async function createRun(input: {
+  id: string;
   projectId: string;
-}): Promise<boolean> {
-  const [template] = await db
-    .select({ id: reportTemplates.id })
-    .from(reportTemplates)
-    .where(
-      and(
-        eq(reportTemplates.id, input.templateId),
-        eq(reportTemplates.organizationId, input.organizationId),
-        eq(reportTemplates.projectId, input.projectId),
-        isNull(reportTemplates.deletedAt),
-      ),
-    )
+  settingsId: string;
+  trigger: "manual" | "scheduled";
+  scheduledKey?: string | null;
+  workflowInstanceId?: string | null;
+  periodStart: string;
+  periodEnd: string;
+  compareStart: string;
+  compareEnd: string;
+}) {
+  const rows = await db
+    .insert(reportRuns)
+    .values(input)
+    .onConflictDoNothing()
+    .returning();
+  if (rows[0]) return rows[0];
+  if (!input.scheduledKey) return null;
+  const existing = await db
+    .select()
+    .from(reportRuns)
+    .where(eq(reportRuns.scheduledKey, input.scheduledKey))
     .limit(1);
-  if (!template) return false;
-
-  const deletedAt = new Date().toISOString();
-  await runBatch((tx) => [
-    tx
-      .update(reportSchedules)
-      .set({ isActive: false, nextRunAt: null, updatedAt: deletedAt })
-      .where(
-        and(
-          eq(reportSchedules.templateId, template.id),
-          eq(reportSchedules.projectId, input.projectId),
-        ),
-      ),
-    tx
-      .update(reportTemplates)
-      .set({ isDefault: false, deletedAt, updatedAt: deletedAt })
-      .where(
-        and(
-          eq(reportTemplates.id, template.id),
-          eq(reportTemplates.organizationId, input.organizationId),
-          eq(reportTemplates.projectId, input.projectId),
-          isNull(reportTemplates.deletedAt),
-        ),
-      ),
-  ]);
-  return true;
+  return existing[0] ?? null;
 }
 
-async function listSchedules(organizationId: string, projectId: string) {
-  return db
-    .select({ schedule: reportSchedules, templateName: reportTemplates.name })
-    .from(reportSchedules)
-    .innerJoin(
-      reportTemplates,
-      eq(reportSchedules.templateId, reportTemplates.id),
-    )
-    .where(
-      and(
-        eq(reportSchedules.projectId, projectId),
-        eq(reportTemplates.organizationId, organizationId),
-        templateProjectScope(projectId),
-        isNull(reportTemplates.deletedAt),
-      ),
-    )
-    .orderBy(desc(reportSchedules.createdAt), desc(reportSchedules.id));
+async function getRun(projectId: string, runId: string) {
+  const rows = await db
+    .select()
+    .from(reportRuns)
+    .where(and(eq(reportRuns.id, runId), eq(reportRuns.projectId, projectId)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
-async function createSchedule(
-  values: InferInsertModel<typeof reportSchedules>,
-  recipients: Array<InferInsertModel<typeof reportRecipients>>,
-) {
-  await runBatch((tx) => [
-    tx.insert(reportSchedules).values(values),
-    ...recipients.map((recipient) =>
-      tx.insert(reportRecipients).values(recipient),
-    ),
-  ]);
-  return values.id;
-}
-
-async function listRecipients(scheduleId: string) {
+async function listRuns(projectId: string, publishedOnly: boolean) {
   return db
     .select()
-    .from(reportRecipients)
-    .where(eq(reportRecipients.scheduleId, scheduleId))
-    .orderBy(asc(reportRecipients.email));
-}
-
-async function listRuns(organizationId: string, projectId: string) {
-  return db
-    .select({ run: reportRuns, templateName: reportTemplates.name })
     .from(reportRuns)
-    .innerJoin(reportTemplates, eq(reportRuns.templateId, reportTemplates.id))
-    .innerJoin(projects, eq(reportRuns.projectId, projects.id))
     .where(
       and(
         eq(reportRuns.projectId, projectId),
-        eq(projects.organizationId, organizationId),
-        eq(reportTemplates.organizationId, organizationId),
-        templateProjectScope(projectId),
+        publishedOnly ? eq(reportRuns.status, "published") : undefined,
       ),
     )
-    .orderBy(desc(reportRuns.startedAt), desc(reportRuns.id))
-    .limit(50);
+    .orderBy(desc(reportRuns.periodEnd), desc(reportRuns.createdAt));
 }
 
-async function getRunScoped(input: {
+async function setRunRunning(runId: string, workflowInstanceId?: string) {
+  await db
+    .update(reportRuns)
+    .set({
+      status: "running",
+      startedAt: new Date().toISOString(),
+      workflowInstanceId,
+      errorMessage: null,
+      updatedAt: sql`(current_timestamp)`,
+    })
+    .where(eq(reportRuns.id, runId));
+}
+
+async function publishRun(input: {
   runId: string;
-  organizationId: string;
-  projectId: string;
+  snapshotJson: string;
+  commentary: Array<{
+    kind: ReportCommentaryKind;
+    text: string;
+    evidenceKey?: string | null;
+    isGenerated: boolean;
+  }>;
 }) {
-  const [row] = await db
-    .select({ run: reportRuns, template: reportTemplates, project: projects })
-    .from(reportRuns)
-    .innerJoin(reportTemplates, eq(reportRuns.templateId, reportTemplates.id))
-    .innerJoin(projects, eq(reportRuns.projectId, projects.id))
-    .where(
-      and(
-        eq(reportRuns.id, input.runId),
-        eq(reportRuns.projectId, input.projectId),
-        eq(projects.organizationId, input.organizationId),
-        eq(reportTemplates.organizationId, input.organizationId),
-        templateProjectScope(input.projectId),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
+  const publishedAt = new Date().toISOString();
+  await runBatch((tx) => [
+    tx
+      .update(reportRuns)
+      .set({
+        status: "published",
+        snapshotJson: input.snapshotJson,
+        publishedAt,
+        errorMessage: null,
+        updatedAt: sql`(current_timestamp)`,
+      })
+      .where(eq(reportRuns.id, input.runId)),
+    tx
+      .delete(reportCommentaryItems)
+      .where(eq(reportCommentaryItems.runId, input.runId)),
+    ...input.commentary.map((item, sortOrder) =>
+      tx.insert(reportCommentaryItems).values({
+        id: crypto.randomUUID(),
+        runId: input.runId,
+        kind: item.kind,
+        text: item.text,
+        evidenceKey: item.evidenceKey ?? null,
+        sortOrder,
+        isGenerated: item.isGenerated,
+      }),
+    ),
+  ]);
 }
 
-async function createRun(values: InferInsertModel<typeof reportRuns>) {
-  const [row] = await db.insert(reportRuns).values(values).returning();
-  if (!row) throw new Error("Failed to create report run");
-  return row;
-}
-
-async function claimQueuedRun(
-  runId: string,
-  projectId: string,
-): Promise<ReportRun | null> {
-  const [row] = await db
+async function failRun(runId: string, errorMessage: string) {
+  await db
     .update(reportRuns)
-    .set({ status: "rendering", errorMessage: null, completedAt: null })
-    .where(
-      and(
-        eq(reportRuns.id, runId),
-        eq(reportRuns.projectId, projectId),
-        eq(reportRuns.status, "queued"),
-      ),
-    )
-    .returning();
-  return row ?? null;
+    .set({
+      status: "failed",
+      errorMessage: errorMessage.slice(0, 1_000),
+      updatedAt: sql`(current_timestamp)`,
+    })
+    .where(eq(reportRuns.id, runId));
 }
 
-async function transitionRun(input: {
-  runId: string;
-  projectId: string;
-  from: ReportRunStatus[];
-  values: Partial<InferInsertModel<typeof reportRuns>>;
-}): Promise<ReportRun | null> {
-  const [row] = await db
+async function resetRun(runId: string, projectId: string) {
+  const rows = await db
     .update(reportRuns)
-    .set(input.values)
-    .where(
-      and(
-        eq(reportRuns.id, input.runId),
-        eq(reportRuns.projectId, input.projectId),
-        inArray(reportRuns.status, input.from),
-      ),
-    )
-    .returning();
-  return row ?? null;
-}
-
-async function resetFailedRun(
-  runId: string,
-  projectId: string,
-): Promise<ReportRun | null> {
-  const [row] = await db
-    .update(reportRuns)
-    .set({ status: "queued", errorMessage: null, completedAt: null })
+    .set({
+      status: "queued",
+      errorMessage: null,
+      updatedAt: sql`(current_timestamp)`,
+    })
     .where(
       and(
         eq(reportRuns.id, runId),
@@ -269,152 +236,102 @@ async function resetFailedRun(
         eq(reportRuns.status, "failed"),
       ),
     )
-    .returning();
-  return row ?? null;
+    .returning({ id: reportRuns.id });
+  return Boolean(rows[0]);
 }
 
-async function ensureDeliveries(
-  rows: Array<InferInsertModel<typeof reportDeliveries>>,
-) {
-  if (rows.length === 0) return;
-  await runBatch((tx) =>
-    rows.map((row) =>
-      tx.insert(reportDeliveries).values(row).onConflictDoNothing(),
-    ),
-  );
-}
-
-async function listDeliveries(runId: string) {
+async function listCommentary(runId: string) {
   return db
     .select()
-    .from(reportDeliveries)
-    .where(eq(reportDeliveries.runId, runId))
-    .orderBy(asc(reportDeliveries.email));
+    .from(reportCommentaryItems)
+    .where(eq(reportCommentaryItems.runId, runId))
+    .orderBy(asc(reportCommentaryItems.sortOrder));
 }
 
-async function incrementDeliveryAttempt(
-  deliveryId: string,
-): Promise<ReportDelivery | null> {
-  const [row] = await db
-    .update(reportDeliveries)
-    .set({
-      attempts: sql`${reportDeliveries.attempts} + 1`,
-      errorMessage: null,
+async function replaceCommentary(input: {
+  runId: string;
+  userId: string;
+  items: Array<{
+    kind: ReportCommentaryKind;
+    text: string;
+    evidenceKey?: string | null;
+  }>;
+}) {
+  await runBatch((tx) => [
+    tx
+      .delete(reportCommentaryItems)
+      .where(eq(reportCommentaryItems.runId, input.runId)),
+    ...input.items.map((item, sortOrder) =>
+      tx.insert(reportCommentaryItems).values({
+        id: crypto.randomUUID(),
+        runId: input.runId,
+        kind: item.kind,
+        text: item.text,
+        evidenceKey: item.evidenceKey ?? null,
+        sortOrder,
+        isGenerated: false,
+        updatedByUserId: input.userId,
+      }),
+    ),
+  ]);
+}
+
+async function listDueSettings(nowIso: string) {
+  return db
+    .select({
+      settings: reportSettings,
+      organizationId: projects.organizationId,
     })
+    .from(reportSettings)
+    .innerJoin(projects, eq(reportSettings.projectId, projects.id))
     .where(
       and(
-        eq(reportDeliveries.id, deliveryId),
-        inArray(reportDeliveries.status, ["pending", "failed"]),
+        eq(reportSettings.isEnabled, true),
+        lte(reportSettings.nextRunAt, nowIso),
+        isNull(projects.archivedAt),
       ),
     )
-    .returning();
-  return row ?? null;
+    .orderBy(asc(reportSettings.nextRunAt))
+    .limit(100);
 }
 
-async function markDeliverySent(input: {
-  deliveryId: string;
-  providerMessageId: string;
-  sentAt: string;
+async function claimDueSettings(input: {
+  settingsId: string;
+  observedNextRunAt: string;
+  nextRunAt: string;
 }) {
-  await db
-    .update(reportDeliveries)
+  const rows = await db
+    .update(reportSettings)
     .set({
-      status: "sent",
-      providerMessageId: input.providerMessageId,
-      errorMessage: null,
-      sentAt: input.sentAt,
+      nextRunAt: input.nextRunAt,
+      lastRunAt: input.observedNextRunAt,
+      updatedAt: sql`(current_timestamp)`,
     })
     .where(
       and(
-        eq(reportDeliveries.id, input.deliveryId),
-        inArray(reportDeliveries.status, ["pending", "failed"]),
+        eq(reportSettings.id, input.settingsId),
+        eq(reportSettings.isEnabled, true),
+        eq(reportSettings.nextRunAt, input.observedNextRunAt),
       ),
-    );
-}
-
-async function markDeliveryFailed(deliveryId: string, errorMessage: string) {
-  await db
-    .update(reportDeliveries)
-    .set({ status: "failed", errorMessage })
-    .where(
-      and(
-        eq(reportDeliveries.id, deliveryId),
-        inArray(reportDeliveries.status, ["pending", "failed"]),
-      ),
-    );
-}
-
-async function upsertArtifact(
-  values: InferInsertModel<typeof reportArtifacts>,
-) {
-  await db
-    .insert(reportArtifacts)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [reportArtifacts.runId, reportArtifacts.kind],
-      set: {
-        storageKey: values.storageKey,
-        mimeType: values.mimeType,
-        sizeBytes: values.sizeBytes,
-        checksumSha256: values.checksumSha256,
-      },
-    });
-}
-
-async function listArtifacts(runId: string) {
-  return db
-    .select()
-    .from(reportArtifacts)
-    .where(eq(reportArtifacts.runId, runId))
-    .orderBy(asc(reportArtifacts.kind));
-}
-
-async function createShareLink(
-  values: InferInsertModel<typeof reportShareLinks>,
-) {
-  await db.insert(reportShareLinks).values(values);
-}
-
-async function getShareLinkByHash(tokenHash: string) {
-  const [row] = await db
-    .select({ link: reportShareLinks, run: reportRuns })
-    .from(reportShareLinks)
-    .innerJoin(reportRuns, eq(reportShareLinks.runId, reportRuns.id))
-    .where(eq(reportShareLinks.tokenHash, tokenHash))
-    .limit(1);
-  return row ?? null;
-}
-
-async function markShareLinkAccessed(linkId: string, at: string) {
-  await db
-    .update(reportShareLinks)
-    .set({ lastAccessedAt: at })
-    .where(eq(reportShareLinks.id, linkId));
+    )
+    .returning({ id: reportSettings.id });
+  return Boolean(rows[0]);
 }
 
 export const ReportRepository = {
-  listTemplates,
-  getTemplateScoped,
-  getTemplateSections,
-  createTemplate,
-  deleteTemplate,
-  listSchedules,
-  createSchedule,
-  listRecipients,
-  listRuns,
-  getRunScoped,
+  getSettings,
+  getSections,
+  createDefaultSettings,
+  updateSettings,
   createRun,
-  claimQueuedRun,
-  transitionRun,
-  resetFailedRun,
-  ensureDeliveries,
-  listDeliveries,
-  incrementDeliveryAttempt,
-  markDeliverySent,
-  markDeliveryFailed,
-  upsertArtifact,
-  listArtifacts,
-  createShareLink,
-  getShareLinkByHash,
-  markShareLinkAccessed,
-} as const;
+  getRun,
+  listRuns,
+  setRunRunning,
+  publishRun,
+  failRun,
+  resetRun,
+  listCommentary,
+  replaceCommentary,
+  listDueSettings,
+  claimDueSettings,
+};

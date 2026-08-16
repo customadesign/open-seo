@@ -10,8 +10,10 @@ data, or sensitive paths.
 
 ## Open
 
+- [ ] `2026-08-16T22:38:32Z` — `codex` — The repository commits `src/routeTree.gen.ts` but exposes no standalone route-generation script (`pnpm exec tsr generate` is unavailable), so deleting a route leaves stale generated imports until a Vite build happens to refresh them. Add a documented `routes:generate` script backed by the configured TanStack Router plugin.
 - [ ] `2026-08-16T21:41:58Z` — `codex` — In the fork checkout, plain `gh pr create` resolves the repository as the `upstream` remote (`every-app/open-seo`) even after the branch is pushed to and tracks `origin` (`customadesign/open-seo`), producing misleading “no commits/head ref” errors. Fork PR commands need an explicit `--repo customadesign/open-seo`, or the checkout should define/document `gh repo set-default`.
 - [ ] `2026-08-16T21:16:19Z` — `codex` — Root scripts such as `pnpm db:generate` delegate to `npm run`, which emits repeated “Unknown env config” warnings for pnpm settings (`minimum-release-age`, `verify-deps-before-run`, registry/config keys). The commands still succeed, but the warning wall obscures useful migration output; invoke the underlying commands through pnpm or sanitize forwarded npm config.
+- [ ] `2026-08-16T21:58:25Z` — `codex` — A self-hosted image with precompiled `dist/` and a matching build fingerprint still fails on a fresh volume because Vite preview expects `.wrangler/deploy/config.json`, which only the skipped build creates. Treat missing deployment metadata as a rebuild condition or package the metadata with supported prebuilt images.
 - [ ] `2026-08-05T20:59:09Z` — `codex` — The documented `pnpm seed:rank-tracking` command fails before opening local D1 because `scripts/seed-rank-tracking.ts` imports the provider-aware `src/db/schema` barrel and plain `tsx` cannot load the resulting `cloudflare:workers` URL. Keep the seed script on dialect-local schema imports or run it through a Workers-compatible execution path. (Workaround: seed via raw SQL with `wrangler d1 execute DB --local`.)
 - [ ] `2026-08-01T16:28:36Z` — `claude` — web's pinned wrangler 4.71.0 fails `kv namespace create` with a bare "Authentication error [code: 10000]" even though the OAuth token has workers_kv write scope; wrangler@4.118.0 succeeds with identical auth. Fix: bump wrangler in web/package.json.
 - [ ] `2026-07-20T20:08:28Z` — `claude` — In a fresh git worktree, `oxlint --type-aware` crashes with `Cannot find module '@oxlint/binding-darwin-arm64'` — the platform-specific optional dep is missing from the worktree's node_modules while tsc/prettier work fine, and plain `pnpm install` reports up-to-date without restoring it; `pnpm install --force` (~22s) fixes it. Worth making the worktree-setup hook (or a documented step) run the forced install so lint doesn't die on fresh worktrees.
@@ -24,6 +26,8 @@ data, or sensitive paths.
 ## Resolved
 
 Move fixed entries here, mark them checked, and append the resolving date or commit.
+
+- [x] `2026-08-16T21:47:09Z` — `codex` — A fresh self-hosted Docker volume stalled at Wrangler's interactive migration prompt. Resolved 2026-08-16 by setting `CI=true` for the entrypoint migration command and verifying unattended migrations against both clean and existing-volume copies.
 
 ## badseo harness vs `wrangler dev`: sitemap emits badseo.dev locs locally
 

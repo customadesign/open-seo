@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { SearchConsoleConnectionCard } from "@/client/features/gsc/SearchConsoleConnectionCard";
 import { GoogleAnalyticsConnectionCard } from "@/client/features/ga4/GoogleAnalyticsConnectionCard";
+import { GoogleAdsConnectionCard } from "@/client/features/google-ads/GoogleAdsConnectionCard";
 import { ProjectMarketFields } from "@/client/features/projects/ProjectMarketFields";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import {
@@ -65,6 +66,13 @@ export function ProjectSettings({ projectId }: { projectId: string }) {
       <section id="google-analytics" className="space-y-3 scroll-mt-6">
         <h2 className="text-sm font-medium text-base-content/50">Analytics</h2>
         <GoogleAnalyticsConnectionCard projectId={projectId} />
+      </section>
+
+      <section id="google-ads" className="space-y-3 scroll-mt-6">
+        <h2 className="text-sm font-medium text-base-content/50">
+          Advertising
+        </h2>
+        <GoogleAdsConnectionCard projectId={projectId} />
       </section>
 
       <DangerSection project={project} canArchive={projects.length > 1} />

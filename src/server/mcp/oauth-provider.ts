@@ -28,6 +28,7 @@ import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { handleAuthenticatedOpenSeoMcpRequest } from "@/server/mcp/transport";
 import { resolveHostedContext } from "@/middleware/ensure-user/hosted";
 import { handleMcpApiKeyRequest } from "@/server/mcp/api-key-auth";
+import { canUseProjectTools } from "@/shared/workspace-access";
 
 const OAUTH_AUTHORIZE_PATH = "/api/auth/oauth2/authorize";
 const OAUTH_TOKEN_PATH = "/api/auth/oauth2/token";
@@ -162,7 +163,12 @@ function csrfProtected(request: Request) {
 
 async function getAuthorizeSessionBlocker(request: Request) {
   try {
-    await resolveHostedContext(request.headers);
+    const context = await resolveHostedContext(request.headers);
+    if (!context.access || !canUseProjectTools(context.access)) {
+      return new Response("MCP access is unavailable for client accounts", {
+        status: 403,
+      });
+    }
     return null;
   } catch (error) {
     const appError = asAppError(error);
@@ -319,6 +325,12 @@ async function handleOAuthConsentResponse(
   const context = await resolveContextForConsent(request);
   if (!context) {
     return jsonResponse({ error: "Sign in required" }, { status: 401 });
+  }
+  if (!context.access || !canUseProjectTools(context.access)) {
+    return jsonResponse(
+      { error: "MCP access is unavailable for client accounts" },
+      { status: 403 },
+    );
   }
 
   let scopes: string[];

@@ -3,6 +3,8 @@ import type { autumnHandler } from "autumn-js/fetch";
 import { env } from "cloudflare:workers";
 import { isHostedAuthMode } from "@/lib/auth-mode";
 import { resolveHostedContext } from "@/middleware/ensure-user/hosted";
+import { canManageWorkspace } from "@/shared/workspace-access";
+import { AppError } from "@/server/lib/errors";
 
 let handlerPromise: Promise<ReturnType<typeof autumnHandler>> | undefined;
 
@@ -14,6 +16,9 @@ function loadHandler() {
       autumnHandler({
         identify: async (request) => {
           const context = await resolveHostedContext(request.headers);
+          if (!canManageWorkspace(context.access)) {
+            throw new AppError("FORBIDDEN");
+          }
 
           return {
             customerId: context.organizationId,

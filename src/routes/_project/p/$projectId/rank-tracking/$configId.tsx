@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRankTrackingConfigs } from "@/serverFunctions/rank-tracking";
 import { RankTrackingDomainDetail } from "@/client/features/rank-tracking/RankTrackingDomainDetail";
 import { RankTrackingConfigModal } from "@/client/features/rank-tracking/RankTrackingConfigModal";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 export const Route = createFileRoute(
   "/_project/p/$projectId/rank-tracking/$configId",
@@ -16,6 +17,8 @@ function RankTrackingConfigRoute() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const accessQuery = useWorkspaceAccess();
+  const readOnly = accessQuery.data?.role === "client";
 
   const { data: configs, isPending } = useQuery({
     queryKey: ["rankTrackingConfigs", projectId],
@@ -68,9 +71,10 @@ function RankTrackingConfigRoute() {
         projectId={projectId}
         onBack={handleBack}
         onEdit={() => setShowConfigModal(true)}
+        readOnly={readOnly}
       />
 
-      {showConfigModal && (
+      {showConfigModal && !readOnly && (
         <RankTrackingConfigModal
           projectId={projectId}
           existingConfig={config}

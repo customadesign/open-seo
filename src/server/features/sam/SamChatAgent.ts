@@ -270,6 +270,7 @@ export class SamChatAgent extends Think {
         baseUrl,
         clientId: null,
         scopes: [MCP_SCOPE],
+        delegated: false,
       };
 
       return {

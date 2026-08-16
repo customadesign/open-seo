@@ -3,7 +3,7 @@ import { LocalSeoRepository } from "@/server/features/local-seo/repositories/Loc
 import { CitationAuditService } from "@/server/features/local-seo/services/CitationAuditService";
 import { GeoGridService } from "@/server/features/local-seo/services/GeoGridService";
 import { LocalListingService } from "@/server/features/local-seo/services/LocalListingService";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import { requireProjectUse } from "@/serverFunctions/middleware";
 import {
   createGeoGridConfigSchema,
   getCitationAuditsSchema,
@@ -18,28 +18,28 @@ import {
 } from "@/types/schemas/local-seo";
 
 export const getLocalBusinessProfiles = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(getLocalBusinessProfilesSchema)
   .handler(async ({ context }) =>
     LocalSeoRepository.getProfilesForProject(context.projectId),
   );
 
 export const saveLocalBusinessProfile = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(saveLocalBusinessProfileSchema)
   .handler(async ({ data, context }) =>
     LocalListingService.saveProfile({ ...data, projectId: context.projectId }),
   );
 
 export const getLocalListingStatus = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(getLocalListingStatusSchema)
   .handler(async ({ data, context }) =>
     LocalListingService.getListingStatus(context.projectId, data.profileId),
   );
 
 export const saveLocalListingConnection = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(saveLocalListingConnectionSchema)
   .handler(async ({ data, context }) =>
     LocalListingService.saveConnection({
@@ -49,28 +49,28 @@ export const saveLocalListingConnection = createServerFn({ method: "POST" })
   );
 
 export const getGeoGridConfigs = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(getGeoGridConfigsSchema)
   .handler(async ({ context }) =>
     LocalSeoRepository.getGeoGridConfigs(context.projectId),
   );
 
 export const createGeoGridConfig = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(createGeoGridConfigSchema)
   .handler(async ({ data, context }) =>
     GeoGridService.createConfig({ ...data, projectId: context.projectId }),
   );
 
 export const getGeoGridHistory = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(getGeoGridHistorySchema)
   .handler(async ({ data, context }) =>
     GeoGridService.getHistory({ ...data, projectId: context.projectId }),
   );
 
 export const runGeoGrid = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(runGeoGridSchema)
   .handler(async ({ data, context }) =>
     GeoGridService.runGrid({
@@ -81,7 +81,7 @@ export const runGeoGrid = createServerFn({ method: "POST" })
   );
 
 export const runCitationAudit = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(runCitationAuditSchema)
   .handler(async ({ data, context }) =>
     CitationAuditService.runProviderAudit({
@@ -92,7 +92,7 @@ export const runCitationAudit = createServerFn({ method: "POST" })
   );
 
 export const getCitationAudits = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(getCitationAuditsSchema)
   .handler(async ({ data, context }) =>
     CitationAuditService.getAudits({ ...data, projectId: context.projectId }),

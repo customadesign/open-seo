@@ -4,7 +4,7 @@ import {
   getOptionalEnvValue,
   isHostedServerAuthMode,
 } from "@/server/lib/runtime-env";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import { requireProjectUse } from "@/serverFunctions/middleware";
 
 const OPENROUTER_KEY_MISSING_MESSAGE =
   "OPENROUTER_API_KEY is not set for this deployment yet. Add it to your environment, restart OpenSEO, then confirm here.";
@@ -20,7 +20,7 @@ type SamAccessStatus = {
 // same way backlinks/AI-search gate on their DataForSEO subscriptions. Hosted
 // deployments always have the key provisioned, so only self-hosted is checked.
 export const getSamAccessSetupStatus = createServerFn({ method: "GET" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(projectScopedSchema)
   .handler(async (): Promise<SamAccessStatus> => {
     if (await isHostedServerAuthMode()) {

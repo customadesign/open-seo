@@ -4,6 +4,7 @@ import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve"
 import type { EnsuredProject } from "@/middleware/ensure-user/types";
 import { AppError } from "@/server/lib/errors";
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { canAccessProject } from "@/shared/workspace-access";
 
 function extractProjectId(data: unknown) {
   if (!data || typeof data !== "object" || !("projectId" in data)) {
@@ -35,6 +36,10 @@ export const ensureUserMiddleware = createMiddleware({
     );
 
     if (!project) {
+      throw new AppError("NOT_FOUND");
+    }
+
+    if (!canAccessProject(context.access, project.id)) {
       throw new AppError("NOT_FOUND");
     }
   }

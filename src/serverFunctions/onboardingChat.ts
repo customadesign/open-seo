@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
-import { requireAuthenticatedContext } from "@/serverFunctions/middleware";
+import { requireWorkspaceOwner } from "@/serverFunctions/middleware";
 import { AppError } from "@/server/lib/errors";
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { ProjectService } from "@/server/features/projects/services/ProjectService";
@@ -16,7 +16,7 @@ import {
 // Returns the onboarding project (id + domain). Uses the org's default project;
 // onboarding targets a single project in v1.
 export const getOnboardingChatState = createServerFn({ method: "GET" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceOwner)
   .handler(async ({ context }) => {
     const [project] = await ProjectService.listProjectsEnsuringOne(
       context.organizationId,
@@ -38,7 +38,7 @@ const saveSiteSchema = z.object({
 
 // Persists the site + default location for the onboarding project.
 export const saveOnboardingSite = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceOwner)
   .validator(saveSiteSchema)
   .handler(async ({ data, context }) => {
     const project = await ProjectRepository.getProjectForOrganization(

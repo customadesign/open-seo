@@ -20,8 +20,9 @@ import {
 } from "@/server/lib/ga4Errors";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import {
-  requireAuthenticatedContext,
   requireProjectContext,
+  requireProjectOwner,
+  requireWorkspaceOwner,
 } from "@/serverFunctions/middleware";
 
 const projectScopedSchema = z.object({ projectId: z.string().min(1) });
@@ -67,7 +68,7 @@ export const getDashboardGa4Summary = createServerFn({ method: "POST" })
   });
 
 export const getGa4Connection = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const [connection, currentUserHasGrant, hosted, ga4Configured] =
@@ -91,7 +92,7 @@ export const getGa4Connection = createServerFn({ method: "POST" })
   });
 
 export const listGa4Properties = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const [propertyList, connection] = await Promise.all([
@@ -112,7 +113,7 @@ export const listGa4Properties = createServerFn({ method: "POST" })
   });
 
 export const setGa4Property = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(setPropertySchema)
   .handler(async ({ data, context }) => {
     const connection = await Ga4Service.setProperty({
@@ -138,7 +139,7 @@ export const setGa4Property = createServerFn({ method: "POST" })
   });
 
 export const disconnectGa4 = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     await Ga4Service.disconnect({
@@ -157,7 +158,7 @@ export const disconnectGa4 = createServerFn({ method: "POST" })
   });
 
 export const startSelfHostedGa4Link = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceOwner)
   .validator(startSelfHostedLinkSchema)
   .handler(async ({ data, context }) => ({
     url: await createSelfHostedGoogleAuthorizationUrl({

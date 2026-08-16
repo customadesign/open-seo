@@ -22,6 +22,7 @@ import { closeDropdown } from "@/client/lib/dropdown";
 import { signOutAndRedirect, useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
 import { BILLING_ROUTE } from "@/shared/billing";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 interface SidebarProps {
   projectId: string | null;
@@ -77,9 +78,15 @@ function SidebarNavLink({
 }
 
 export function Sidebar({ projectId, onNavigate, onClose }: SidebarProps) {
+  const accessQuery = useWorkspaceAccess();
+  const access = accessQuery.data;
+  const canManageWorkspace = access?.canManageWorkspace === true;
+  const canUseProjectTools = access?.canUseProjectTools === true;
   const navGroups = [
-    ...(projectId ? getProjectNavGroups(projectId) : []),
-    connectNavGroup,
+    ...(projectId
+      ? getProjectNavGroups(projectId, { canUseProjectTools })
+      : []),
+    ...(canUseProjectTools ? [connectNavGroup] : []),
   ];
   const navigate = useNavigate();
   const location = useLocation();
@@ -144,10 +151,11 @@ export function Sidebar({ projectId, onNavigate, onClose }: SidebarProps) {
         <ProjectSwitcher
           activeProjectId={projectId}
           onCloseDrawer={onNavigate}
+          canManageProjects={canManageWorkspace}
         />
       </div>
 
-      {projectId ? (
+      {projectId && canUseProjectTools ? (
         // Same underline tab idiom as the in-page tab strips (e.g. Domain
         // Overview's Top Keywords / Top Pages).
         <div className="px-3 pb-1">
@@ -194,7 +202,7 @@ export function Sidebar({ projectId, onNavigate, onClose }: SidebarProps) {
         </nav>
       )}
 
-      <SidebarFooter onNavigate={onNavigate} />
+      <SidebarFooter onNavigate={onNavigate} role={access?.role ?? "client"} />
     </div>
   );
 }
@@ -224,7 +232,13 @@ function SidebarViewTab({
   );
 }
 
-function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarFooter({
+  onNavigate,
+  role,
+}: {
+  onNavigate?: () => void;
+  role: "owner" | "employee" | "client";
+}) {
   const { data: session } = useSession();
   const isHostedMode = isHostedClientAuthMode();
   const email = session?.user?.email;
@@ -260,13 +274,15 @@ function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
             tabIndex={0}
             className="dropdown-content z-30 menu mb-1 w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
           >
-            <li>
-              <Link to="/settings" onClick={closeMenu}>
-                <Settings className="h-4 w-4" />
-                Settings
-              </Link>
-            </li>
-            {isHostedMode ? (
+            {role !== "client" ? (
+              <li>
+                <Link to="/settings" onClick={closeMenu}>
+                  <Settings className="h-4 w-4" />
+                  Settings
+                </Link>
+              </li>
+            ) : null}
+            {isHostedMode && role === "owner" ? (
               <li>
                 <Link to={BILLING_ROUTE} onClick={closeMenu}>
                   <CreditCard className="h-4 w-4" />

@@ -35,6 +35,14 @@ vi.mock("@/middleware/ensure-user/hosted", () => ({
       userId: "user-1",
       userEmail: "user@example.com",
       organizationId: "org-1",
+      emailVerified: true,
+      access: {
+        memberId: "member-1",
+        role: "owner",
+        projectScope: "all",
+        projectIds: [],
+        delegated: false,
+      },
     }),
 }));
 

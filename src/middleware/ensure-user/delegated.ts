@@ -71,6 +71,13 @@ async function resolveDelegatedContext(
     // Delegated auth (Cloudflare Access / local) has no unverified state.
     emailVerified: true,
     organizationId,
+    access: {
+      memberId: null,
+      role: "owner",
+      projectScope: "all",
+      projectIds: [],
+      delegated: true,
+    },
   };
 }
 
@@ -89,6 +96,13 @@ export async function resolveSharedWorkspaceContext(
     userEmail: ensuredEmail,
     emailVerified: true,
     organizationId,
+    access: {
+      memberId: null,
+      role: "owner",
+      projectScope: "all",
+      projectIds: [],
+      delegated: true,
+    },
   };
 }
 

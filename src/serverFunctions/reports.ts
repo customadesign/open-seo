@@ -1,88 +1,90 @@
 import { createServerFn } from "@tanstack/react-start";
-import { ReportService } from "@/server/features/reports/services/ReportService";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import { env } from "cloudflare:workers";
+import { AppError } from "@/server/lib/errors";
+import { ReportService } from "@/server/features/reports/ReportService";
 import {
-  createReportScheduleSchema,
-  createReportShareLinkSchema,
-  createReportTemplateSchema,
-  deleteReportTemplateSchema,
+  requireProjectContext,
+  requireProjectUse,
+} from "@/serverFunctions/middleware";
+import {
+  generateReportSchema,
+  getReportRunSchema,
   listReportsSchema,
-  retryReportRunSchema,
-  runReportSchema,
+  retryReportSchema,
+  updateReportCommentarySchema,
+  updateReportSettingsSchema,
 } from "@/types/schemas/reports";
+import { ReportRepository } from "@/server/features/reports/repositories/ReportRepository";
 
-export const getReportDashboard = createServerFn({ method: "POST" })
+export const getReportsDashboard = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(listReportsSchema)
   .handler(({ context }) =>
-    ReportService.getDashboard(context.organizationId, context.projectId),
-  );
-
-export const createReportTemplate = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
-  .validator(createReportTemplateSchema)
-  .handler(({ data, context }) =>
-    ReportService.createTemplate({
-      organizationId: context.organizationId,
-      userId: context.userId,
-      data: { ...data, projectId: context.projectId },
-    }),
-  );
-
-export const deleteReportTemplate = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
-  .validator(deleteReportTemplateSchema)
-  .handler(({ data, context }) =>
-    ReportService.deleteTemplate({
-      organizationId: context.organizationId,
+    ReportService.getDashboard({
       projectId: context.projectId,
-      templateId: data.templateId,
+      organizationId: context.organizationId,
+      publishedOnly: context.access.role === "client",
     }),
   );
 
-export const createReportSchedule = createServerFn({ method: "POST" })
+export const getReport = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .validator(createReportScheduleSchema)
+  .validator(getReportRunSchema)
   .handler(({ data, context }) =>
-    ReportService.createSchedule({
-      organizationId: context.organizationId,
-      data: { ...data, projectId: context.projectId },
-    }),
-  );
-
-export const runReport = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
-  .validator(runReportSchema)
-  .handler(({ data, context }) =>
-    ReportService.runNow({
-      organizationId: context.organizationId,
+    ReportService.getReport({
       projectId: context.projectId,
-      templateId: data.templateId,
+      runId: data.runId,
+      publishedOnly: context.access.role === "client",
+    }),
+  );
+
+export const saveReportSettings = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(updateReportSettingsSchema)
+  .handler(({ data, context }) =>
+    ReportService.updateSettings({
+      ...data,
+      projectId: context.projectId,
+      organizationId: context.organizationId,
+    }),
+  );
+
+export const generateReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(generateReportSchema)
+  .handler(({ data, context }) =>
+    ReportService.generate({
+      workflow: env.REPORT_WORKFLOW,
+      projectId: context.projectId,
+      organizationId: context.organizationId,
       periodStart: data.periodStart,
       periodEnd: data.periodEnd,
-      branding: data.branding,
     }),
   );
 
-export const retryReportRun = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
-  .validator(retryReportRunSchema)
+export const retryReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(retryReportSchema)
   .handler(({ data, context }) =>
-    ReportService.retryRun({
-      organizationId: context.organizationId,
+    ReportService.retry({
+      workflow: env.REPORT_WORKFLOW,
       projectId: context.projectId,
       runId: data.runId,
     }),
   );
 
-export const createReportShareLink = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
-  .validator(createReportShareLinkSchema)
-  .handler(({ data, context }) =>
-    ReportService.createShareLink({
-      organizationId: context.organizationId,
-      projectId: context.projectId,
-      runId: data.runId,
-      expiresAt: data.expiresAt,
-    }),
-  );
+export const saveReportCommentary = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(updateReportCommentarySchema)
+  .handler(async ({ data, context }) => {
+    const run = await ReportRepository.getRun(context.projectId, data.runId);
+    if (!run || run.status !== "published") {
+      throw new AppError("NOT_FOUND", "Published report not found.");
+    }
+    await ReportRepository.replaceCommentary({
+      runId: run.id,
+      userId: context.userId,
+      items: data.items,
+    });
+    return { saved: true as const };
+  });

@@ -13,12 +13,14 @@ import { getDatabaseProvider } from "@/db/provider";
 import { z } from "zod";
 import { isHostedAuthMode } from "@/lib/auth-mode";
 import { createApiKeyPlugin } from "@/lib/auth-api-key";
+import { createWorkspaceAccessControlPlugin } from "@/lib/auth-workspace-access";
 import { createBaseAuthConfig } from "@/lib/auth-config";
 import {
   getHostedTurnstileSecretKey,
   hasHostedTurnstileConfig,
 } from "@/lib/auth-turnstile";
 import { getOrCreateDefaultHostedOrganization } from "@/server/auth/default-hosted-organization";
+import { WorkspaceAccessRepository } from "@/server/auth/repositories/WorkspaceAccessRepository";
 import {
   sendHostedPasswordResetEmail,
   sendHostedVerificationEmail,
@@ -97,7 +99,9 @@ function createAuth() {
     database,
     plugins: [
       ...baseAuthConfig.plugins,
-      ...(isHostedAuthMode(env.AUTH_MODE) ? [createApiKeyPlugin()] : []),
+      ...(isHostedAuthMode(env.AUTH_MODE)
+        ? [createApiKeyPlugin(), createWorkspaceAccessControlPlugin()]
+        : []),
       ...(turnstileSecretKey
         ? [
             captcha({
@@ -140,6 +144,15 @@ function createAuth() {
               session.userId,
               (body) => auth.api.createOrganization({ body }),
             );
+            const access = await WorkspaceAccessRepository.getHostedPrincipal(
+              session.userId,
+              organizationId,
+            );
+            if (!access) {
+              throw new APIError("FORBIDDEN", {
+                message: "This account has been deactivated.",
+              });
+            }
 
             return {
               data: {

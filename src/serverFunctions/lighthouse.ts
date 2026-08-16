@@ -15,6 +15,7 @@ import {
 async function getAuditLighthouseData(input: {
   projectId: string;
   resultId: string;
+  completedOnly: boolean;
 }) {
   const site = await AuditRepository.getLighthouseResultById({
     lighthouseResultId: input.resultId,
@@ -23,6 +24,12 @@ async function getAuditLighthouseData(input: {
 
   if (!site) {
     throw new AppError("NOT_FOUND");
+  }
+  if (input.completedOnly && site.audit.status !== "completed") {
+    throw new AppError(
+      "FORBIDDEN",
+      "Client accounts can only view completed audit reports.",
+    );
   }
 
   const r2Key = site.lighthouse.r2Key;
@@ -50,6 +57,7 @@ export const getAuditLighthouseIssues = createServerFn({ method: "POST" })
     const lighthouse = await getAuditLighthouseData({
       projectId: context.projectId,
       resultId: data.resultId,
+      completedOnly: context.access.role === "client",
     });
 
     return {
@@ -73,6 +81,7 @@ export const exportAuditLighthouseIssues = createServerFn({ method: "POST" })
     const lighthouse = await getAuditLighthouseData({
       projectId: context.projectId,
       resultId: data.resultId,
+      completedOnly: context.access.role === "client",
     });
 
     return buildLighthouseExportFile({

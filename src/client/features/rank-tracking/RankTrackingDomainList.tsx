@@ -39,9 +39,11 @@ const FILTER_BAR_MIN_DOMAINS = 6;
 export function RankTrackingDomainList({
   projectId,
   onAddDomain,
+  readOnly = false,
 }: {
   projectId: string;
   onAddDomain: () => void;
+  readOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [archiveTarget, setArchiveTarget] = useState<ConfigSummary | null>(
@@ -87,13 +89,15 @@ export function RankTrackingDomainList({
       <div className="card-body gap-0 p-0">
         <div className="flex items-center justify-between px-5 pt-4 pb-3">
           <h2 className="text-sm font-semibold">Tracked Domains</h2>
-          <button
-            className="btn btn-primary btn-sm gap-1"
-            onClick={onAddDomain}
-          >
-            <Plus className="size-3.5" />
-            Add Domain
-          </button>
+          {!readOnly ? (
+            <button
+              className="btn btn-primary btn-sm gap-1"
+              onClick={onAddDomain}
+            >
+              <Plus className="size-3.5" />
+              Add Domain
+            </button>
+          ) : null}
         </div>
         {(allSummaries.length >= FILTER_BAR_MIN_DOMAINS ||
           activeFilterCount > 0) && (
@@ -155,13 +159,14 @@ export function RankTrackingDomainList({
                 projectId={projectId}
                 summary={summary}
                 onArchive={() => setArchiveTarget(summary)}
+                readOnly={readOnly}
               />
             ))
           )}
         </div>
       </div>
 
-      {archiveTarget && (
+      {archiveTarget && !readOnly && (
         <Modal
           onClose={() => setArchiveTarget(null)}
           labelledBy="archive-domain-title"
@@ -199,10 +204,12 @@ function DomainRow({
   projectId,
   summary,
   onArchive,
+  readOnly,
 }: {
   projectId: string;
   summary: ConfigSummary;
   onArchive: () => void;
+  readOnly: boolean;
 }) {
   return (
     <div className="relative flex w-full items-center gap-4 px-5 py-3.5 transition-colors hover:bg-base-200/50">
@@ -251,18 +258,20 @@ function DomainRow({
           </div>
         )}
       </div>
-      <button
-        type="button"
-        className="btn btn-ghost btn-xs text-base-content/40 hover:text-error relative z-10"
-        title="Archive domain"
-        onClick={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          onArchive();
-        }}
-      >
-        <Archive className="size-4" />
-      </button>
+      {!readOnly ? (
+        <button
+          type="button"
+          className="btn btn-ghost btn-xs text-base-content/40 hover:text-error relative z-10"
+          title="Archive domain"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onArchive();
+          }}
+        >
+          <Archive className="size-4" />
+        </button>
+      ) : null}
       <ChevronRight className="size-4 shrink-0 text-base-content/40 pointer-events-none" />
     </div>
   );

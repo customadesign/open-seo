@@ -1,0 +1,2 @@
+-- Reserved lineage slot. The canonical combined schema is reconciled by
+-- 0026_combined_schema_forward after both historical branches.
