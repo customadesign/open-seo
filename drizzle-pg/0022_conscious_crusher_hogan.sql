@@ -1,0 +1,1 @@
+ALTER TABLE "geo_grid_runs" ADD COLUMN "attempt_token" text DEFAULT '' NOT NULL;

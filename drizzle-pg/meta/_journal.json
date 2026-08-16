@@ -155,6 +155,20 @@
       "when": 1786572967336,
       "tag": "0021_serious_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786914965497,
+      "tag": "0022_conscious_crusher_hogan",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786915856385,
+      "tag": "0023_lying_the_phantom",
+      "breakpoints": true
     }
   ]
 }

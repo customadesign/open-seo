@@ -164,6 +164,8 @@ export const geoGridRuns = sqliteTable(
     })
       .notNull()
       .default("pending"),
+    attemptToken: text("attempt_token").notNull().default(""),
+    attemptStartedAt: text("attempt_started_at").notNull().default(""),
     gridSize: integer("grid_size").notNull(),
     radiusMeters: integer("radius_meters").notNull(),
     cellsTotal: integer("cells_total").notNull(),

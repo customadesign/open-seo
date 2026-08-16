@@ -12,7 +12,16 @@ const repositoryMocks = vi.hoisted(() => ({
   getActiveGeoGridRun: vi.fn(),
   failStaleGeoGridRun: vi.fn(),
   getProfileById: vi.fn(),
+  getLatestFailedGeoGridRun: vi.fn(),
+  claimFailedGeoGridRun: vi.fn(),
+  getGeoGridRun: vi.fn(),
+  getGeoGridCells: vi.fn(),
+  createGeoGridRun: vi.fn(),
+  insertGeoGridCellClaimed: vi.fn(),
+  updateGeoGridRun: vi.fn(),
+  markGeoGridConfigRun: vi.fn(),
 }));
+const localSearchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 vi.mock("@/db", () => ({ db: {} }));
@@ -22,6 +31,9 @@ vi.mock("@/db/runBatch", () => ({
 }));
 vi.mock("@/server/features/local-seo/repositories/LocalSeoRepository", () => ({
   LocalSeoRepository: repositoryMocks,
+}));
+vi.mock("@/server/lib/dataforseo", () => ({
+  createDataforseoClient: () => ({ serp: { local: localSearchMock } }),
 }));
 
 describe("computeNextGeoGridRun", () => {
@@ -60,10 +72,33 @@ describe("stale geo-grid recovery", () => {
   });
 
   it("returns a recent active run without releasing it", async () => {
+    const startedAt = new Date(Date.now() - 5 * 60 * 1_000).toISOString();
     const activeRun = {
       id: "run-1",
       status: "running",
-      startedAt: new Date(Date.now() - 5 * 60 * 1_000).toISOString(),
+      attemptToken: "attempt-1",
+      startedAt,
+      attemptStartedAt: startedAt,
+    };
+    repositoryMocks.getActiveGeoGridRun.mockResolvedValue(activeRun);
+
+    await expect(
+      GeoGridService.runGrid({
+        configId: config.id,
+        projectId: config.projectId,
+        billingCustomer,
+      }),
+    ).resolves.toEqual({ started: false, run: activeRun });
+    expect(repositoryMocks.failStaleGeoGridRun).not.toHaveBeenCalled();
+  });
+
+  it("keeps a resumed attempt active when the original run is old", async () => {
+    const activeRun = {
+      id: "run-resumed",
+      status: "running",
+      attemptToken: "attempt-new",
+      startedAt: new Date(Date.now() - 31 * 60 * 1_000).toISOString(),
+      attemptStartedAt: new Date(Date.now() - 60_000).toISOString(),
     };
     repositoryMocks.getActiveGeoGridRun.mockResolvedValue(activeRun);
 
@@ -78,10 +113,13 @@ describe("stale geo-grid recovery", () => {
   });
 
   it("releases an active run after the recovery window before retrying", async () => {
+    const startedAt = new Date(Date.now() - 31 * 60 * 1_000).toISOString();
     const activeRun = {
       id: "run-stale",
       status: "running",
-      startedAt: new Date(Date.now() - 31 * 60 * 1_000).toISOString(),
+      attemptToken: "attempt-1",
+      startedAt,
+      attemptStartedAt: startedAt,
     };
     repositoryMocks.getActiveGeoGridRun.mockResolvedValue(activeRun);
     repositoryMocks.failStaleGeoGridRun.mockResolvedValue({
@@ -103,6 +141,35 @@ describe("stale geo-grid recovery", () => {
         projectId: config.projectId,
         observedStartedAt: activeRun.startedAt,
       }),
+    );
+  });
+
+  it("does not release a newer attempt from a stale active-run snapshot", async () => {
+    const activeRun = {
+      id: "run-stale",
+      status: "running",
+      attemptToken: "attempt-old",
+      startedAt: new Date(Date.now() - 31 * 60 * 1_000).toISOString(),
+      attemptStartedAt: new Date(Date.now() - 31 * 60 * 1_000).toISOString(),
+    };
+    const currentRun = {
+      ...activeRun,
+      status: "completed",
+      attemptToken: "attempt-new",
+    };
+    repositoryMocks.getActiveGeoGridRun.mockResolvedValue(activeRun);
+    repositoryMocks.failStaleGeoGridRun.mockResolvedValue(null);
+    repositoryMocks.getGeoGridRun.mockResolvedValue(currentRun);
+
+    await expect(
+      GeoGridService.runGrid({
+        configId: config.id,
+        projectId: config.projectId,
+        billingCustomer,
+      }),
+    ).resolves.toEqual({ started: false, run: currentRun });
+    expect(repositoryMocks.failStaleGeoGridRun).toHaveBeenCalledWith(
+      expect.objectContaining({ observedAttemptToken: "attempt-old" }),
     );
   });
 });

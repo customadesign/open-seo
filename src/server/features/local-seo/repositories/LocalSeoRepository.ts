@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 import { db } from "@/db";
 import { executeInBatches, runBatch } from "@/db/runBatch";
@@ -87,23 +87,6 @@ async function updateProfile(
     )
     .returning();
   return profile ?? null;
-}
-
-async function clearPrimaryProfiles(projectId: string, exceptId?: string) {
-  const profiles = await getProfilesForProject(projectId);
-  const ids = profiles
-    .filter((profile) => profile.isPrimary && profile.id !== exceptId)
-    .map((profile) => profile.id);
-  if (ids.length === 0) return;
-  await db
-    .update(localBusinessProfiles)
-    .set({ isPrimary: false, updatedAt: new Date().toISOString() })
-    .where(
-      and(
-        eq(localBusinessProfiles.projectId, projectId),
-        inArray(localBusinessProfiles.id, ids),
-      ),
-    );
 }
 
 /**
@@ -295,12 +278,20 @@ async function createGeoGridRun(input: GeoGridRunInsert) {
 async function updateGeoGridRun(
   runId: string,
   projectId: string,
+  attemptToken: string,
   input: Partial<Omit<GeoGridRunInsert, "id" | "projectId" | "configId">>,
 ) {
   const [run] = await db
     .update(geoGridRuns)
     .set(input)
-    .where(and(eq(geoGridRuns.id, runId), eq(geoGridRuns.projectId, projectId)))
+    .where(
+      and(
+        eq(geoGridRuns.id, runId),
+        eq(geoGridRuns.projectId, projectId),
+        eq(geoGridRuns.attemptToken, attemptToken),
+        inArray(geoGridRuns.status, ["pending", "running"]),
+      ),
+    )
     .returning();
   return run ?? null;
 }
@@ -309,6 +300,8 @@ async function failStaleGeoGridRun(input: {
   runId: string;
   projectId: string;
   observedStartedAt: string;
+  observedAttemptToken: string;
+  observedAttemptStartedAt: string;
   completedAt: string;
 }) {
   const [run] = await db
@@ -324,6 +317,8 @@ async function failStaleGeoGridRun(input: {
         eq(geoGridRuns.id, input.runId),
         eq(geoGridRuns.projectId, input.projectId),
         eq(geoGridRuns.startedAt, input.observedStartedAt),
+        eq(geoGridRuns.attemptToken, input.observedAttemptToken),
+        eq(geoGridRuns.attemptStartedAt, input.observedAttemptStartedAt),
         inArray(geoGridRuns.status, ["pending", "running"]),
       ),
     )
@@ -347,10 +342,49 @@ async function markGeoGridConfigRun(
     );
 }
 
-async function insertGeoGridCells(cells: GeoGridCellInsert[]) {
-  await executeInBatches(cells, (tx, cell) =>
-    tx.insert(geoGridCells).values(cell),
-  );
+async function insertGeoGridCellClaimed(input: {
+  cell: GeoGridCellInsert;
+  projectId: string;
+  attemptToken: string;
+}) {
+  const cell = input.cell;
+  const checkedAt = cell.checkedAt ?? new Date().toISOString();
+  const selectedCell = db
+    .select({
+      id: sql<string>`${cell.id}`.as("id"),
+      runId: sql<string>`${cell.runId}`.as("run_id"),
+      rowIndex: sql<number>`${cell.rowIndex}`.as("row_index"),
+      columnIndex: sql<number>`${cell.columnIndex}`.as("column_index"),
+      latitude: sql<number>`${cell.latitude}`.as("latitude"),
+      longitude: sql<number>`${cell.longitude}`.as("longitude"),
+      position: sql<number | null>`${cell.position ?? null}`.as("position"),
+      matchedBy: sql<NonNullable<GeoGridCellInsert["matchedBy"]>>`${
+        cell.matchedBy ?? "none"
+      }`.as("matched_by"),
+      resultTitle: sql<string | null>`${cell.resultTitle ?? null}`.as(
+        "result_title",
+      ),
+      resultUrl: sql<string | null>`${cell.resultUrl ?? null}`.as("result_url"),
+      providerResultId: sql<string | null>`${cell.providerResultId ?? null}`.as(
+        "provider_result_id",
+      ),
+      checkedAt: sql<string>`${checkedAt}`.as("checked_at"),
+    })
+    .from(geoGridRuns)
+    .where(
+      and(
+        eq(geoGridRuns.id, cell.runId),
+        eq(geoGridRuns.projectId, input.projectId),
+        eq(geoGridRuns.attemptToken, input.attemptToken),
+        inArray(geoGridRuns.status, ["pending", "running"]),
+      ),
+    );
+  const [inserted] = await db
+    .insert(geoGridCells)
+    .select(selectedCell)
+    .onConflictDoNothing()
+    .returning({ id: geoGridCells.id });
+  return inserted ?? null;
 }
 
 async function getGeoGridRuns(
@@ -370,6 +404,56 @@ async function getGeoGridRuns(
     )
     .orderBy(desc(geoGridRuns.startedAt), desc(geoGridRuns.id))
     .limit(options.limit);
+}
+
+async function getLatestFailedGeoGridRun(configId: string, projectId: string) {
+  const rows = await db
+    .select()
+    .from(geoGridRuns)
+    .where(
+      and(
+        eq(geoGridRuns.configId, configId),
+        eq(geoGridRuns.projectId, projectId),
+        eq(geoGridRuns.status, "failed"),
+      ),
+    )
+    .orderBy(desc(geoGridRuns.startedAt), desc(geoGridRuns.id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+async function claimFailedGeoGridRun(input: {
+  runId: string;
+  configId: string;
+  projectId: string;
+  observedStartedAt: string;
+  observedCompletedAt: string;
+  observedAttemptToken: string;
+  attemptToken: string;
+  attemptStartedAt: string;
+}) {
+  const [run] = await db
+    .update(geoGridRuns)
+    .set({
+      status: "running",
+      attemptToken: input.attemptToken,
+      attemptStartedAt: input.attemptStartedAt,
+      errorMessage: null,
+      completedAt: null,
+    })
+    .where(
+      and(
+        eq(geoGridRuns.id, input.runId),
+        eq(geoGridRuns.configId, input.configId),
+        eq(geoGridRuns.projectId, input.projectId),
+        eq(geoGridRuns.status, "failed"),
+        eq(geoGridRuns.startedAt, input.observedStartedAt),
+        eq(geoGridRuns.completedAt, input.observedCompletedAt),
+        eq(geoGridRuns.attemptToken, input.observedAttemptToken),
+      ),
+    )
+    .returning();
+  return run ?? null;
 }
 
 async function getGeoGridRun(runId: string, projectId: string) {
@@ -474,7 +558,6 @@ export const LocalSeoRepository = {
   getPrimaryProfile,
   createProfile,
   updateProfile,
-  clearPrimaryProfiles,
   savePrimaryProfile,
   getListingConnection,
   upsertListingConnection,
@@ -488,8 +571,10 @@ export const LocalSeoRepository = {
   updateGeoGridRun,
   failStaleGeoGridRun,
   markGeoGridConfigRun,
-  insertGeoGridCells,
+  insertGeoGridCellClaimed,
   getGeoGridRuns,
+  getLatestFailedGeoGridRun,
+  claimFailedGeoGridRun,
   getGeoGridRun,
   getGeoGridCells,
   createCitationAuditRun,

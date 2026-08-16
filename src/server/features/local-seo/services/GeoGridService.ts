@@ -15,6 +15,15 @@ type GeoGridScheduleInterval = CreateGeoGridConfigInput["scheduleInterval"];
 
 const EARTH_RADIUS_METERS = 6_371_008.8;
 const GEO_GRID_STALE_RUN_MS = 30 * 60 * 1_000;
+const GEO_GRID_RETRY_WINDOW_MS = 60 * 60 * 1_000;
+const GEO_GRID_COORDINATE_TOLERANCE = 1e-4;
+
+type GeoGridConfig = NonNullable<
+  Awaited<ReturnType<typeof LocalSeoRepository.getGeoGridConfig>>
+>;
+type LocalBusinessProfile = NonNullable<
+  Awaited<ReturnType<typeof LocalSeoRepository.getProfileById>>
+>;
 
 export function computeNextGeoGridRun(
   interval: Exclude<GeoGridScheduleInterval, "manual">,
@@ -47,6 +56,17 @@ interface PlannedGeoGridCell {
 
 interface GeoGridRankCell {
   position: number | null;
+}
+
+interface StoredGeoGridCell extends GeoGridRankCell {
+  rowIndex: number;
+  columnIndex: number;
+  latitude: number;
+  longitude: number;
+  matchedBy: GeoGridMatchedBy;
+  resultTitle: string | null;
+  resultUrl: string | null;
+  providerResultId: string | null;
 }
 
 interface LocalResult {
@@ -88,6 +108,26 @@ function toRadians(degrees: number) {
 
 function roundCoordinate(value: number) {
   return Number(value.toFixed(7));
+}
+
+function cellCoordinateKey(
+  cell: Pick<PlannedGeoGridCell, "rowIndex" | "columnIndex">,
+) {
+  return `${cell.rowIndex}:${cell.columnIndex}`;
+}
+
+function matchesPlannedCoordinate(
+  stored: StoredGeoGridCell,
+  planned: PlannedGeoGridCell,
+) {
+  return (
+    stored.rowIndex === planned.rowIndex &&
+    stored.columnIndex === planned.columnIndex &&
+    Math.abs(stored.latitude - planned.latitude) <
+      GEO_GRID_COORDINATE_TOLERANCE &&
+    Math.abs(stored.longitude - planned.longitude) <
+      GEO_GRID_COORDINATE_TOLERANCE
+  );
 }
 
 /**
@@ -309,6 +349,90 @@ async function createConfig(input: CreateGeoGridConfigInput) {
   });
 }
 
+async function getResumableGeoGridRun(input: {
+  config: GeoGridConfig;
+  profile: LocalBusinessProfile;
+  plan: PlannedGeoGridCell[];
+  projectId: string;
+}) {
+  const failedRun = await LocalSeoRepository.getLatestFailedGeoGridRun(
+    input.config.id,
+    input.projectId,
+  );
+  if (!failedRun) return null;
+  const completedAt = failedRun.completedAt;
+  if (!completedAt) return null;
+
+  const startedAt = Date.parse(failedRun.startedAt);
+  const failedAt = Date.parse(completedAt);
+  const profileUpdatedAt = Date.parse(input.profile.updatedAt);
+  const now = Date.now();
+  if (
+    !Number.isFinite(startedAt) ||
+    !Number.isFinite(failedAt) ||
+    !Number.isFinite(profileUpdatedAt) ||
+    failedAt < startedAt ||
+    failedAt > now ||
+    now - startedAt < 0 ||
+    now - startedAt > GEO_GRID_RETRY_WINDOW_MS ||
+    profileUpdatedAt > startedAt ||
+    failedRun.gridSize !== input.config.gridSize ||
+    failedRun.radiusMeters !== input.config.radiusMeters ||
+    failedRun.cellsTotal !== input.plan.length
+  ) {
+    return null;
+  }
+
+  const plannedByCoordinate = new Map(
+    input.plan.map((cell) => [cellCoordinateKey(cell), cell]),
+  );
+  const storedCells = await LocalSeoRepository.getGeoGridCells(
+    failedRun.id,
+    input.projectId,
+  );
+  if (storedCells.length === 0 || storedCells.length > input.plan.length) {
+    return null;
+  }
+
+  const storedByCoordinate = new Map<string, StoredGeoGridCell>();
+  for (const stored of storedCells) {
+    const key = cellCoordinateKey(stored);
+    const planned = plannedByCoordinate.get(key);
+    if (
+      !planned ||
+      storedByCoordinate.has(key) ||
+      !matchesPlannedCoordinate(stored, planned)
+    ) {
+      return null;
+    }
+    storedByCoordinate.set(key, stored);
+  }
+
+  return {
+    run: failedRun,
+    observedCompletedAt: completedAt,
+    cells: storedByCoordinate,
+  };
+}
+
+async function assertGeoGridAttemptActive(input: {
+  runId: string;
+  projectId: string;
+  attemptToken: string;
+}) {
+  const current = await LocalSeoRepository.getGeoGridRun(
+    input.runId,
+    input.projectId,
+  );
+  if (
+    !current ||
+    (current.status !== "pending" && current.status !== "running") ||
+    current.attemptToken !== input.attemptToken
+  ) {
+    throw new AppError("CONFLICT", "Geo-grid retry lease changed");
+  }
+}
+
 async function runGrid(input: {
   configId: string;
   projectId: string;
@@ -324,10 +448,10 @@ async function runGrid(input: {
     input.projectId,
   );
   if (activeRun) {
-    const startedAt = Date.parse(activeRun.startedAt);
+    const attemptStartedAt = Date.parse(activeRun.attemptStartedAt);
     const stale =
-      !Number.isFinite(startedAt) ||
-      Date.now() - startedAt >= GEO_GRID_STALE_RUN_MS;
+      !Number.isFinite(attemptStartedAt) ||
+      Date.now() - attemptStartedAt >= GEO_GRID_STALE_RUN_MS;
     if (!stale) return { started: false as const, run: activeRun };
 
     const completedAt = new Date().toISOString();
@@ -335,14 +459,25 @@ async function runGrid(input: {
       runId: activeRun.id,
       projectId: input.projectId,
       observedStartedAt: activeRun.startedAt,
+      observedAttemptToken: activeRun.attemptToken,
+      observedAttemptStartedAt: activeRun.attemptStartedAt,
       completedAt,
     });
     if (!released) {
+      const observedRun = await LocalSeoRepository.getGeoGridRun(
+        activeRun.id,
+        input.projectId,
+      );
+      if (observedRun) return { started: false as const, run: observedRun };
       activeRun = await LocalSeoRepository.getActiveGeoGridRun(
         config.id,
         input.projectId,
       );
       if (activeRun) return { started: false as const, run: activeRun };
+      throw new AppError(
+        "CONFLICT",
+        "Geo-grid run changed concurrently; retry shortly",
+      );
     }
   }
   const profile = await LocalSeoRepository.getProfileById(
@@ -354,35 +489,113 @@ async function runGrid(input: {
   }
 
   const plan = planGeoGrid(config);
-  const run = await LocalSeoRepository.createGeoGridRun({
-    id: crypto.randomUUID(),
-    configId: config.id,
+  const resumable = await getResumableGeoGridRun({
+    config,
+    profile,
+    plan,
     projectId: input.projectId,
-    status: "running",
-    gridSize: config.gridSize,
-    radiusMeters: config.radiusMeters,
-    cellsTotal: plan.length,
   });
-  if (!run) {
-    const blockingRun = await LocalSeoRepository.getActiveGeoGridRun(
-      config.id,
-      input.projectId,
-    );
-    if (!blockingRun) {
+  let run = null;
+  let cellsByCoordinate = new Map<string, StoredGeoGridCell>();
+  if (resumable) {
+    const attemptToken = crypto.randomUUID();
+    const attemptStartedAt = new Date().toISOString();
+    try {
+      run = await LocalSeoRepository.claimFailedGeoGridRun({
+        runId: resumable.run.id,
+        configId: config.id,
+        projectId: input.projectId,
+        observedStartedAt: resumable.run.startedAt,
+        observedCompletedAt: resumable.observedCompletedAt,
+        observedAttemptToken: resumable.run.attemptToken,
+        attemptToken,
+        attemptStartedAt,
+      });
+    } catch (error) {
+      const blockingRun = await LocalSeoRepository.getActiveGeoGridRun(
+        config.id,
+        input.projectId,
+      );
+      if (blockingRun) return { started: false as const, run: blockingRun };
+      throw error;
+    }
+    if (!run) {
+      const observedRun = await LocalSeoRepository.getGeoGridRun(
+        resumable.run.id,
+        input.projectId,
+      );
+      if (observedRun) return { started: false as const, run: observedRun };
+      const blockingRun = await LocalSeoRepository.getActiveGeoGridRun(
+        config.id,
+        input.projectId,
+      );
+      if (blockingRun) return { started: false as const, run: blockingRun };
       throw new AppError(
         "CONFLICT",
-        "Geo-grid run could not be created; retry shortly",
+        "Geo-grid retry changed concurrently; retry shortly",
       );
     }
-    return { started: false as const, run: blockingRun };
+    cellsByCoordinate = resumable.cells;
+  }
+
+  if (!run) {
+    const attemptStartedAt = new Date().toISOString();
+    run = await LocalSeoRepository.createGeoGridRun({
+      id: crypto.randomUUID(),
+      configId: config.id,
+      projectId: input.projectId,
+      status: "running",
+      attemptToken: crypto.randomUUID(),
+      attemptStartedAt,
+      gridSize: config.gridSize,
+      radiusMeters: config.radiusMeters,
+      cellsTotal: plan.length,
+      startedAt: attemptStartedAt,
+    });
+    if (!run) {
+      const blockingRun = await LocalSeoRepository.getActiveGeoGridRun(
+        config.id,
+        input.projectId,
+      );
+      if (!blockingRun) {
+        throw new AppError(
+          "CONFLICT",
+          "Geo-grid run could not be created; retry shortly",
+        );
+      }
+      return { started: false as const, run: blockingRun };
+    }
   }
 
   const client = createDataforseoClient(input.billingCustomer);
   try {
     // Sequential calls keep request/billing attribution simple and respect the
-    // provider's live SERP burst limits; every call uses the metered client.
-    const cells = [];
+    // provider's live SERP burst limits; every new call uses the metered client.
+    // Persist each paid result immediately. A short retry resumes one failed
+    // run in place, preserving its original run/cell timestamps and evidence.
+    const cells = plan.flatMap((cell) => {
+      const stored = cellsByCoordinate.get(cellCoordinateKey(cell));
+      return stored ? [stored] : [];
+    });
+    if (cells.length > 0) {
+      const updatedRun = await LocalSeoRepository.updateGeoGridRun(
+        run.id,
+        input.projectId,
+        run.attemptToken,
+        { cellsCompleted: cells.length },
+      );
+      if (!updatedRun) {
+        throw new AppError("CONFLICT", "Geo-grid retry lease changed");
+      }
+    }
+
     for (const cell of plan) {
+      if (cellsByCoordinate.has(cellCoordinateKey(cell))) continue;
+      await assertGeoGridAttemptActive({
+        runId: run.id,
+        projectId: input.projectId,
+        attemptToken: run.attemptToken,
+      });
       const results = await client.serp.local({
         keyword: config.keyword,
         locationCoordinate: `${cell.latitude},${cell.longitude},15z`,
@@ -394,20 +607,38 @@ async function runGrid(input: {
         creditFeature: "local_seo",
       });
       const match = matchLocalBusinessResult(profile, results);
-      cells.push({
+      const completedCell = {
         id: crypto.randomUUID(),
         runId: run.id,
         ...cell,
         ...match,
+      };
+      const insertedCell = await LocalSeoRepository.insertGeoGridCellClaimed({
+        cell: completedCell,
+        projectId: input.projectId,
+        attemptToken: run.attemptToken,
       });
+      if (!insertedCell) {
+        throw new AppError("CONFLICT", "Geo-grid retry lease changed");
+      }
+      cells.push(completedCell);
+      const updatedRun = await LocalSeoRepository.updateGeoGridRun(
+        run.id,
+        input.projectId,
+        run.attemptToken,
+        { cellsCompleted: cells.length },
+      );
+      if (!updatedRun) {
+        throw new AppError("CONFLICT", "Geo-grid retry lease changed");
+      }
     }
 
-    await LocalSeoRepository.insertGeoGridCells(cells);
     const aggregates = aggregateGeoGridRanks(cells);
     const completedAt = new Date().toISOString();
     const completedRun = await LocalSeoRepository.updateGeoGridRun(
       run.id,
       input.projectId,
+      run.attemptToken,
       {
         status: "completed",
         cellsCompleted: cells.length,
@@ -418,19 +649,27 @@ async function runGrid(input: {
         completedAt,
       },
     );
+    if (!completedRun) {
+      throw new AppError("CONFLICT", "Geo-grid retry lease changed");
+    }
     await LocalSeoRepository.markGeoGridConfigRun(
       config.id,
       input.projectId,
       completedAt,
     );
-    return { started: true as const, run: completedRun ?? run, cells };
+    return { started: true as const, run: completedRun, cells };
   } catch (error) {
-    await LocalSeoRepository.updateGeoGridRun(run.id, input.projectId, {
-      status: "failed",
-      errorMessage:
-        error instanceof Error ? error.message : "Geo-grid run failed",
-      completedAt: new Date().toISOString(),
-    });
+    await LocalSeoRepository.updateGeoGridRun(
+      run.id,
+      input.projectId,
+      run.attemptToken,
+      {
+        status: "failed",
+        errorMessage:
+          error instanceof Error ? error.message : "Geo-grid run failed",
+        completedAt: new Date().toISOString(),
+      },
+    );
     throw error;
   }
 }
