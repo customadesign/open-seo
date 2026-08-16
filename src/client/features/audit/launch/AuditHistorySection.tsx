@@ -9,11 +9,13 @@ export function AuditHistorySection({
   history,
   isLoading,
   onDelete,
+  readOnly = false,
 }: {
   projectId: string;
   history: Awaited<ReturnType<typeof getAuditHistory>>;
   isLoading: boolean;
   onDelete: (auditId: string) => void;
+  readOnly?: boolean;
 }) {
   if (history.length === 0 && !isLoading) {
     return (
@@ -65,6 +67,7 @@ export function AuditHistorySection({
                       projectId={projectId}
                       auditId={audit.id}
                       onDelete={onDelete}
+                      readOnly={readOnly}
                     />
                   </td>
                 </tr>
@@ -81,10 +84,12 @@ function HistoryActions({
   projectId,
   auditId,
   onDelete,
+  readOnly,
 }: {
   projectId: string;
   auditId: string;
   onDelete: (auditId: string) => void;
+  readOnly: boolean;
 }) {
   return (
     <div className="flex items-center justify-end gap-2 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
@@ -96,22 +101,24 @@ function HistoryActions({
       >
         View
       </Link>
-      <PortalMenu ariaLabel="Audit actions">
-        {(close) => (
-          <li>
-            <button
-              className="text-error"
-              onClick={() => {
-                close();
-                onDelete(auditId);
-              }}
-            >
-              <Trash2 className="size-3.5" />
-              Delete audit
-            </button>
-          </li>
-        )}
-      </PortalMenu>
+      {!readOnly ? (
+        <PortalMenu ariaLabel="Audit actions">
+          {(close) => (
+            <li>
+              <button
+                className="text-error"
+                onClick={() => {
+                  close();
+                  onDelete(auditId);
+                }}
+              >
+                <Trash2 className="size-3.5" />
+                Delete audit
+              </button>
+            </li>
+          )}
+        </PortalMenu>
+      ) : null}
     </div>
   );
 }

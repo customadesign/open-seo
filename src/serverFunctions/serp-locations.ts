@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAuthenticatedContext } from "@/serverFunctions/middleware";
+import { requireWorkspaceUse } from "@/serverFunctions/middleware";
 import { fetchSerpLocationsForCountry } from "@/server/lib/dataforseo/serp-locations";
 
 /** ISO 3166-1 alpha-2, e.g. "us" — DataForSEO rejects country names. */
@@ -12,7 +12,7 @@ const searchSerpLocationsSchema = z.object({
 });
 
 export const searchSerpLocations = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceUse)
   .validator(searchSerpLocationsSchema)
   .handler(async ({ data }) => {
     const all = await fetchSerpLocationsForCountry(data.countryCode);
@@ -28,7 +28,7 @@ export const searchSerpLocations = createServerFn({ method: "POST" })
  * country otherwise pays the full ~9.5MB DataForSEO fetch (~3s).
  */
 export const prewarmSerpLocations = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceUse)
   .validator(z.object({ countryCode: countryCodeField }))
   .handler(async ({ data }) => {
     await fetchSerpLocationsForCountry(data.countryCode);

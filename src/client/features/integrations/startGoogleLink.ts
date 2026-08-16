@@ -4,8 +4,10 @@ import { authClient } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
 import { startSelfHostedGa4Link } from "@/serverFunctions/ga4";
 import { startSelfHostedGscLink } from "@/serverFunctions/gsc";
+import { startSelfHostedGoogleAdsLink } from "@/serverFunctions/google-ads";
 import { GA4_OAUTH_PROVIDER_ID } from "@/shared/ga4";
 import { GSC_OAUTH_PROVIDER_ID } from "@/shared/gsc";
+import { GOOGLE_ADS_OAUTH_PROVIDER_ID } from "@/shared/google-ads";
 
 const googleProviders = {
   gsc: {
@@ -15,6 +17,10 @@ const googleProviders = {
   ga4: {
     providerId: GA4_OAUTH_PROVIDER_ID,
     startSelfHosted: startSelfHostedGa4Link,
+  },
+  googleAds: {
+    providerId: GOOGLE_ADS_OAUTH_PROVIDER_ID,
+    startSelfHosted: startSelfHostedGoogleAdsLink,
   },
 } as const;
 
@@ -26,7 +32,7 @@ const googleProviders = {
  * one place — callers keep their own analytics and dismissal behavior.
  */
 export async function startGoogleLink(
-  provider: "gsc" | "ga4",
+  provider: "gsc" | "ga4" | "googleAds",
   callbackURL: string,
 ): Promise<void> {
   try {

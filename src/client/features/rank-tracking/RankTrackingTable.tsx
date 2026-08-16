@@ -40,6 +40,7 @@ export function RankTrackingTable({
   locationCode,
   locationName,
   serpDepth,
+  readOnly = false,
 }: {
   totalCount: number;
   rows: RankTrackingRow[];
@@ -53,6 +54,7 @@ export function RankTrackingTable({
   locationCode: number;
   locationName?: string | null;
   serpDepth: number;
+  readOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [showConfirm, setShowConfirm] = useState(false);
@@ -172,13 +174,15 @@ export function RankTrackingTable({
         onClear={() => table.resetRowSelection()}
         actions={
           <div className="flex items-center px-1.5">
-            <TableBulkActionButton
-              icon={<Trash2 className="size-3.5" />}
-              onClick={() => setShowConfirm(true)}
-              variant="danger"
-            >
-              Remove
-            </TableBulkActionButton>
+            {!readOnly ? (
+              <TableBulkActionButton
+                icon={<Trash2 className="size-3.5" />}
+                onClick={() => setShowConfirm(true)}
+                variant="danger"
+              >
+                Remove
+              </TableBulkActionButton>
+            ) : null}
             <TableBulkExportMenu
               actions={[
                 {
@@ -198,7 +202,7 @@ export function RankTrackingTable({
       />
 
       {/* Confirm modal */}
-      {showConfirm && (
+      {showConfirm && !readOnly && (
         <Modal
           onClose={() => setShowConfirm(false)}
           labelledBy="remove-keywords-title"

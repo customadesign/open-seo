@@ -13,6 +13,7 @@ import { BILLING_ROUTE } from "@/shared/billing";
 import { getSeoApiKeyStatus } from "@/serverFunctions/config";
 import { getProjects } from "@/serverFunctions/projects";
 import { getLastProjectId } from "@/client/lib/active-project";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 const DATAFORSEO_HELP_PATH = "/help/dataforseo-api-key";
 
@@ -26,6 +27,9 @@ export function AuthenticatedAppLayout({
   banner?: React.ReactNode;
 }) {
   const location = useLocation();
+  const accessQuery = useWorkspaceAccess();
+  const canUseProjectTools = accessQuery.data?.canUseProjectTools === true;
+  const canManageWorkspace = accessQuery.data?.canManageWorkspace === true;
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const setupModalRef = React.useRef<HTMLDivElement | null>(null);
   const [showMissingSeoApiKeyModal, setShowMissingSeoApiKeyModal] =
@@ -56,7 +60,8 @@ export function AuthenticatedAppLayout({
   // builds links that self-correct via the route guard once data arrives.
   const sidebarProjectId =
     projectId ?? fallbackProjectId ?? rememberedProjectId;
-  const shouldCheckSeoApiKeyStatus = location.pathname !== BILLING_ROUTE;
+  const shouldCheckSeoApiKeyStatus =
+    canUseProjectTools && location.pathname !== BILLING_ROUTE;
   const seoApiKeyStatusQuery = useQuery({
     queryKey: ["seoApiKeyStatus"],
     queryFn: () => getSeoApiKeyStatus(),
@@ -156,7 +161,7 @@ export function AuthenticatedAppLayout({
 
       <GscReEngagementModal
         projectId={sidebarProjectId}
-        suppressed={shouldShowMissingSeoApiKeyModal}
+        suppressed={shouldShowMissingSeoApiKeyModal || !canManageWorkspace}
       />
     </div>
   );

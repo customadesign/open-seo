@@ -14,6 +14,7 @@ import {
   AUTUMN_MANAGED_ACCESS_FEATURE_ID,
   AUTUMN_PAID_PLAN_ID,
 } from "@/shared/billing";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 const SUPPORT_EMAIL = "ben@openseo.so";
 
@@ -44,6 +45,8 @@ export const Route = createFileRoute("/_authenticated/subscribe")({
 });
 
 function SubscribePage() {
+  const accessQuery = useWorkspaceAccess();
+  const canManageWorkspace = accessQuery.data?.canManageWorkspace === true;
   const navigate = useNavigate();
   const { upgrade: isUpgradeFlow, redirect, checkout } = Route.useSearch();
   const { data: session } = useSession();
@@ -55,7 +58,7 @@ function SubscribePage() {
   const hasSession = Boolean(session?.user?.id);
   const customerQuery = useCustomer({
     queryOptions: {
-      enabled: hasSession,
+      enabled: hasSession && canManageWorkspace,
     },
   });
 
@@ -117,6 +120,23 @@ function SubscribePage() {
       captureClientEvent("billing:paywall_viewed");
     }
   }, [isUpgradeFlow, subscribeRouteState]);
+
+  if (!accessQuery.data) return null;
+
+  if (!canManageWorkspace) {
+    return (
+      <div className="w-full max-w-xs space-y-3 text-center">
+        <User className="mx-auto size-8 text-base-content/50" />
+        <h1 className="text-xl font-semibold">Ask your workspace owner</h1>
+        <p className="text-sm text-base-content/65">
+          Only the workspace owner can manage the OpenSEO subscription.
+        </p>
+        <Link to="/" className="btn btn-primary btn-sm">
+          Open your projects
+        </Link>
+      </div>
+    );
+  }
 
   if (
     subscribeRouteState === "loading" ||

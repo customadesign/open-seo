@@ -7,6 +7,7 @@ import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve"
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
+import { ReportService } from "@/server/features/reports/ReportService";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -26,6 +27,11 @@ import {
 import { maybeSendSelfHostHeartbeat } from "@/server/lib/self-host-telemetry";
 import { handleGdprStorageErasure } from "@/server/gdpr/storage-erasure";
 import { GDPR_STORAGE_ERASURE_PATH } from "@/shared/gdpr-erasure";
+import {
+  canAccessProject,
+  canManageWorkspace,
+  canUseProjectTools,
+} from "@/shared/workspace-access";
 
 const appFetch = createStartHandler(defaultStreamHandler);
 const openSeoOAuthProvider = createOpenSeoOAuthProvider(appFetch);
@@ -49,6 +55,12 @@ async function authorizeOnboardingChat(
     context.organizationId,
   );
   if (!project) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  if (
+    !canManageWorkspace(context.access) ||
+    !canAccessProject(context.access, project.id)
+  ) {
     return new Response("Forbidden", { status: 403 });
   }
   // Ensure the org's Autumn customer exists (and gets its default onboarding-plan
@@ -87,6 +99,12 @@ async function authorizeSamChat(
       )
     : null;
   if (!session || !project) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  if (
+    !canUseProjectTools(context.access) ||
+    !canAccessProject(context.access, project.id)
+  ) {
     return new Response("Forbidden", { status: 403 });
   }
   // Same as onboarding above: make sure the Autumn customer (and its default
@@ -180,6 +198,7 @@ function handleFetch(
 // Export Workflow classes as named exports
 export { SiteAuditWorkflow } from "./server/workflows/SiteAuditWorkflow";
 export { RankCheckWorkflow } from "./server/workflows/RankCheckWorkflow";
+export { ReportWorkflow } from "./server/workflows/ReportWorkflow";
 // Durable Object class for the onboarding strategy chat (Agents SDK).
 export { OnboardingChatAgent } from "./server/features/onboarding/OnboardingChatAgent";
 // Durable Object class for the SAM in-app agent (Agents SDK).
@@ -225,8 +244,18 @@ export default {
       watchdogError = err;
       console.error("[cron] Stale-audit reconcile failed:", err);
     }
+    let reportSchedulerError: unknown;
+    try {
+      await withPgClient(() =>
+        ReportService.processDueSchedules(env.REPORT_WORKFLOW),
+      );
+    } catch (err) {
+      reportSchedulerError = err;
+      console.error("[cron] Monthly report scheduler failed:", err);
+    }
     // Scope a per-request Postgres client for the cron run (no-op in D1 mode).
     await withPgClient(() => runScheduledRankChecks(env));
     if (watchdogError) throw watchdogError;
+    if (reportSchedulerError) throw reportSchedulerError;
   },
 };

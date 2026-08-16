@@ -5,6 +5,11 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { Ga4ConnectCard } from "@/client/features/dashboard/Ga4ConnectCard";
+import { Ga4DashboardCards } from "@/client/features/dashboard/Ga4DashboardCards";
+import {
+  ga4DashboardHasDataForSort,
+  shouldShowDashboardGa4,
+} from "@/client/features/dashboard/ga4Dashboard";
 import {
   computeNextStep,
   isStepDone,
@@ -28,6 +33,8 @@ import {
 import { setProjectDomain } from "@/serverFunctions/projects";
 import { GA4_OAUTH_APP_PENDING } from "@/shared/ga4";
 import type { DashboardHeroStep } from "@/types/schemas/dashboard";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
+import { isHostedClientAuthMode } from "@/lib/auth-mode";
 
 const HERO_COPY: Record<
   DashboardHeroStep,
@@ -235,6 +242,9 @@ function OnboardingChecklist({
 
 export function DashboardPage({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
+  const accessQuery = useWorkspaceAccess();
+  const canUseProjectTools = accessQuery.data?.canUseProjectTools === true;
+  const canManageWorkspace = accessQuery.data?.canManageWorkspace === true;
 
   const activationQuery = useQuery({
     queryKey: ["dashboardActivation", projectId],
@@ -260,6 +270,7 @@ export function DashboardPage({ projectId }: { projectId: string }) {
   });
   const refreshFiredRef = useRef(false);
   const needsSnapshot =
+    canUseProjectTools &&
     activation?.domain != null &&
     overview !== undefined &&
     (overview.backlinks === null || overview.backlinks.stale);
@@ -301,15 +312,25 @@ export function DashboardPage({ projectId }: { projectId: string }) {
   const showBacklinks = activation.domain !== null;
   const gscConnected = activation.gsc.connected;
   const ga4Connected = activation.ga4.connected;
+  const showGa4 =
+    canUseProjectTools &&
+    shouldShowDashboardGa4({
+      hosted: isHostedClientAuthMode(),
+      oauthAppPending: GA4_OAUTH_APP_PENDING,
+      connected: ga4Connected,
+      dismissedAt: activation.ga4.cardDismissedAt,
+    });
 
   return (
     <div className="px-4 py-4 pb-24 md:px-6 md:py-6 md:pb-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
 
-        <WorkspaceMergeBanner />
+        {canManageWorkspace ? <WorkspaceMergeBanner /> : null}
 
-        <OnboardingChecklist projectId={projectId} activation={activation} />
+        {canManageWorkspace ? (
+          <OnboardingChecklist projectId={projectId} activation={activation} />
+        ) : null}
 
         {/* Every card is half width on large screens (only the checklist spans).
           Cards with data render before setup pitches and empty states. */}
@@ -317,7 +338,9 @@ export function DashboardPage({ projectId }: { projectId: string }) {
           {[
             // Array order is the within-bucket order after the data-first sort:
             // the MCP pitch leads the setup cards.
-            ...(activation.mcp.firstToolCallAt || activation.mcp.cardDismissedAt
+            ...(!canUseProjectTools ||
+            activation.mcp.firstToolCallAt ||
+            activation.mcp.cardDismissedAt
               ? []
               : [
                   {
@@ -334,15 +357,28 @@ export function DashboardPage({ projectId }: { projectId: string }) {
             {
               key: "gsc",
               hasData: gscConnected,
-              node: <GscCard projectId={projectId} connected={gscConnected} />,
+              node: (
+                <GscCard
+                  projectId={projectId}
+                  connected={gscConnected}
+                  canManageConnection={canManageWorkspace}
+                />
+              ),
             },
-            ...(!GA4_OAUTH_APP_PENDING &&
-            (ga4Connected || !activation.ga4.cardDismissedAt)
+            ...(showGa4 && (ga4Connected || canManageWorkspace)
               ? [
                   {
                     key: "ga4",
-                    hasData: ga4Connected,
-                    node: (
+                    hasData: ga4DashboardHasDataForSort({
+                      gscConnected,
+                      ga4Connected,
+                    }),
+                    node: ga4Connected ? (
+                      <Ga4DashboardCards
+                        projectId={projectId}
+                        connected={ga4Connected}
+                      />
+                    ) : (
                       <Ga4ConnectCard
                         projectId={projectId}
                         connected={ga4Connected}
@@ -380,7 +416,12 @@ export function DashboardPage({ projectId }: { projectId: string }) {
           ]
             .toSorted((a, b) => Number(b.hasData) - Number(a.hasData))
             .map((card) => (
-              <div key={card.key}>{card.node}</div>
+              <div
+                key={card.key}
+                className={card.key === "ga4" ? "contents" : undefined}
+              >
+                {card.node}
+              </div>
             ))}
         </div>
       </div>

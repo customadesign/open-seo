@@ -1,6 +1,11 @@
 import { ProjectService } from "@/server/features/projects/services/ProjectService";
 import { AppError } from "@/server/lib/errors";
 import { buildBillingCustomer, type ToolContext } from "@/server/mcp/context";
+import { resolveMcpWorkspacePrincipal } from "@/server/mcp/workspace-access";
+import {
+  canAccessProject,
+  canUseProjectTools,
+} from "@/shared/workspace-access";
 
 type ProjectScopedArgs = {
   projectId: string;
@@ -10,7 +15,15 @@ async function requireProjectAccess(
   toolContext: ToolContext,
   projectId: string,
 ) {
-  const { baseUrl, ...auth } = toolContext.auth;
+  const { baseUrl, delegated: _delegated, ...auth } = toolContext.auth;
+  const access = await resolveMcpWorkspacePrincipal(toolContext.auth);
+  if (
+    !access ||
+    !canUseProjectTools(access) ||
+    !canAccessProject(access, projectId)
+  ) {
+    throw new AppError("FORBIDDEN");
+  }
 
   // Authorize the caller-supplied projectId against the token's organization.
   // Assert on the result instead of relying on the lookup throwing, so this
@@ -25,6 +38,7 @@ async function requireProjectAccess(
 
   return {
     auth,
+    access,
     baseUrl,
     billing: buildBillingCustomer(auth, projectId),
     // The row is already fetched for the auth gate; exposing it lets tools

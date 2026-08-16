@@ -10,6 +10,7 @@ export type ToolAuthContext = {
   scopes: string[];
   clientId: string | null;
   baseUrl: string;
+  delegated?: boolean;
 };
 
 export type ToolContext = {
@@ -24,6 +25,7 @@ const applicationAuthContextSchema = z.object({
   userEmail: z.string().min(1),
   organizationId: z.string().min(1),
   baseUrl: z.string().url(),
+  delegated: z.boolean().optional(),
   // Compatibility fallback until workers-oauth-provider supplies the verified
   // context marker consumed by Agents SDK 0.20.x (the
   // cloudflare.workers-oauth-provider.verified-context.v1 symbol, which mints
@@ -79,6 +81,7 @@ export function createMcpToolContext(
   return {
     auth: {
       ...applicationAuth,
+      delegated: applicationAuth.delegated ?? false,
       clientId,
       scopes,
     },

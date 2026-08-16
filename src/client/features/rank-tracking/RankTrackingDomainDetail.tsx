@@ -62,15 +62,17 @@ export function RankTrackingDomainDetail({
   projectId,
   onBack,
   onEdit,
+  readOnly = false,
 }: {
   config: RankTrackingConfig;
   projectId: string;
   onBack: () => void;
   onEdit: () => void;
+  readOnly?: boolean;
 }) {
   const { data: session } = useSession();
   const customerQuery = useCustomer({
-    queryOptions: { enabled: Boolean(session?.user?.id) },
+    queryOptions: { enabled: Boolean(session?.user?.id) && !readOnly },
   });
   const isFreePlan =
     !!customerQuery.data &&
@@ -117,6 +119,7 @@ export function RankTrackingDomainDetail({
     queryKey: ["rankTrackingCostEstimate", projectId, config.id],
     queryFn: () =>
       estimateRankCheckCost({ data: { projectId, configId: config.id } }),
+    enabled: !readOnly,
   });
 
   const [pendingCheck, setPendingCheck] = useState<{
@@ -215,7 +218,7 @@ export function RankTrackingDomainDetail({
         </div>
       )}
 
-      <FreePlanAlert visible={isFreePlan} />
+      <FreePlanAlert visible={!readOnly && isFreePlan} />
 
       {/* Results card */}
       <div className="flex-1 flex flex-col min-w-0 border border-base-300 rounded-xl bg-base-100 overflow-hidden">
@@ -231,9 +234,10 @@ export function RankTrackingDomainDetail({
           onComparePeriodChange={setComparePeriod}
           onEdit={onEdit}
           onToggleAddKeywords={() => setShowAddKeywords((c) => !c)}
+          readOnly={readOnly}
         />
 
-        {showAddKeywords && (
+        {showAddKeywords && !readOnly && (
           <div className="px-4 pb-3">
             <AddKeywordsPanel
               configId={config.id}
@@ -296,6 +300,7 @@ export function RankTrackingDomainDetail({
           checkBusy={isBusy}
           checkDisabled={isFreePlan}
           hasData={filtered.length > 0}
+          readOnly={readOnly}
         />
 
         {/* Filters panel */}
@@ -334,12 +339,13 @@ export function RankTrackingDomainDetail({
               locationCode={config.locationCode}
               locationName={config.locationName}
               serpDepth={config.serpDepth}
+              readOnly={readOnly}
             />
           )}
         </div>
       </div>
 
-      {pendingCheck && (
+      {pendingCheck && !readOnly && (
         <CheckConfirmModal
           keywordCount={pendingCheck.count}
           devices={config.devices}

@@ -141,6 +141,20 @@
       "when": 1786209409297,
       "tag": "0019_clammy_selene",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786877365783,
+      "tag": "0020_bent_zarek",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786913236828,
+      "tag": "0021_dry_cloak",
+      "breakpoints": true
     }
   ]
 }

@@ -29,6 +29,7 @@ export function RankTrackingDetailHeader({
   onComparePeriodChange,
   onEdit,
   onToggleAddKeywords,
+  readOnly = false,
 }: {
   config: RankTrackingConfig;
   run: { lastCheckedAt: string | null } | null | undefined;
@@ -40,6 +41,7 @@ export function RankTrackingDetailHeader({
   onComparePeriodChange: (v: ComparePeriod) => void;
   onEdit: () => void;
   onToggleAddKeywords: () => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 px-4 pt-4 pb-3">
@@ -95,18 +97,24 @@ export function RankTrackingDetailHeader({
           <option value="30d">vs last month</option>
           <option value="90d">vs 90 days ago</option>
         </select>
-        <div className="hidden sm:block h-6 w-px bg-base-300" />
-        <button className="btn btn-sm gap-1" onClick={onEdit}>
-          <Settings className="size-3.5" />
-          Configure
-        </button>
-        <button
-          className="btn btn-primary btn-sm gap-1"
-          onClick={onToggleAddKeywords}
-        >
-          <Plus className="size-3.5" />
-          Add Keywords
-        </button>
+        {!readOnly ? (
+          <div className="hidden sm:block h-6 w-px bg-base-300" />
+        ) : null}
+        {!readOnly ? (
+          <button className="btn btn-sm gap-1" onClick={onEdit}>
+            <Settings className="size-3.5" />
+            Configure
+          </button>
+        ) : null}
+        {!readOnly ? (
+          <button
+            className="btn btn-primary btn-sm gap-1"
+            onClick={onToggleAddKeywords}
+          >
+            <Plus className="size-3.5" />
+            Add Keywords
+          </button>
+        ) : null}
       </div>
     </div>
   );

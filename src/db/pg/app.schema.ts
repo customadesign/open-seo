@@ -5,12 +5,13 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   real,
   serial,
   text,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { organization, user } from "./better-auth-schema";
+import { member, organization, user } from "./better-auth-schema";
 
 // Timestamps are stored as *text* (same column shape as the SQLite schema).
 // Postgres `timestamptz` would be parsed back into a JS Date by postgres-js
@@ -88,6 +89,50 @@ export const projects = pgTable(
     // list queries seq-scan. Per-org row counts are small, so the archived/
     // created_at ordering sorts cheaply on top of this single-column lookup.
     index("projects_organization_id_idx").on(table.organizationId),
+  ],
+);
+
+// Hosted workspace access attached to a Better Auth organization member.
+// Owners are derived from member.role and need no profile row. A missing row
+// for a non-owner is treated as a legacy employee with all-project access.
+export const memberAccessProfiles = pgTable(
+  "member_access_profiles",
+  {
+    memberId: text("member_id")
+      .primaryKey()
+      .references(() => member.id, { onDelete: "cascade" }),
+    accountType: text("account_type", { enum: ["employee", "client"] })
+      .notNull()
+      .default("employee"),
+    projectScope: text("project_scope", { enum: ["all", "selected"] })
+      .notNull()
+      .default("all"),
+    status: text("status", { enum: ["active", "disabled"] })
+      .notNull()
+      .default("active"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestampColumn("created_at").notNull().default(isoNow),
+    updatedAt: timestampColumn("updated_at").notNull().default(isoNow),
+  },
+  (table) => [index("member_access_profiles_status_idx").on(table.status)],
+);
+
+export const projectMemberAccess = pgTable(
+  "project_member_access",
+  {
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    createdAt: timestampColumn("created_at").notNull().default(isoNow),
+  },
+  (table) => [
+    primaryKey({ columns: [table.memberId, table.projectId] }),
+    index("project_member_access_project_idx").on(table.projectId),
   ],
 );
 

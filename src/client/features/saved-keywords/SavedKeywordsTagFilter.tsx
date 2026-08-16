@@ -24,6 +24,7 @@ export function SavedKeywordsTagFilter({
   onUpdateTag,
   onDeleteTag,
   busyTagIds,
+  readOnly = false,
 }: {
   availableTags: SavedKeywordTagSummary[];
   selectedTagIds: string[];
@@ -36,6 +37,7 @@ export function SavedKeywordsTagFilter({
   }) => void;
   onDeleteTag: (tagId: string) => void;
   busyTagIds: Set<string>;
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -145,6 +147,7 @@ export function SavedKeywordsTagFilter({
             setManagingTagId(null);
           }}
           onClearSelection={onClearSelection}
+          readOnly={readOnly}
         />
       ) : null}
     </div>
@@ -164,6 +167,7 @@ function TagFilterPopover({
   onUpdateTag,
   onDeleteTag,
   onClearSelection,
+  readOnly,
 }: {
   availableTags: SavedKeywordTagSummary[];
   filteredTags: SavedKeywordTagSummary[];
@@ -180,6 +184,7 @@ function TagFilterPopover({
   ) => void;
   onDeleteTag: (tagId: string) => void;
   onClearSelection: () => void;
+  readOnly: boolean;
 }) {
   return (
     <div className="absolute right-0 top-full z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-base-300 bg-base-100 shadow-2xl">
@@ -225,6 +230,7 @@ function TagFilterPopover({
             onStartManaging={onStartManaging}
             onUpdate={(input) => onUpdateTag(tag.id, input)}
             onDelete={() => onDeleteTag(tag.id)}
+            readOnly={readOnly}
           />
         ))}
       </div>
@@ -256,6 +262,7 @@ function TagFilterRow({
   onStartManaging,
   onUpdate,
   onDelete,
+  readOnly,
 }: {
   tag: SavedKeywordTagSummary;
   checked: boolean;
@@ -265,33 +272,36 @@ function TagFilterRow({
   onStartManaging: (tagId: string | null) => void;
   onUpdate: (input: { name?: string; color?: TagColorKey | null }) => void;
   onDelete: () => void;
+  readOnly: boolean;
 }) {
   const color = resolveTagColor(tag);
   return (
     <div>
       <div className="group flex items-center gap-2 px-2 py-1.5 hover:bg-base-200">
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          onClick={onToggle}
-        >
-          <span
-            className={`flex size-4 shrink-0 items-center justify-center rounded border ${
-              checked
-                ? "border-primary bg-primary text-primary-content"
-                : "border-base-300"
-            }`}
+        {!readOnly ? (
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            onClick={onToggle}
           >
-            {checked ? <Check className="size-3" /> : null}
-          </span>
-          <span
-            className={`size-2 shrink-0 rounded-full ${tagDotClass(color)}`}
-          />
-          <span className="min-w-0 flex-1 truncate text-sm">{tag.name}</span>
-          <span className="shrink-0 text-[11px] tabular-nums text-base-content/45">
-            {tag.keywordCount}
-          </span>
-        </button>
+            <span
+              className={`flex size-4 shrink-0 items-center justify-center rounded border ${
+                checked
+                  ? "border-primary bg-primary text-primary-content"
+                  : "border-base-300"
+              }`}
+            >
+              {checked ? <Check className="size-3" /> : null}
+            </span>
+            <span
+              className={`size-2 shrink-0 rounded-full ${tagDotClass(color)}`}
+            />
+            <span className="min-w-0 flex-1 truncate text-sm">{tag.name}</span>
+            <span className="shrink-0 text-[11px] tabular-nums text-base-content/45">
+              {tag.keywordCount}
+            </span>
+          </button>
+        ) : null}
         <button
           type="button"
           className={`rounded p-1 text-base-content/45 hover:bg-base-300 hover:text-base-content ${
@@ -304,7 +314,7 @@ function TagFilterRow({
         </button>
       </div>
 
-      {isManaging ? (
+      {isManaging && !readOnly ? (
         <ManageTagRow
           tag={tag}
           isBusy={isBusy}

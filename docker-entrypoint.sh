@@ -13,7 +13,9 @@ echo 'OpenSEO sends an anonymous usage heartbeat (counts only). Disable: OPENSEO
 # in seconds with the exact fix instead of after a multi-minute build.
 pnpm exec tsx scripts/selfhost-preflight.ts
 
-pnpm run db:migrate:local
+# Wrangler skips its confirmation prompt in CI/non-interactive environments.
+# Set CI explicitly because detached Docker containers do not imply it.
+CI=true pnpm run db:migrate:local
 
 # POSTHOG_SOURCEMAPS (CI sourcemap uploads) moves vite's outDir; keep the
 # fingerprint marker beside the output it describes.

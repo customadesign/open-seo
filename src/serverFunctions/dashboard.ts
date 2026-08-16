@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { ActivationRepository } from "@/server/features/activation/repositories/ActivationRepository";
 import { DashboardService } from "@/server/features/dashboard/services/DashboardService";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import {
+  requireProjectContext,
+  requireProjectUse,
+} from "@/serverFunctions/middleware";
 import { dashboardProjectInputSchema } from "@/types/schemas/dashboard";
 
 export const getDashboardActivation = createServerFn({ method: "POST" })
@@ -18,12 +21,19 @@ export const getDashboardActivation = createServerFn({ method: "POST" })
 export const getDashboardOverview = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(dashboardProjectInputSchema)
-  .handler(({ context }) =>
-    DashboardService.getOverview({
+  .handler(async ({ context }) => {
+    const overview = await DashboardService.getOverview({
       projectId: context.projectId,
       domain: context.project.domain,
-    }),
-  );
+    });
+    if (
+      context.access.role === "client" &&
+      overview.audit?.status !== "completed"
+    ) {
+      return { ...overview, audit: null };
+    }
+    return overview;
+  });
 
 // Visit-triggered: the client calls this when the overview reports a missing
 // or stale backlink snapshot. Metered against org credits at most once per
@@ -31,7 +41,7 @@ export const getDashboardOverview = createServerFn({ method: "POST" })
 export const refreshDashboardBacklinkSnapshot = createServerFn({
   method: "POST",
 })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(dashboardProjectInputSchema)
   .handler(({ context }) =>
     DashboardService.ensureBacklinkSnapshot({
@@ -44,7 +54,7 @@ export const refreshDashboardBacklinkSnapshot = createServerFn({
 export const markDashboardCompetitorClicked = createServerFn({
   method: "POST",
 })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(dashboardProjectInputSchema)
   .handler(async ({ context }) => {
     await ActivationRepository.markCompetitorStepClicked(context.projectId);
@@ -55,7 +65,7 @@ export const markDashboardCompetitorClicked = createServerFn({
 // the org-level milestone stays untouched and self-corrects on the next
 // real external tool call.
 export const dismissDashboardMcpCard = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(dashboardProjectInputSchema)
   .handler(async ({ context }) => {
     await ActivationRepository.markMcpCardDismissed(context.projectId);
@@ -66,7 +76,7 @@ export const dismissDashboardMcpCard = createServerFn({ method: "POST" })
 // integration remains available in Project Settings and a later connection
 // makes the dashboard card visible again.
 export const dismissDashboardGa4Card = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(dashboardProjectInputSchema)
   .handler(async ({ context }) => {
     await ActivationRepository.markGa4CardDismissed(context.projectId);

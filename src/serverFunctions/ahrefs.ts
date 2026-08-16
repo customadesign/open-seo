@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { chunk } from "remeda";
 import { z } from "zod";
 import { normalizeDomainInput } from "@/server/lib/domainUtils";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import { requireProjectUse } from "@/serverFunctions/middleware";
 
 /**
  * Ahrefs publishes a free, keyless Domain Rating lookup. We use it to enrich the
@@ -31,7 +31,7 @@ const ahrefsResponseSchema = z.object({
 });
 
 export const getAhrefsDomainRatings = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(domainRatingsInputSchema)
   .handler(async ({ data }) => {
     const result: Record<string, number | null> = {};

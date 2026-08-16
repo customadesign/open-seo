@@ -15,6 +15,12 @@ const selfHostedAuthMocks = vi.hoisted(() => ({
   resolveLocalNoAuthContext: vi.fn(),
   createOpenSeoMcpServer: vi.fn(),
   createMcpHandler: vi.fn(),
+  resolveMcpWorkspacePrincipal: vi.fn(),
+}));
+
+vi.mock("@/server/mcp/workspace-access", () => ({
+  resolveMcpWorkspacePrincipal:
+    selfHostedAuthMocks.resolveMcpWorkspacePrincipal,
 }));
 
 vi.mock("@/middleware/ensure-user/cloudflareAccess", () => ({
@@ -65,6 +71,17 @@ const ctx: ExecutionContext = {
   passThroughOnException() {},
   props: {},
 };
+
+beforeEach(() => {
+  selfHostedAuthMocks.resolveMcpWorkspacePrincipal.mockReset();
+  selfHostedAuthMocks.resolveMcpWorkspacePrincipal.mockResolvedValue({
+    memberId: "member-1",
+    role: "employee",
+    projectScope: "all",
+    projectIds: [],
+    delegated: false,
+  });
+});
 
 function createMcpRequest(headers?: Record<string, string>) {
   return new Request("https://open-seo.test/mcp", {
@@ -148,6 +165,7 @@ describe("handleSelfHostedOpenSeoMcpRequest", () => {
         userEmail: "admin@localhost",
         organizationId: "delegated-local-admin",
         baseUrl: "https://open-seo.test",
+        delegated: true,
       },
     });
     // Self-hosted must not pin Origins to the request's own Host — the
@@ -178,6 +196,7 @@ describe("handleSelfHostedOpenSeoMcpRequest", () => {
         userEmail: "person@example.com",
         organizationId: "delegated-cloudflare-user",
         baseUrl: "https://open-seo.test",
+        delegated: true,
       },
     });
   });
@@ -286,5 +305,35 @@ describe("handleAuthenticatedOpenSeoMcpRequest", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it("rejects client and deactivated workspace accounts", async () => {
+    const props = hostedProps();
+    selfHostedAuthMocks.resolveMcpWorkspacePrincipal.mockResolvedValueOnce({
+      memberId: "member-1",
+      role: "client",
+      projectScope: "selected",
+      projectIds: ["project-1"],
+      delegated: false,
+    });
+
+    const clientResponse = await handleAuthenticatedOpenSeoMcpRequest(
+      createMcpRequest(),
+      props,
+      {},
+      { ...ctx, props },
+    );
+    expect(clientResponse.status).toBe(403);
+
+    selfHostedAuthMocks.resolveMcpWorkspacePrincipal.mockResolvedValueOnce(
+      null,
+    );
+    const disabledResponse = await handleAuthenticatedOpenSeoMcpRequest(
+      createMcpRequest(),
+      props,
+      {},
+      { ...ctx, props },
+    );
+    expect(disabledResponse.status).toBe(403);
   });
 });

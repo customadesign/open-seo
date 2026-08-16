@@ -11,6 +11,7 @@ import { normalizeBacklinksTarget } from "@/server/lib/dataforseoBacklinksTarget
 import { AppError } from "@/server/lib/errors";
 import { assertLanguageForLocation } from "@/server/lib/market";
 import { getLanguageCode } from "@/shared/keyword-locations";
+import type { WorkspacePrincipal } from "@/shared/workspace-access";
 
 function mapProject(project: {
   id: string;
@@ -70,6 +71,20 @@ const RESERVED_DEFAULT_MESSAGE =
 export async function listProjects(organizationId: string) {
   const rows = await ProjectRepository.listProjects(organizationId);
   return rows.map(mapProject);
+}
+
+export async function listAccessibleProjects(
+  organizationId: string,
+  access: WorkspacePrincipal,
+) {
+  const rows =
+    access.role === "owner"
+      ? await listProjectsEnsuringOne(organizationId)
+      : await listProjects(organizationId);
+
+  if (access.projectScope === "all") return rows;
+  const allowedIds = new Set(access.projectIds);
+  return rows.filter((project) => allowedIds.has(project.id));
 }
 
 // Source of truth for "which projects does this org have", guaranteeing at least

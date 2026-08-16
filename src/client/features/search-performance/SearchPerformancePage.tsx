@@ -37,6 +37,7 @@ import {
   type SearchPerformanceDevice,
   type SearchPerformanceTableDimension,
 } from "@/types/schemas/search-performance";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 const RANGE_LABELS: Record<SearchPerformanceDateRange, string> = {
   last_7_days: "Last 7 days",
@@ -118,6 +119,8 @@ function tableQueryOptions(
 }
 
 export function SearchPerformancePage({ projectId }: { projectId: string }) {
+  const accessQuery = useWorkspaceAccess();
+  const readOnly = accessQuery.data?.role === "client";
   const queryClient = useQueryClient();
   const [range, setRange] =
     useState<SearchPerformanceDateRange>("last_28_days");
@@ -199,7 +202,7 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
               Google Search Console.
             </p>
           </div>
-          {report?.connected ? (
+          {report?.connected && !readOnly ? (
             <Link
               to="/p/$projectId/settings"
               params={{ projectId }}
@@ -219,9 +222,14 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
               {getStandardErrorMessage(reportQuery.error)}
             </span>
           </div>
-        ) : !report?.connected ? (
+        ) : !report?.connected && !readOnly ? (
           <div className="max-w-2xl">
             <SearchConsoleConnectionCard projectId={projectId} />
+          </div>
+        ) : !report?.connected ? (
+          <div className="alert alert-info max-w-2xl">
+            Search Console has not been connected for this project. Ask the
+            workspace owner to connect it.
           </div>
         ) : (
           <>

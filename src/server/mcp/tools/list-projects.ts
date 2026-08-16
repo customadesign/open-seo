@@ -4,6 +4,8 @@ import { type ToolContext } from "@/server/mcp/context";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { buildDashboardUrl } from "@/server/mcp/urls";
 import { z } from "zod";
+import { AppError } from "@/server/lib/errors";
+import { resolveMcpWorkspacePrincipal } from "@/server/mcp/workspace-access";
 
 export const listProjectsTool = {
   name: "list_projects",
@@ -34,8 +36,13 @@ export const listProjectsTool = {
     },
   },
   handler: async (_args: Record<string, never>, context: ToolContext) => {
-    const { baseUrl, ...auth } = context.auth;
-    const projects = await ProjectService.listProjects(auth.organizationId);
+    const { baseUrl, delegated: _delegated, ...auth } = context.auth;
+    const access = await resolveMcpWorkspacePrincipal(context.auth);
+    if (!access || access.role === "client") throw new AppError("FORBIDDEN");
+    const projects = await ProjectService.listAccessibleProjects(
+      auth.organizationId,
+      access,
+    );
     const lines =
       projects.length === 0
         ? ["No projects yet. Create one in the dashboard."]

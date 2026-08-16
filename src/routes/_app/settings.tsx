@@ -7,6 +7,8 @@ import { type ThemePreference, useThemePreference } from "@/client/lib/theme";
 import { authClient, useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
 import { version } from "../../../package.json";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
+import { PeopleAccessSettings } from "@/client/features/settings/PeopleAccessSettings";
 
 export const Route = createFileRoute("/_app/settings")({
   component: SettingsPage,
@@ -27,8 +29,12 @@ function SettingsPage() {
   const { themePreference, setThemePreference } = useThemePreference();
   const { data: session, isPending: isSessionPending } = useSession();
   const [isSaving, setIsSaving] = useState(false);
+  const accessQuery = useWorkspaceAccess();
+  const role = accessQuery.data?.role;
 
   const analyticsEnabled = session?.user?.analyticsOptedOut !== true;
+
+  if (!role) return null;
 
   async function updateAnalyticsPreference(enabled: boolean) {
     setIsSaving(true);
@@ -90,8 +96,9 @@ function SettingsPage() {
           </div>
         </section>
 
-        {isHosted ? (
+        {isHosted && role !== "client" ? (
           <>
+            {role === "owner" ? <PeopleAccessSettings /> : null}
             <ApiKeySettings />
 
             <section className="space-y-3">

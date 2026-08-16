@@ -4,7 +4,7 @@ import { explorePrompt as runExplorePrompt } from "@/server/features/ai-search/s
 import { customerHasPaidPlan } from "@/server/billing/subscription";
 import { AppError } from "@/server/lib/errors";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import { requireProjectUse } from "@/serverFunctions/middleware";
 import {
   brandLookupInputSchema,
   promptExplorerInputSchema,
@@ -25,7 +25,7 @@ async function assertPaidPlan(organizationId: string) {
 }
 
 export const lookupBrand = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(brandLookupInputSchema)
   .handler(async ({ data, context }) => {
     await assertPaidPlan(context.organizationId);
@@ -33,7 +33,7 @@ export const lookupBrand = createServerFn({ method: "POST" })
   });
 
 export const explorePrompt = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(promptExplorerInputSchema)
   .handler(async ({ data, context }) => {
     await assertPaidPlan(context.organizationId);

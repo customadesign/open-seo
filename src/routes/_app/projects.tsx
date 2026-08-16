@@ -11,12 +11,14 @@ import {
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { getLastProjectId } from "@/client/lib/active-project";
 import { CreateProjectModal } from "@/client/features/projects/CreateProjectModal";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 export const Route = createFileRoute("/_app/projects")({
   component: ProjectsPage,
 });
 
 function ProjectsPage() {
+  const accessQuery = useWorkspaceAccess();
   const [creating, setCreating] = React.useState(false);
   // Read after mount to keep SSR/first render stable.
   const [currentProjectId, setCurrentProjectId] = React.useState<string | null>(
@@ -30,6 +32,20 @@ function ProjectsPage() {
     queryFn: () => getProjects(),
   });
   const projects = projectsQuery.data ?? [];
+
+  if (!accessQuery.data) return null;
+
+  if (!accessQuery.data.canManageWorkspace) {
+    return (
+      <div className="mx-auto max-w-xl p-6 py-12">
+        <h1 className="text-xl font-semibold">Projects</h1>
+        <p className="mt-2 text-sm text-base-content/65">
+          Only the workspace owner can create or manage projects. Use the
+          project switcher to open a project you can access.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-auto bg-base-100 px-4 py-8 pb-24 md:px-6 md:py-12 md:pb-8">

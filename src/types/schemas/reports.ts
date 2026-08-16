@@ -1,0 +1,287 @@
+import { z } from "zod";
+
+const REPORT_SECTION_KEYS = [
+  "rankings",
+  "gsc",
+  "ga4",
+  "google_ads",
+  "audit",
+  "backlinks",
+] as const;
+
+export const reportSectionKeySchema = z.enum(REPORT_SECTION_KEYS);
+export const reportCommentaryKindSchema = z.enum([
+  "overview",
+  "win",
+  "watch",
+  "next_step",
+]);
+
+const idField = z.string().min(1).max(160);
+const dateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const isoDateTimeField = z.string().datetime({ offset: true });
+
+const reportSectionSettingSchema = z.object({
+  key: reportSectionKeySchema,
+  enabled: z.boolean(),
+});
+
+export const listReportsSchema = z.object({ projectId: idField });
+export const getReportRunSchema = z.object({
+  projectId: idField,
+  runId: idField,
+});
+export const updateReportSettingsSchema = z.object({
+  projectId: idField,
+  isEnabled: z.boolean(),
+  timeZone: z.string().trim().min(1).max(100),
+  runDay: z.number().int().min(1).max(28).default(4),
+  runHour: z.number().int().min(0).max(23).default(9),
+  sections: z
+    .array(reportSectionSettingSchema)
+    .length(REPORT_SECTION_KEYS.length)
+    .refine(
+      (sections) =>
+        new Set(sections.map((section) => section.key)).size ===
+        REPORT_SECTION_KEYS.length,
+      "Report sections must be unique.",
+    ),
+});
+export const generateReportSchema = z.object({
+  projectId: idField,
+  periodStart: dateField.optional(),
+  periodEnd: dateField.optional(),
+});
+export const retryReportSchema = z.object({
+  projectId: idField,
+  runId: idField,
+});
+export const updateReportCommentarySchema = z.object({
+  projectId: idField,
+  runId: idField,
+  items: z
+    .array(
+      z.object({
+        kind: reportCommentaryKindSchema,
+        text: z.string().trim().min(1).max(2_000),
+        evidenceKey: z.string().trim().min(1).max(160).nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(12),
+});
+
+const comparisonMetricSchema = z.object({
+  current: z.number().nullable(),
+  previous: z.number().nullable(),
+  change: z.number().nullable(),
+  percentChange: z.number().nullable(),
+});
+
+const rankingsSectionSchema = z.object({
+  configs: z.array(
+    z.object({
+      configId: z.string(),
+      domain: z.string(),
+      locationName: z.string().nullable(),
+      devices: z.string(),
+      checkedAt: z.string().nullable(),
+      summary: z.object({
+        tracked: z.number().int(),
+        top3: z.number().int(),
+        top10: z.number().int(),
+        top20: z.number().int(),
+        improved: z.number().int(),
+        declined: z.number().int(),
+        newRankings: z.number().int(),
+        lostRankings: z.number().int(),
+      }),
+      rows: z.array(
+        z.object({
+          keyword: z.string(),
+          device: z.enum(["desktop", "mobile"]),
+          position: z.number().nullable(),
+          previousPosition: z.number().nullable(),
+          change: z.number().nullable(),
+          rankingUrl: z.string().nullable(),
+        }),
+      ),
+      trend: z.array(
+        z.object({
+          checkedAt: z.string(),
+          device: z.enum(["desktop", "mobile"]),
+          total: z.number().int(),
+          top3: z.number().int(),
+          top10: z.number().int(),
+          top20: z.number().int(),
+        }),
+      ),
+    }),
+  ),
+});
+
+const gscSectionSchema = z.object({
+  siteUrl: z.string(),
+  metrics: z.object({
+    clicks: comparisonMetricSchema,
+    impressions: comparisonMetricSchema,
+    ctr: comparisonMetricSchema,
+    position: comparisonMetricSchema,
+  }),
+  trend: z.array(
+    z.object({
+      date: z.string(),
+      clicks: z.number(),
+      impressions: z.number(),
+      ctr: z.number(),
+      position: z.number(),
+    }),
+  ),
+  topQueries: z.array(
+    z.object({
+      query: z.string(),
+      clicks: z.number(),
+      impressions: z.number(),
+      ctr: z.number(),
+      position: z.number(),
+    }),
+  ),
+  topPages: z.array(
+    z.object({
+      page: z.string(),
+      clicks: z.number(),
+      impressions: z.number(),
+      ctr: z.number(),
+      position: z.number(),
+    }),
+  ),
+  opportunities: z.array(
+    z.object({
+      query: z.string(),
+      page: z.string(),
+      impressions: z.number(),
+      position: z.number(),
+    }),
+  ),
+});
+
+const ga4SectionSchema = z.object({
+  propertyId: z.string(),
+  propertyName: z.string(),
+  currencyCode: z.string(),
+  metrics: z.record(z.string(), comparisonMetricSchema),
+  trend: z.array(z.record(z.string(), z.string().or(z.number()).nullable())),
+  topLandingPages: z.array(
+    z.record(z.string(), z.string().or(z.number()).nullable()),
+  ),
+  channels: z.array(z.record(z.string(), z.string().or(z.number()).nullable())),
+  keyEvents: z.array(
+    z.record(z.string(), z.string().or(z.number()).nullable()),
+  ),
+  warnings: z.array(z.string()),
+});
+
+const googleAdsSectionSchema = z.object({
+  customerId: z.string(),
+  customerName: z.string(),
+  currencyCode: z.string(),
+  metrics: z.object({
+    cost: comparisonMetricSchema,
+    impressions: comparisonMetricSchema,
+    clicks: comparisonMetricSchema,
+    ctr: comparisonMetricSchema,
+    averageCpc: comparisonMetricSchema,
+    conversions: comparisonMetricSchema,
+    costPerConversion: comparisonMetricSchema,
+    conversionValue: comparisonMetricSchema,
+    roas: comparisonMetricSchema,
+  }),
+  trend: z.array(
+    z.object({
+      date: z.string(),
+      cost: z.number(),
+      clicks: z.number(),
+      impressions: z.number(),
+      conversions: z.number(),
+      conversionValue: z.number(),
+    }),
+  ),
+  campaigns: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      status: z.string(),
+      cost: z.number(),
+      clicks: z.number(),
+      impressions: z.number(),
+      ctr: z.number(),
+      conversions: z.number(),
+      costPerConversion: z.number().nullable(),
+      conversionValue: z.number(),
+    }),
+  ),
+});
+
+const auditSectionSchema = z.object({
+  auditId: z.string(),
+  status: z.string(),
+  pagesCrawled: z.number(),
+  completedAt: z.string().nullable(),
+  issues: z.array(
+    z.object({
+      issueType: z.string(),
+      severity: z.string(),
+      affectedPages: z.number(),
+    }),
+  ),
+});
+
+const backlinksSectionSchema = z.object({
+  domain: z.string(),
+  domainRank: z.number().nullable(),
+  backlinks: z.number().nullable(),
+  referringDomains: z.number().nullable(),
+  newBacklinks: z.number().nullable(),
+  lostBacklinks: z.number().nullable(),
+  capturedAt: z.string(),
+});
+
+export const reportSnapshotSchema = z.object({
+  version: z.literal(1),
+  generatedAt: isoDateTimeField,
+  project: z.object({
+    id: z.string(),
+    name: z.string(),
+    domain: z.string().nullable(),
+  }),
+  period: z.object({ start: dateField, end: dateField }),
+  comparisonPeriod: z.object({ start: dateField, end: dateField }),
+  sections: z.array(
+    z.discriminatedUnion("key", [
+      z.object({ key: z.literal("rankings"), data: rankingsSectionSchema }),
+      z.object({ key: z.literal("gsc"), data: gscSectionSchema }),
+      z.object({ key: z.literal("ga4"), data: ga4SectionSchema }),
+      z.object({ key: z.literal("google_ads"), data: googleAdsSectionSchema }),
+      z.object({ key: z.literal("audit"), data: auditSectionSchema }),
+      z.object({ key: z.literal("backlinks"), data: backlinksSectionSchema }),
+    ]),
+  ),
+  omissions: z.array(
+    z.object({
+      key: reportSectionKeySchema,
+      reason: z.enum(["disabled", "not_configured", "no_data"]),
+    }),
+  ),
+  evidence: z.array(
+    z.object({
+      key: z.string(),
+      label: z.string(),
+      value: z.string(),
+      direction: z.enum(["positive", "negative", "neutral"]),
+    }),
+  ),
+});
+
+export type ReportSectionKey = z.infer<typeof reportSectionKeySchema>;
+export type ReportSnapshot = z.infer<typeof reportSnapshotSchema>;
+export type ReportCommentaryKind = z.infer<typeof reportCommentaryKindSchema>;

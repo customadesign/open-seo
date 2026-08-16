@@ -5,6 +5,7 @@ import {
   Globe,
   LayoutDashboard,
   Link2,
+  FileBarChart,
   MessageSquare,
   Search,
   Sparkles,
@@ -58,6 +59,11 @@ const projectNavItems = [
     icon: ClipboardCheck,
   },
   {
+    to: "/p/$projectId/reports" as const,
+    label: "Reports",
+    icon: FileBarChart,
+  },
+  {
     to: "/p/$projectId/brand-lookup" as const,
     label: "Brand Lookup",
     icon: Sparkles,
@@ -93,12 +99,15 @@ function getProjectNavItems(projectId: string) {
 
 // Grouped by scope: "My Site" is the project's own domain (tracked data),
 // "Research" is point-at-anything lookup tools.
-export function getProjectNavGroups(projectId: string) {
+export function getProjectNavGroups(
+  projectId: string,
+  options: { canUseProjectTools?: boolean } = {},
+) {
   const all = getProjectNavItems(projectId);
   const byPath = (path: (typeof projectNavItems)[number]["to"]) =>
     all.find((i) => i.to === path)!;
 
-  return [
+  const groups = [
     {
       label: "Overview",
       items: [byPath("/p/$projectId")],
@@ -120,9 +129,30 @@ export function getProjectNavGroups(projectId: string) {
         byPath("/p/$projectId/rank-tracking"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
+        byPath("/p/$projectId/reports"),
       ],
     },
   ];
+
+  if (options.canUseProjectTools !== false) return groups;
+
+  return groups
+    .filter((group) => group.label !== "Research")
+    .map((group) =>
+      group.label === "My Site"
+        ? {
+            ...group,
+            items: group.items.filter(
+              (item) =>
+                item.to === "/p/$projectId/search-performance" ||
+                item.to === "/p/$projectId/rank-tracking" ||
+                item.to === "/p/$projectId/saved" ||
+                item.to === "/p/$projectId/audit" ||
+                item.to === "/p/$projectId/reports",
+            ),
+          }
+        : group,
+    );
 }
 
 export const dataforseoHelpLinkOptions = linkOptions({

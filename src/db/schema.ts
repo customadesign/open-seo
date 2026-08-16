@@ -7,6 +7,8 @@ import * as sqliteBilling from "./billing.schema";
 import * as sqliteGa4 from "./ga4.schema";
 import * as sqliteGsc from "./gsc.schema";
 import * as sqliteTelemetry from "./telemetry.schema";
+import * as sqliteGoogleAds from "./google-ads.schema";
+import * as sqliteReports from "./report.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -15,6 +17,8 @@ import * as pgBilling from "./pg/billing.schema";
 import * as pgGa4 from "./pg/ga4.schema";
 import * as pgGsc from "./pg/gsc.schema";
 import * as pgTelemetry from "./pg/telemetry.schema";
+import * as pgGoogleAds from "./pg/google-ads.schema";
+import * as pgReports from "./pg/report.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -33,7 +37,9 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteBilling &
   typeof sqliteGa4 &
   typeof sqliteGsc &
-  typeof sqliteTelemetry;
+  typeof sqliteTelemetry &
+  typeof sqliteGoogleAds &
+  typeof sqliteReports;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -46,6 +52,8 @@ const runtimeSchema =
         ...pgGa4,
         ...pgGsc,
         ...pgTelemetry,
+        ...pgGoogleAds,
+        ...pgReports,
       }
     : {
         ...sqliteApp,
@@ -56,6 +64,8 @@ const runtimeSchema =
         ...sqliteGa4,
         ...sqliteGsc,
         ...sqliteTelemetry,
+        ...sqliteGoogleAds,
+        ...sqliteReports,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -64,6 +74,8 @@ const schema = runtimeSchema as unknown as AppSchema;
 export const {
   userOnboardingAnswers,
   projects,
+  memberAccessProfiles,
+  projectMemberAccess,
   savedKeywords,
   savedKeywordTags,
   savedKeywordTagAssignments,
@@ -92,5 +104,10 @@ export const {
   billingCustomerStatus,
   ga4Connections,
   gscConnections,
+  googleAdsConnections,
+  reportSettings,
+  reportSections,
+  reportRuns,
+  reportCommentaryItems,
   telemetryState,
 } = schema;

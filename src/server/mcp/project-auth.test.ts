@@ -59,6 +59,13 @@ describe("withMcpProjectAuth", () => {
           scopes: ["mcp"],
         },
         baseUrl: "https://open-seo.test",
+        access: {
+          memberId: null,
+          role: "owner",
+          projectScope: "all",
+          projectIds: [],
+          delegated: true,
+        },
         billing: {
           userId: "user_123",
           userEmail: "alice@example.com",
