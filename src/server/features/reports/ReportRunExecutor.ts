@@ -31,7 +31,12 @@ export async function executeReportRun(input: {
         })),
       }),
     );
-    const commentary = await generateReportCommentary(snapshot);
+    const commentary = await generateReportCommentary(snapshot, {
+      organizationId: settings.organizationId,
+      projectId: input.projectId,
+      runId: run.id,
+      trigger: run.trigger,
+    });
     await ReportRepository.publishRun({
       runId: input.runId,
       snapshotJson: JSON.stringify(snapshot),

@@ -120,7 +120,7 @@ function tableQueryOptions(
 
 export function SearchPerformancePage({ projectId }: { projectId: string }) {
   const accessQuery = useWorkspaceAccess();
-  const readOnly = accessQuery.data?.role === "client";
+  const canManageConnection = accessQuery.data?.canManageWorkspace === true;
   const queryClient = useQueryClient();
   const [range, setRange] =
     useState<SearchPerformanceDateRange>("last_28_days");
@@ -202,7 +202,7 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
               Google Search Console.
             </p>
           </div>
-          {report?.connected && !readOnly ? (
+          {report?.connected && canManageConnection ? (
             <Link
               to="/p/$projectId/settings"
               params={{ projectId }}
@@ -222,7 +222,7 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
               {getStandardErrorMessage(reportQuery.error)}
             </span>
           </div>
-        ) : !report?.connected && !readOnly ? (
+        ) : !report?.connected && canManageConnection ? (
           <div className="max-w-2xl">
             <SearchConsoleConnectionCard projectId={projectId} />
           </div>

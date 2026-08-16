@@ -106,8 +106,15 @@ function setupRetryFixture(input?: {
   return { failedRun, freshRun, plan, now };
 }
 
-async function runGrid() {
-  return GeoGridService.runGrid({ configId, projectId, billingCustomer });
+async function runGrid(
+  options: { resumeRunId?: string; skipFailedRunResume?: boolean } = {},
+) {
+  return GeoGridService.runGrid({
+    configId,
+    projectId,
+    billingCustomer,
+    ...options,
+  });
 }
 
 describe("geo-grid paid-cell retry", () => {
@@ -171,6 +178,46 @@ describe("geo-grid paid-cell retry", () => {
     expect(repositoryMocks.insertGeoGridCellClaimed).toHaveBeenCalledTimes(8);
   });
 
+  it("resumes the exact recent failed run selected by the scheduler", async () => {
+    const { failedRun, plan, now } = setupRetryFixture();
+    repositoryMocks.getGeoGridRun.mockResolvedValueOnce(failedRun);
+    repositoryMocks.getGeoGridCells.mockResolvedValue([
+      {
+        ...plan[0],
+        position: 7,
+        matchedBy: "place_id",
+        resultTitle: "All Star Signs, Inc",
+        resultUrl: null,
+        providerResultId: "place-1",
+        checkedAt: new Date(now - 4 * 60 * 1_000).toISOString(),
+      },
+    ]);
+    repositoryMocks.claimFailedGeoGridRun.mockResolvedValue({
+      ...failedRun,
+      status: "running",
+      attemptToken: "attempt-retry",
+      attemptStartedAt: new Date(now).toISOString(),
+    });
+    repositoryMocks.getGeoGridRun.mockResolvedValue({
+      ...failedRun,
+      status: "running",
+      attemptToken: "attempt-retry",
+      attemptStartedAt: new Date(now).toISOString(),
+    });
+    repositoryMocks.updateGeoGridRun.mockResolvedValue({
+      ...failedRun,
+      status: "completed",
+      attemptToken: "attempt-retry",
+    });
+
+    await expect(runGrid({ resumeRunId: "run-failed" })).resolves.toMatchObject(
+      { started: true, run: { id: "run-failed" } },
+    );
+    expect(repositoryMocks.getLatestFailedGeoGridRun).not.toHaveBeenCalled();
+    expect(repositoryMocks.createGeoGridRun).not.toHaveBeenCalled();
+    expect(localSearchMock).toHaveBeenCalledTimes(8);
+  });
+
   it("starts a fresh run after the retry window expires", async () => {
     const now = Date.now();
     setupRetryFixture({
@@ -181,6 +228,27 @@ describe("geo-grid paid-cell retry", () => {
 
     await runGrid();
 
+    expect(repositoryMocks.claimFailedGeoGridRun).not.toHaveBeenCalled();
+    expect(repositoryMocks.createGeoGridRun).toHaveBeenCalledTimes(1);
+    expect(localSearchMock).toHaveBeenCalledTimes(9);
+  });
+
+  it("never falls through to a fresh run when an exact retry is unsafe", async () => {
+    setupRetryFixture({ profileUpdatedAt: new Date().toISOString() });
+
+    await expect(runGrid({ resumeRunId: "run-failed" })).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(repositoryMocks.createGeoGridRun).not.toHaveBeenCalled();
+    expect(localSearchMock).not.toHaveBeenCalled();
+  });
+
+  it("starts a fresh scheduled run without consuming a manual failure", async () => {
+    setupRetryFixture();
+
+    await runGrid({ skipFailedRunResume: true });
+
+    expect(repositoryMocks.getLatestFailedGeoGridRun).not.toHaveBeenCalled();
     expect(repositoryMocks.claimFailedGeoGridRun).not.toHaveBeenCalled();
     expect(repositoryMocks.createGeoGridRun).toHaveBeenCalledTimes(1);
     expect(localSearchMock).toHaveBeenCalledTimes(9);

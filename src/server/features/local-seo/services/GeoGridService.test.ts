@@ -20,6 +20,8 @@ const repositoryMocks = vi.hoisted(() => ({
   insertGeoGridCellClaimed: vi.fn(),
   updateGeoGridRun: vi.fn(),
   markGeoGridConfigRun: vi.fn(),
+  createGeoGridConfig: vi.fn(),
+  isHostedServerAuthMode: vi.fn(),
 }));
 const localSearchMock = vi.hoisted(() => vi.fn());
 
@@ -35,6 +37,58 @@ vi.mock("@/server/features/local-seo/repositories/LocalSeoRepository", () => ({
 vi.mock("@/server/lib/dataforseo", () => ({
   createDataforseoClient: () => ({ serp: { local: localSearchMock } }),
 }));
+vi.mock("@/server/lib/runtime-env", () => ({
+  isHostedServerAuthMode: repositoryMocks.isHostedServerAuthMode,
+}));
+
+describe("geo-grid recurring cost approval", () => {
+  const input = {
+    projectId: "075aafad-fd80-4e2d-9dde-5c6b46af40c5",
+    profileId: "48e817f8-9b75-48c0-9854-9357668854b4",
+    keyword: "sign shop",
+    centerLatitude: 33.1294592,
+    centerLongitude: -117.1201598,
+    gridSize: 5,
+    radiusMeters: 1_500,
+    languageCode: "en",
+    device: "mobile" as const,
+    scheduleInterval: "weekly" as const,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    repositoryMocks.getProfileById.mockResolvedValue({ id: input.profileId });
+    repositoryMocks.isHostedServerAuthMode.mockResolvedValue(true);
+    repositoryMocks.createGeoGridConfig.mockResolvedValue({ id: "config-1" });
+  });
+
+  it("rejects a stale recurring approval below the fresh estimate", async () => {
+    await expect(
+      GeoGridService.createConfig({
+        ...input,
+        maxEstimatedScheduledCheckCredits: 74,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(repositoryMocks.createGeoGridConfig).not.toHaveBeenCalled();
+  });
+
+  it("persists a recurring config after the current estimate is approved", async () => {
+    await GeoGridService.createConfig({
+      ...input,
+      maxEstimatedScheduledCheckCredits: 75,
+    });
+
+    expect(repositoryMocks.createGeoGridConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduleInterval: "weekly",
+        gridSize: 5,
+      }),
+    );
+    expect(
+      repositoryMocks.createGeoGridConfig.mock.calls[0]?.[0],
+    ).not.toHaveProperty("maxEstimatedScheduledCheckCredits");
+  });
+});
 
 describe("computeNextGeoGridRun", () => {
   it("keeps daily and weekly schedules on their UTC anchor", () => {

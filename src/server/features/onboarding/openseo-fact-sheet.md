@@ -131,7 +131,7 @@ OpenSEO's app includes these practical workflows:
 - Backlink research: inspect backlinks, referring domains, target URLs, link quality signals, and competitor link profiles.
 - Rank tracking: track keyword positions over time.
 - Local SEO: store a canonical business profile, track Maps rankings across a geographic grid, audit citation evidence, and open the connected GoHighLevel Listings account. Stored GoHighLevel/Yext status is evidence supplied by the operator, not a live provider check.
-- Reports: create reusable project report templates and deterministic snapshots from available rank, audit, backlink, local, Search Console, and Analytics data. PDF and outbound email remain disabled until their providers are configured.
+- Reports: generate in-app monthly reports manually or on one configurable monthly schedule per project. Reports use available rank, audit, backlink, Search Console, Analytics, and Google Ads data, store immutable snapshots, support editable section order and commentary, and allow assigned clients to read published reports. Reusable templates, weekly schedules, recipients, report-specific branding, PDFs, outbound email, and public share links are not available.
 - Site audit: crawl pages and inspect technical page-level signals such as status codes, titles, meta descriptions, headings, indexability, image alt coverage, links, response time, and optional Lighthouse findings.
 - Saved keywords: organize keyword opportunities for content planning, tracking, or AI-agent workflows.
 - AI and MCP setup: connect OpenSEO to agents and install OpenSEO skills.

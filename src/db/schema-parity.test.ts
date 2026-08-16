@@ -1,8 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
+import { getTableColumns, getTableName, is, SQL, Table } from "drizzle-orm";
 import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
-import { getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
+import {
+  getTableConfig as getPgTableConfig,
+  PgDialect,
+} from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import * as sqliteApp from "./app.schema";
 import * as sqliteAudit from "./audit.schema";
@@ -214,6 +217,31 @@ describe("schema parity: application tables", () => {
       });
     });
   }
+});
+
+describe("Postgres text timestamp defaults", () => {
+  const dialect = new PgDialect();
+  const expected =
+    "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')";
+  const timestampDefaults = [
+    getTableColumns(pgGoogleAds.googleAdsConnections).createdAt.default,
+    getTableColumns(pgGoogleAds.googleAdsConnections).updatedAt.default,
+    getTableColumns(pgReports.reportSettings).createdAt.default,
+    getTableColumns(pgReports.reportSettings).updatedAt.default,
+    getTableColumns(pgReports.reportRuns).createdAt.default,
+    getTableColumns(pgReports.reportRuns).updatedAt.default,
+    getTableColumns(pgReports.reportCommentaryItems).createdAt.default,
+    getTableColumns(pgReports.reportCommentaryItems).updatedAt.default,
+  ];
+
+  it("keeps new report and Google Ads defaults in the repository ISO format", () => {
+    for (const defaultValue of timestampDefaults) {
+      if (!(defaultValue instanceof SQL)) {
+        throw new Error("Expected a SQL timestamp default");
+      }
+      expect(dialect.sqlToQuery(defaultValue).sql).toBe(expected);
+    }
+  });
 });
 
 describe("schema parity: better-auth tables", () => {

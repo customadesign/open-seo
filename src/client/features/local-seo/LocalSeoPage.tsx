@@ -6,6 +6,11 @@ import { toast } from "sonner";
 import { SafeExternalLink } from "@/client/components/SafeExternalLink";
 import { IntegrationConnectionCard } from "@/client/features/integrations/IntegrationConnectionCard";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
+import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import {
+  estimateGeoGridRunCost,
+  estimateScheduledGeoGridCost,
+} from "@/shared/local-seo";
 import {
   createGeoGridConfig,
   getCitationAudits,
@@ -488,7 +493,13 @@ function GeoGridPanel({
   const [radiusMeters, setRadiusMeters] = useState(5000);
   const [scheduleInterval, setScheduleInterval] = useState<
     "manual" | "weekly" | "monthly"
-  >("weekly");
+  >("manual");
+  const hosted = isHostedClientAuthMode();
+  const runEstimate = estimateGeoGridRunCost(gridSize, hosted);
+  const scheduledEstimate =
+    scheduleInterval === "manual"
+      ? null
+      : estimateScheduledGeoGridCost(gridSize, scheduleInterval, hosted);
   const create = useMutation({
     mutationFn: () =>
       createGeoGridConfig({
@@ -503,6 +514,7 @@ function GeoGridPanel({
           languageCode: "en",
           device: "mobile",
           scheduleInterval,
+          maxEstimatedScheduledCheckCredits: scheduledEstimate?.costCredits,
         },
       }),
     onSuccess: async () => {
@@ -593,6 +605,23 @@ function GeoGridPanel({
             <option value="monthly">Monthly</option>
           </select>
         </label>
+        <div className="rounded-lg bg-base-200/50 px-3 py-2.5 text-xs text-base-content/70 md:col-span-2">
+          <div>
+            One {gridSize} × {gridSize} check uses {runEstimate.cells} live Maps
+            lookups and is estimated at ${runEstimate.costUsd.toFixed(3)}
+            {hosted ? ` (${runEstimate.costCredits} credits)` : ""}.
+          </div>
+          {scheduledEstimate && (
+            <div className="mt-1 font-medium text-warning">
+              {scheduleInterval === "weekly" ? "Weekly" : "Monthly"} approval:
+              about ${scheduledEstimate.monthlyCostUsd.toFixed(3)}
+              {hosted
+                ? ` (${scheduledEstimate.monthlyCostCredits} credits)`
+                : ""}{" "}
+              per month.
+            </div>
+          )}
+        </div>
         <div className="flex items-end md:col-span-2">
           <button
             className="btn btn-primary"
@@ -605,8 +634,9 @@ function GeoGridPanel({
         </div>
       </form>
       <p className="mt-3 text-xs text-warning">
-        Each grid cell is one metered live DataForSEO Maps lookup. Run buttons
-        are explicit so costs stay visible.
+        Each grid cell is one metered live DataForSEO Maps lookup. New trackers
+        default to manual; choosing a recurring schedule approves the estimate
+        shown above.
       </p>
 
       <div className="mt-6 grid gap-3 md:grid-cols-2">

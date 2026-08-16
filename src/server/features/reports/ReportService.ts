@@ -1,4 +1,6 @@
 import { AppError } from "@/server/lib/errors";
+import { customerHasPaidPlan } from "@/server/billing/subscription";
+import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import {
   reportSnapshotSchema,
   type ReportSectionKey,
@@ -13,6 +15,12 @@ import {
   DEFAULT_REPORT_SECTIONS,
   ReportRepository,
 } from "./repositories/ReportRepository";
+
+async function assertReportsPaidPlan(organizationId: string) {
+  if (!(await isHostedServerAuthMode())) return;
+  if (await customerHasPaidPlan(organizationId, { retryDenied: true })) return;
+  throw new AppError("PAYMENT_REQUIRED", "Subscribe to generate reports.");
+}
 
 async function getOrCreateSettings(input: {
   projectId: string;
@@ -82,6 +90,7 @@ async function updateSettings(input: {
   if (!isValidTimeZone(input.timeZone)) {
     throw new AppError("VALIDATION_ERROR", "Choose a valid report timezone.");
   }
+  if (input.isEnabled) await assertReportsPaidPlan(input.organizationId);
   const settings = await getOrCreateSettings(input);
   if (!settings) throw new Error("Could not create report settings");
   const nextRunAt = nextMonthlyRun({
@@ -132,6 +141,7 @@ async function generate(input: {
       "Provide both report dates, or leave both blank.",
     );
   }
+  await assertReportsPaidPlan(input.organizationId);
   const settings = await getOrCreateSettings(input);
   if (!settings) throw new Error("Could not create report settings");
   const defaults = previousFullCalendarMonth(new Date(), settings.timeZone);
@@ -164,8 +174,10 @@ async function generate(input: {
 async function retry(input: {
   workflow: Env["REPORT_WORKFLOW"];
   projectId: string;
+  organizationId: string;
   runId: string;
 }) {
+  await assertReportsPaidPlan(input.organizationId);
   const run = await ReportRepository.getRun(input.projectId, input.runId);
   if (!run) throw new AppError("NOT_FOUND", "Report not found.");
   if (run.status !== "failed") {
@@ -214,48 +226,91 @@ async function getReport(input: {
   };
 }
 
+type DueReportSetting = Awaited<
+  ReturnType<typeof ReportRepository.listDueSettings>
+>[number];
+
+async function processDueSetting(input: {
+  workflow: Env["REPORT_WORKFLOW"];
+  due: DueReportSetting;
+  hosted: boolean;
+  hasPaidPlan: (organizationId: string) => Promise<boolean>;
+}) {
+  const { settings, organizationId } = input.due;
+  if (!settings.nextRunAt) return false;
+  const observedNextRunAt = settings.nextRunAt;
+  const nextRunAt = nextMonthlyRun({
+    after: new Date(observedNextRunAt),
+    timeZone: settings.timeZone,
+    runDay: settings.runDay,
+    runHour: settings.runHour,
+  });
+  if (input.hosted && !(await input.hasPaidPlan(organizationId))) {
+    await ReportRepository.claimDueSettings({
+      settingsId: settings.id,
+      observedNextRunAt,
+      nextRunAt,
+    });
+    return false;
+  }
+  const claimed = await ReportRepository.claimDueSettings({
+    settingsId: settings.id,
+    observedNextRunAt,
+    nextRunAt,
+  });
+  if (!claimed) return false;
+  const range = previousFullCalendarMonth(
+    new Date(observedNextRunAt),
+    settings.timeZone,
+  );
+  const scheduledKey = `${settings.id}:${observedNextRunAt}`;
+  const run = await ReportRepository.createRun({
+    id: crypto.randomUUID(),
+    projectId: settings.projectId,
+    settingsId: settings.id,
+    trigger: "scheduled",
+    scheduledKey,
+    ...range,
+  });
+  if (!run || run.status !== "queued") return false;
+  await startWorkflow(input.workflow, {
+    projectId: settings.projectId,
+    runId: run.id,
+  });
+  return true;
+}
+
 async function processDueSchedules(
   workflow: Env["REPORT_WORKFLOW"],
   now: Date = new Date(),
 ) {
   const due = await ReportRepository.listDueSettings(now.toISOString());
+  const hosted = await isHostedServerAuthMode();
+  const planChecks = new Map<string, Promise<boolean>>();
+  const hasPaidPlan = (organizationId: string) => {
+    let check = planChecks.get(organizationId);
+    if (!check) {
+      check = customerHasPaidPlan(organizationId, { retryDenied: true });
+      planChecks.set(organizationId, check);
+    }
+    return check;
+  };
   let started = 0;
-  for (const { settings } of due) {
-    if (!settings.nextRunAt) continue;
-    const observedNextRunAt = settings.nextRunAt;
-    const nextRunAt = nextMonthlyRun({
-      after: new Date(observedNextRunAt),
-      timeZone: settings.timeZone,
-      runDay: settings.runDay,
-      runHour: settings.runHour,
-    });
-    const claimed = await ReportRepository.claimDueSettings({
-      settingsId: settings.id,
-      observedNextRunAt,
-      nextRunAt,
-    });
-    if (!claimed) continue;
-    const range = previousFullCalendarMonth(
-      new Date(observedNextRunAt),
-      settings.timeZone,
-    );
-    const scheduledKey = `${settings.id}:${observedNextRunAt}`;
-    const run = await ReportRepository.createRun({
-      id: crypto.randomUUID(),
-      projectId: settings.projectId,
-      settingsId: settings.id,
-      trigger: "scheduled",
-      scheduledKey,
-      ...range,
-    });
-    if (!run || run.status !== "queued") continue;
-    await startWorkflow(workflow, {
-      projectId: settings.projectId,
-      runId: run.id,
-    });
-    started += 1;
+  let errors = 0;
+  for (const item of due) {
+    try {
+      started += Number(
+        await processDueSetting({ workflow, due: item, hosted, hasPaidPlan }),
+      );
+    } catch (error) {
+      errors += 1;
+      console.error(
+        `[cron] Report settings ${item.settings.id} failed:`,
+        error,
+      );
+    }
   }
-  return { started };
+  return { started, errors };
 }
 
 export const ReportService = {

@@ -1,7 +1,7 @@
 import type { LanguageModelV3 } from "@openrouter/ai-sdk-provider";
 import { subscribe } from "agents/observability";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
-import { z } from "zod";
+export { openRouterCostUsd } from "./openrouter-usage";
 
 // The chat agents' most common failure modes — a provider stream dying
 // mid-turn ("chat:request:failed", stage "stream") and a DO restart whose
@@ -23,18 +23,6 @@ subscribe("chat", (event) => {
     );
   }
 });
-
-// OpenRouter (with usage accounting on) reports the real USD cost of each
-// response under providerMetadata.openrouter.usage.cost. Shared by the chat
-// agents (onboarding + SAM) that meter LLM spend against the credit pool.
-const openRouterUsageSchema = z.object({
-  openrouter: z.object({ usage: z.object({ cost: z.number() }) }),
-});
-
-export function openRouterCostUsd(providerMetadata: unknown): number {
-  const parsed = openRouterUsageSchema.safeParse(providerMetadata);
-  return parsed.success ? parsed.data.openrouter.usage.cost : 0;
-}
 
 // A non-LLM assistant turn streamed back over the chat protocol. Used to surface
 // gates ("Subscribe to continue") without spending an LLM call — the client

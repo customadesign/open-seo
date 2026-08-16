@@ -38,7 +38,7 @@ async function upsert(
           then coalesce(${input.connectedAccountEmail}, ${googleAdsConnections.connectedAccountEmail})
           else ${input.connectedAccountEmail}
         end`,
-        updatedAt: sql`(current_timestamp)`,
+        updatedAt: new Date().toISOString(),
       },
     })
     .returning();

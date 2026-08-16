@@ -69,6 +69,7 @@ export const retryReport = createServerFn({ method: "POST" })
     ReportService.retry({
       workflow: env.REPORT_WORKFLOW,
       projectId: context.projectId,
+      organizationId: context.organizationId,
       runId: data.runId,
     }),
   );

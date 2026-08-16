@@ -1,6 +1,13 @@
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
+import {
+  assertUsageCreditsAvailable,
+  trackUsageCreditSpend,
+} from "@/server/billing/subscription";
+import { AppError } from "@/server/lib/errors";
+import { openRouterCostUsd } from "@/server/lib/openrouter-usage";
 import { getChatAgentModel } from "@/server/lib/openrouter";
+import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import type {
   ReportCommentaryKind,
   ReportSnapshot,
@@ -81,40 +88,94 @@ function fallback(snapshot: ReportSnapshot): ReportCommentary[] {
 
 export async function generateReportCommentary(
   snapshot: ReportSnapshot,
+  context: {
+    organizationId: string;
+    projectId: string;
+    runId: string;
+    trigger: "manual" | "scheduled";
+  },
 ): Promise<ReportCommentary[]> {
   const deterministic = fallback(snapshot);
+  const hosted = await isHostedServerAuthMode();
+  let monthlyRemaining: number | null = null;
+  if (hosted) {
+    try {
+      ({ monthlyRemaining } = await assertUsageCreditsAvailable(
+        context.organizationId,
+      ));
+    } catch (error) {
+      if (error instanceof AppError && error.code === "INSUFFICIENT_CREDITS") {
+        return deterministic;
+      }
+      throw error;
+    }
+  }
+
+  let generated: { text: string; providerMetadata?: unknown };
   try {
-    const allowedKeys = new Set(snapshot.evidence.map((item) => item.key));
-    const { output } = await generateText({
+    generated = await generateText({
       model: await getChatAgentModel(),
-      output: Output.object({ schema: commentaryOutputSchema }),
       system:
-        "Write a concise monthly marketing report for a client. Use only the supplied evidence. Do not invent causes, results, or recommendations. Keep the language plain and specific.",
+        'Write a concise monthly marketing report for a client. Use only the supplied evidence. Do not invent causes, results, or recommendations. Keep the language plain and specific. Return only one valid JSON object shaped exactly as {"items":[{"kind":"overview|win|watch|next_step","text":"plain client-facing sentence","evidenceKey":"matching evidence key or null"}]}. Include at least one item of each kind, spell next_step with the underscore, always include evidenceKey, and do not use Markdown fences.',
       prompt: JSON.stringify({
         period: snapshot.period,
         comparisonPeriod: snapshot.comparisonPeriod,
         evidence: snapshot.evidence,
         requiredKinds: ["overview", "win", "watch", "next_step"],
       }),
-      maxOutputTokens: 1_000,
+      maxOutputTokens: 2_000,
     });
-    if (!output) return deterministic;
-    const kinds = new Set(output.items.map((item) => item.kind));
-    if (!REQUIRED_COMMENTARY_KINDS.every((kind) => kinds.has(kind))) {
-      return deterministic;
-    }
-    return output.items.map((item) => ({
-      ...item,
-      evidenceKey:
-        item.evidenceKey && allowedKeys.has(item.evidenceKey)
-          ? item.evidenceKey
-          : null,
-      isGenerated: true,
-    }));
   } catch (error) {
     console.warn("report.commentary_fallback", {
       errorName: error instanceof Error ? error.name : "UnknownError",
     });
     return deterministic;
   }
+
+  if (monthlyRemaining !== null) {
+    await trackUsageCreditSpend({
+      customer: {
+        userId: context.organizationId,
+        userEmail: "system-reports@openseo.so",
+        organizationId: context.organizationId,
+        projectId: context.projectId,
+      },
+      customerId: context.organizationId,
+      creditFeature: "reports",
+      costUsd: openRouterCostUsd(generated.providerMetadata),
+      monthlyRemaining,
+      properties: {
+        provider: "openrouter",
+        report_run_id: context.runId,
+        trigger: context.trigger,
+      },
+    });
+  }
+
+  let rawOutput: unknown;
+  try {
+    const trimmed = generated.text.trim();
+    const jsonText = trimmed.startsWith("```")
+      ? trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")
+      : trimmed;
+    rawOutput = JSON.parse(jsonText);
+  } catch {
+    return deterministic;
+  }
+  const parsedOutput = commentaryOutputSchema.safeParse(rawOutput);
+  if (!parsedOutput.success) return deterministic;
+  const output = parsedOutput.data;
+  const allowedKeys = new Set(snapshot.evidence.map((item) => item.key));
+  const kinds = new Set(output.items.map((item) => item.kind));
+  if (!REQUIRED_COMMENTARY_KINDS.every((kind) => kinds.has(kind))) {
+    return deterministic;
+  }
+  return output.items.map((item) => ({
+    ...item,
+    evidenceKey:
+      item.evidenceKey && allowedKeys.has(item.evidenceKey)
+        ? item.evidenceKey
+        : null,
+    isGenerated: true,
+  }));
 }

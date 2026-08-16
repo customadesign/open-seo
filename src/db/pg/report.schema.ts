@@ -10,6 +10,8 @@ import {
 import { projects } from "./app.schema";
 import { organization, user } from "./better-auth-schema";
 
+const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+
 export const reportSettings = pgTable(
   "monthly_report_settings",
   {
@@ -26,12 +28,8 @@ export const reportSettings = pgTable(
     isEnabled: boolean("is_enabled").notNull().default(false),
     nextRunAt: text("next_run_at"),
     lastRunAt: text("last_run_at"),
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`(current_timestamp)`),
-    updatedAt: text("updated_at")
-      .notNull()
-      .default(sql`(current_timestamp)`),
+    createdAt: text("created_at").notNull().default(isoNow),
+    updatedAt: text("updated_at").notNull().default(isoNow),
   },
   (table) => [
     uniqueIndex("monthly_report_settings_project_idx").on(table.projectId),
@@ -92,14 +90,10 @@ export const reportRuns = pgTable(
     snapshotVersion: integer("snapshot_version").notNull().default(1),
     snapshotJson: text("snapshot_json"),
     errorMessage: text("error_message"),
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`(current_timestamp)`),
+    createdAt: text("created_at").notNull().default(isoNow),
     startedAt: text("started_at"),
     publishedAt: text("published_at"),
-    updatedAt: text("updated_at")
-      .notNull()
-      .default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at").notNull().default(isoNow),
   },
   (table) => [
     uniqueIndex("monthly_report_runs_scheduled_key_idx").on(table.scheduledKey),
@@ -134,12 +128,8 @@ export const reportCommentaryItems = pgTable(
     updatedByUserId: text("updated_by_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`(current_timestamp)`),
-    updatedAt: text("updated_at")
-      .notNull()
-      .default(sql`(current_timestamp)`),
+    createdAt: text("created_at").notNull().default(isoNow),
+    updatedAt: text("updated_at").notNull().default(isoNow),
   },
   (table) => [
     uniqueIndex("monthly_report_commentary_run_kind_order_idx").on(

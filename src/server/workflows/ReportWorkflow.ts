@@ -18,7 +18,7 @@ export class ReportWorkflow extends WorkflowEntrypoint<
       pgStep(
         step,
         "generate-report",
-        { retries: { limit: 2, delay: "30 seconds", backoff: "exponential" } },
+        { retries: { limit: 0, delay: "30 seconds", backoff: "exponential" } },
         () =>
           executeReportRun({
             ...event.payload,

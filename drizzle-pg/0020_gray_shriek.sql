@@ -1,3 +1,5 @@
+-- Historical Local SEO branch artifact, intentionally absent from the current
+-- Postgres journal. The combined forward lineage applies this schema in 0026.
 CREATE TABLE "citation_audit_runs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"project_id" text NOT NULL,

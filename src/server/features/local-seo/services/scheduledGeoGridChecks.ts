@@ -4,7 +4,38 @@ import {
   computeNextGeoGridRun,
   GeoGridService,
 } from "@/server/features/local-seo/services/GeoGridService";
+import { AppError } from "@/server/lib/errors";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+
+function retryRunId(error: unknown) {
+  if (
+    !(error instanceof AppError) ||
+    (error.code !== "UPSTREAM_UNAVAILABLE" && error.code !== "RATE_LIMITED")
+  ) {
+    return null;
+  }
+  return error.details?.geoGridRunId ?? null;
+}
+
+async function retryExactScheduledRun(input: {
+  configId: string;
+  projectId: string;
+  organizationId: string;
+  runId: string;
+}) {
+  const retry = await GeoGridService.runGrid({
+    configId: input.configId,
+    projectId: input.projectId,
+    billingCustomer: {
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      userId: "system",
+      userEmail: "system@openseo.so",
+    },
+    resumeRunId: input.runId,
+  });
+  return retry.started || retry.run.status === "completed";
+}
 
 /**
  * Runs a deliberately small due batch. A compare-and-set advances each slot
@@ -29,6 +60,8 @@ export async function runScheduledGeoGridChecks() {
   let skippedFree = 0;
   let concurrentSkips = 0;
   let alreadyRunning = 0;
+  let retryRecovered = 0;
+  let retryExhausted = 0;
   let errors = 0;
 
   for (const { config, organizationId } of due) {
@@ -79,6 +112,7 @@ export async function runScheduledGeoGridChecks() {
           userId: "system",
           userEmail: "system@openseo.so",
         },
+        skipFailedRunResume: true,
       });
       if (result.started) {
         started += 1;
@@ -95,6 +129,29 @@ export async function runScheduledGeoGridChecks() {
         nextRunAt: observedNextRunAt,
       });
     } catch (error) {
+      const resumeRunId = retryRunId(error);
+      if (resumeRunId) {
+        try {
+          const recovered = await retryExactScheduledRun({
+            configId: config.id,
+            projectId: config.projectId,
+            organizationId,
+            runId: resumeRunId,
+          });
+          started += Number(recovered);
+          retryRecovered += Number(recovered);
+          alreadyRunning += Number(!recovered);
+          continue;
+        } catch (retryError) {
+          errors += 1;
+          retryExhausted += 1;
+          console.error(
+            `[cron] Geo-grid config ${config.id} retry failed:`,
+            retryError,
+          );
+          continue;
+        }
+      }
       errors += 1;
       console.error(`[cron] Geo-grid config ${config.id} failed:`, error);
     }
@@ -107,6 +164,8 @@ export async function runScheduledGeoGridChecks() {
     skippedFree,
     concurrentSkips,
     alreadyRunning,
+    retryRecovered,
+    retryExhausted,
     errors,
   };
   (errors > 0 ? console.error : console.log)(summary);

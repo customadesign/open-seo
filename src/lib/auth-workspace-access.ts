@@ -9,6 +9,10 @@ import { WorkspaceAccessRepository } from "@/server/auth/repositories/WorkspaceA
 
 const API_KEY_PATH_PREFIX = "/api-key/";
 const OAUTH_LINK_PATH = "/oauth2/link";
+const OWNER_ONLY_ORGANIZATION_PATHS = new Set([
+  "/organization/list-members",
+  "/organization/get-full-organization",
+]);
 
 export function createWorkspaceAccessControlPlugin() {
   return {
@@ -19,7 +23,9 @@ export function createWorkspaceAccessControlPlugin() {
           matcher(context) {
             const path = context.path ?? "";
             return (
-              path.startsWith(API_KEY_PATH_PREFIX) || path === OAUTH_LINK_PATH
+              path.startsWith(API_KEY_PATH_PREFIX) ||
+              path === OAUTH_LINK_PATH ||
+              OWNER_ONLY_ORGANIZATION_PATHS.has(path)
             );
           },
           handler: createAuthMiddleware(async (context) => {
@@ -60,6 +66,15 @@ export function createWorkspaceAccessControlPlugin() {
             if (path === OAUTH_LINK_PATH && access.role !== "owner") {
               throw new APIError("FORBIDDEN", {
                 message: "Only the workspace owner can connect integrations.",
+              });
+            }
+
+            if (
+              OWNER_ONLY_ORGANIZATION_PATHS.has(path) &&
+              access.role !== "owner"
+            ) {
+              throw new APIError("FORBIDDEN", {
+                message: "Only the workspace owner can list workspace members.",
               });
             }
           }),

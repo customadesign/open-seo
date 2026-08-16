@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   projects,
@@ -51,7 +51,7 @@ async function createDefaultSettings(input: {
   const id = crypto.randomUUID();
   const inserted = await db
     .insert(reportSettings)
-    .values({ id, ...input, isEnabled: true })
+    .values({ id, ...input, isEnabled: false })
     .onConflictDoNothing()
     .returning();
   const settings = inserted[0] ?? (await getSettings(input.projectId));
@@ -91,7 +91,7 @@ async function updateSettings(input: {
         runHour: input.runHour,
         isEnabled: input.isEnabled,
         nextRunAt: input.nextRunAt,
-        updatedAt: sql`(current_timestamp)`,
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(reportSettings.id, input.settingsId)),
     tx
@@ -147,7 +147,15 @@ async function getRun(projectId: string, runId: string) {
 
 async function listRuns(projectId: string, publishedOnly: boolean) {
   return db
-    .select()
+    .select({
+      id: reportRuns.id,
+      status: reportRuns.status,
+      trigger: reportRuns.trigger,
+      periodStart: reportRuns.periodStart,
+      periodEnd: reportRuns.periodEnd,
+      publishedAt: reportRuns.publishedAt,
+      errorMessage: reportRuns.errorMessage,
+    })
     .from(reportRuns)
     .where(
       and(
@@ -166,7 +174,7 @@ async function setRunRunning(runId: string, workflowInstanceId?: string) {
       startedAt: new Date().toISOString(),
       workflowInstanceId,
       errorMessage: null,
-      updatedAt: sql`(current_timestamp)`,
+      updatedAt: new Date().toISOString(),
     })
     .where(eq(reportRuns.id, runId));
 }
@@ -190,7 +198,7 @@ async function publishRun(input: {
         snapshotJson: input.snapshotJson,
         publishedAt,
         errorMessage: null,
-        updatedAt: sql`(current_timestamp)`,
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(reportRuns.id, input.runId)),
     tx
@@ -216,7 +224,7 @@ async function failRun(runId: string, errorMessage: string) {
     .set({
       status: "failed",
       errorMessage: errorMessage.slice(0, 1_000),
-      updatedAt: sql`(current_timestamp)`,
+      updatedAt: new Date().toISOString(),
     })
     .where(eq(reportRuns.id, runId));
 }
@@ -227,7 +235,7 @@ async function resetRun(runId: string, projectId: string) {
     .set({
       status: "queued",
       errorMessage: null,
-      updatedAt: sql`(current_timestamp)`,
+      updatedAt: new Date().toISOString(),
     })
     .where(
       and(
@@ -305,7 +313,7 @@ async function claimDueSettings(input: {
     .set({
       nextRunAt: input.nextRunAt,
       lastRunAt: input.observedNextRunAt,
-      updatedAt: sql`(current_timestamp)`,
+      updatedAt: new Date().toISOString(),
     })
     .where(
       and(

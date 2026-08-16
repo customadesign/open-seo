@@ -12,7 +12,6 @@ import { captureServerEvent } from "@/server/lib/posthog";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import {
-  requireProjectContext,
   requireProjectOwner,
   requireWorkspaceOwner,
 } from "@/serverFunctions/middleware";
@@ -36,7 +35,7 @@ export const getGscGrantStatus = createServerFn({ method: "GET" })
   });
 
 export const getGscConnection = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const [connection, currentUserHasGrant, hosted, gscConfigured] =

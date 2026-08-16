@@ -4,6 +4,8 @@ import type { BillingCustomerContext } from "@/server/billing/subscription";
 import { LocalSeoRepository } from "@/server/features/local-seo/repositories/LocalSeoRepository";
 import { createDataforseoClient } from "@/server/lib/dataforseo";
 import { AppError } from "@/server/lib/errors";
+import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { estimateScheduledGeoGridCost } from "@/shared/local-seo";
 import type {
   createGeoGridConfigSchema,
   GeoGridMatchedBy,
@@ -11,7 +13,7 @@ import type {
 import { geoGridAggregateResultSchema } from "@/types/schemas/local-seo";
 
 type CreateGeoGridConfigInput = z.infer<typeof createGeoGridConfigSchema>;
-type GeoGridScheduleInterval = CreateGeoGridConfigInput["scheduleInterval"];
+type GeoGridScheduleInterval = GeoGridConfig["scheduleInterval"];
 
 const EARTH_RADIUS_METERS = 6_371_008.8;
 const GEO_GRID_STALE_RUN_MS = 30 * 60 * 1_000;
@@ -339,13 +341,30 @@ async function createConfig(input: CreateGeoGridConfigInput) {
   if (!profile) {
     throw new AppError("NOT_FOUND", "Local business profile not found");
   }
+  const { maxEstimatedScheduledCheckCredits, ...config } = input;
+  if (config.scheduleInterval !== "manual") {
+    const estimate = estimateScheduledGeoGridCost(
+      config.gridSize,
+      config.scheduleInterval,
+      await isHostedServerAuthMode(),
+    );
+    if (
+      maxEstimatedScheduledCheckCredits == null ||
+      estimate.costCredits > maxEstimatedScheduledCheckCredits
+    ) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        `This recurring geo-grid costs an estimated ${estimate.costCredits} credits per run, above the approved maximum of ${maxEstimatedScheduledCheckCredits ?? 0}. Review the current estimate and approve it again.`,
+      );
+    }
+  }
   return LocalSeoRepository.createGeoGridConfig({
     id: crypto.randomUUID(),
-    ...input,
+    ...config,
     nextRunAt:
-      input.scheduleInterval === "manual"
+      config.scheduleInterval === "manual"
         ? null
-        : computeNextGeoGridRun(input.scheduleInterval, new Date()),
+        : computeNextGeoGridRun(config.scheduleInterval, new Date()),
   });
 }
 
@@ -354,18 +373,30 @@ async function getResumableGeoGridRun(input: {
   profile: LocalBusinessProfile;
   plan: PlannedGeoGridCell[];
   projectId: string;
+  runId?: string;
 }) {
-  const failedRun = await LocalSeoRepository.getLatestFailedGeoGridRun(
-    input.config.id,
-    input.projectId,
-  );
-  if (!failedRun) return null;
+  const failedRun = input.runId
+    ? await LocalSeoRepository.getGeoGridRun(input.runId, input.projectId)
+    : await LocalSeoRepository.getLatestFailedGeoGridRun(
+        input.config.id,
+        input.projectId,
+      );
+  if (
+    !failedRun ||
+    failedRun.status !== "failed" ||
+    failedRun.configId !== input.config.id
+  ) {
+    return null;
+  }
   const completedAt = failedRun.completedAt;
   if (!completedAt) return null;
 
   const startedAt = Date.parse(failedRun.startedAt);
   const failedAt = Date.parse(completedAt);
   const profileUpdatedAt = Date.parse(input.profile.updatedAt);
+  const lastCompletedAt = input.config.lastRunAt
+    ? Date.parse(input.config.lastRunAt)
+    : null;
   const now = Date.now();
   if (
     !Number.isFinite(startedAt) ||
@@ -376,6 +407,8 @@ async function getResumableGeoGridRun(input: {
     now - startedAt < 0 ||
     now - startedAt > GEO_GRID_RETRY_WINDOW_MS ||
     profileUpdatedAt > startedAt ||
+    (lastCompletedAt != null &&
+      (!Number.isFinite(lastCompletedAt) || lastCompletedAt > failedAt)) ||
     failedRun.gridSize !== input.config.gridSize ||
     failedRun.radiusMeters !== input.config.radiusMeters ||
     failedRun.cellsTotal !== input.plan.length
@@ -437,6 +470,8 @@ async function runGrid(input: {
   configId: string;
   projectId: string;
   billingCustomer: BillingCustomerContext;
+  resumeRunId?: string;
+  skipFailedRunResume?: boolean;
 }) {
   const config = await LocalSeoRepository.getGeoGridConfig(
     input.configId,
@@ -489,12 +524,27 @@ async function runGrid(input: {
   }
 
   const plan = planGeoGrid(config);
-  const resumable = await getResumableGeoGridRun({
-    config,
-    profile,
-    plan,
-    projectId: input.projectId,
-  });
+  if (input.resumeRunId && input.skipFailedRunResume) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "An exact geo-grid retry cannot also skip failed-run recovery",
+    );
+  }
+  const resumable = input.skipFailedRunResume
+    ? null
+    : await getResumableGeoGridRun({
+        config,
+        profile,
+        plan,
+        projectId: input.projectId,
+        runId: input.resumeRunId,
+      });
+  if (input.resumeRunId && !resumable) {
+    throw new AppError(
+      "CONFLICT",
+      "The scheduled geo-grid attempt is no longer safe to resume",
+    );
+  }
   let run = null;
   let cellsByCoordinate = new Map<string, StoredGeoGridCell>();
   if (resumable) {
@@ -670,6 +720,12 @@ async function runGrid(input: {
         completedAt: new Date().toISOString(),
       },
     );
+    if (error instanceof AppError) {
+      throw new AppError(error.code, error.message, {
+        ...error.details,
+        geoGridRunId: run.id,
+      });
+    }
     throw error;
   }
 }

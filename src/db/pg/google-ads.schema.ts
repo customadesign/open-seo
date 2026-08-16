@@ -3,6 +3,8 @@ import { index, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { projects } from "./app.schema";
 import { organization } from "./better-auth-schema";
 
+const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+
 export const googleAdsConnections = pgTable(
   "google_ads_connections",
   {
@@ -21,12 +23,8 @@ export const googleAdsConnections = pgTable(
     connectedByUserId: text("connected_by_user_id").notNull(),
     googleAdsAccountId: text("google_ads_account_id").notNull(),
     connectedAccountEmail: text("connected_account_email"),
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`(current_timestamp)`),
-    updatedAt: text("updated_at")
-      .notNull()
-      .default(sql`(current_timestamp)`),
+    createdAt: text("created_at").notNull().default(isoNow),
+    updatedAt: text("updated_at").notNull().default(isoNow),
   },
   (table) => [
     uniqueIndex("google_ads_connections_project_idx").on(table.projectId),

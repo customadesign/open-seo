@@ -10,6 +10,7 @@ import {
   localListingConnections,
 } from "@/db/schema";
 import { isSupportedLanguageCode } from "@/shared/keyword-locations";
+import { hasPaidMapsSearchOperator } from "@/shared/local-seo";
 
 export type LocalBusinessProfile = InferSelectModel<
   typeof localBusinessProfiles
@@ -48,9 +49,6 @@ const listingStatusSourceSchema = z.enum(
   localListingConnections.statusSource.enumValues,
 );
 const geoGridDeviceSchema = z.enum(geoGridConfigs.device.enumValues);
-const geoGridScheduleSchema = z.enum(
-  geoGridConfigs.scheduleInterval.enumValues,
-);
 const geoGridRunStatusSchema = z.enum(geoGridRuns.status.enumValues);
 export const geoGridMatchedBySchema = z.enum(geoGridCells.matchedBy.enumValues);
 export type GeoGridMatchedBy = z.infer<typeof geoGridMatchedBySchema>;
@@ -99,26 +97,52 @@ export const saveLocalListingConnectionSchema = z.object({
   lastError: z.string().trim().max(1000).nullable().optional(),
 });
 
-export const createGeoGridConfigSchema = z.object({
-  projectId: projectIdField,
-  profileId: z.string().uuid(),
-  keyword: z.string().trim().min(1).max(120),
-  centerLatitude: latitudeField,
-  centerLongitude: longitudeField,
-  gridSize: z
-    .number()
-    .int()
-    .min(3)
-    .max(11)
-    .refine((value) => value % 2 === 1, {
-      message: "Grid size must be odd so it has a center cell",
-    })
-    .default(5),
-  radiusMeters: z.number().int().min(100).max(50_000).default(5_000),
-  languageCode: languageCodeField.default("en"),
-  device: geoGridDeviceSchema.default("mobile"),
-  scheduleInterval: geoGridScheduleSchema.default("manual"),
-});
+export const createGeoGridConfigSchema = z
+  .object({
+    projectId: projectIdField,
+    profileId: z.string().uuid(),
+    keyword: z
+      .string()
+      .trim()
+      .min(1)
+      .max(120)
+      .refine((value) => !hasPaidMapsSearchOperator(value), {
+        message:
+          "Search operators are not supported because they change Maps lookup pricing",
+      }),
+    centerLatitude: latitudeField,
+    centerLongitude: longitudeField,
+    gridSize: z
+      .number()
+      .int()
+      .min(3)
+      .max(7)
+      .refine((value) => value % 2 === 1, {
+        message: "Grid size must be odd so it has a center cell",
+      })
+      .default(5),
+    radiusMeters: z.number().int().min(100).max(50_000).default(5_000),
+    languageCode: languageCodeField.default("en"),
+    device: geoGridDeviceSchema.default("mobile"),
+    scheduleInterval: z.enum(["manual", "weekly", "monthly"]).default("manual"),
+    maxEstimatedScheduledCheckCredits: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional(),
+  })
+  .superRefine((input, context) => {
+    if (
+      input.scheduleInterval !== "manual" &&
+      input.maxEstimatedScheduledCheckCredits == null
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["maxEstimatedScheduledCheckCredits"],
+        message: "Approve the displayed recurring geo-grid cost first",
+      });
+    }
+  });
 
 export const getGeoGridConfigsSchema = z.object({
   projectId: projectIdField,

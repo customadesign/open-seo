@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppError } from "@/server/lib/errors";
 
 const mocks = vi.hoisted(() => ({
   getDueGeoGridConfigs: vi.fn(),
@@ -75,6 +76,7 @@ describe("runScheduledGeoGridChecks", () => {
         userId: "system",
         userEmail: "system@openseo.so",
       },
+      skipFailedRunResume: true,
     });
   });
 
@@ -104,5 +106,65 @@ describe("runScheduledGeoGridChecks", () => {
       observedNextRunAt: "2026-08-20T04:30:00.000Z",
       nextRunAt: "2026-08-13T04:30:00.000Z",
     });
+  });
+
+  it("retries the exact failed scheduled run once", async () => {
+    mocks.runGrid
+      .mockRejectedValueOnce(
+        new AppError("UPSTREAM_UNAVAILABLE", undefined, {
+          geoGridRunId: "run-failed",
+        }),
+      )
+      .mockResolvedValueOnce({
+        started: true,
+        run: { id: "run-failed", status: "completed" },
+      });
+
+    await expect(runScheduledGeoGridChecks()).resolves.toMatchObject({
+      retryRecovered: 1,
+      retryExhausted: 0,
+      errors: 0,
+    });
+    expect(mocks.runGrid).toHaveBeenNthCalledWith(2, {
+      configId: "config-1",
+      projectId: "project-1",
+      billingCustomer: {
+        organizationId: "organization-1",
+        projectId: "project-1",
+        userId: "system",
+        userEmail: "system@openseo.so",
+      },
+      resumeRunId: "run-failed",
+    });
+    expect(mocks.claimDueGeoGridConfig).toHaveBeenCalledOnce();
+  });
+
+  it("does not attempt a third run when the exact retry fails", async () => {
+    mocks.runGrid
+      .mockRejectedValueOnce(
+        new AppError("RATE_LIMITED", undefined, {
+          geoGridRunId: "run-failed",
+        }),
+      )
+      .mockRejectedValueOnce(new AppError("UPSTREAM_UNAVAILABLE"));
+
+    await expect(runScheduledGeoGridChecks()).resolves.toMatchObject({
+      retryRecovered: 0,
+      retryExhausted: 1,
+      errors: 1,
+    });
+    expect(mocks.claimDueGeoGridConfig).toHaveBeenCalledOnce();
+    expect(mocks.runGrid).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry an unbound or non-provider failure", async () => {
+    mocks.runGrid.mockRejectedValue(new AppError("UPSTREAM_UNAVAILABLE"));
+
+    await expect(runScheduledGeoGridChecks()).resolves.toMatchObject({
+      retryRecovered: 0,
+      retryExhausted: 0,
+      errors: 1,
+    });
+    expect(mocks.runGrid).toHaveBeenCalledOnce();
   });
 });

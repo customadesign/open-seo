@@ -398,6 +398,12 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
+INSERT INTO "member_access_profiles" ("member_id")
+SELECT "id"
+FROM "member"
+WHERE NOT ('owner' = ANY (string_to_array(replace("role", ' ', ''), ',')))
+ON CONFLICT DO NOTHING;
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "member_access_profiles_status_idx" ON "member_access_profiles" USING btree ("status");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "project_member_access_project_idx" ON "project_member_access" USING btree ("project_id");
