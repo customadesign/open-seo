@@ -30,9 +30,11 @@ another research screen:
 1. Require an approved per-run ceiling for scheduled rank checks. Manual checks
    have an estimate and confirmation, but rank configurations currently default
    active on a weekly schedule and scheduled runs do not pass a cost ceiling.
-2. Schedule site audits. The scheduler reconciles stale audit runs but does not
-   start a new crawl, so a report can silently omit its audit section when no
-   audit completed inside the reporting period.
+2. Schedule site audits. Delivered: a project-scoped audit schedule that the
+   cron claims and starts through the existing audit workflow, so report
+   collection finds an audit completed inside the reporting period. It is
+   paused with a manual cadence until an operator arms it, and it refuses to
+   start while that project already has an audit running.
 3. Put the existing GSC-plus-GA4 search-opportunity score in the product UI and
    use it to prioritize audit findings and cannibalization work.
 4. Add AI visibility and local geo-grid sections to scheduled reports. Both are
@@ -58,7 +60,7 @@ not an OpenSEO engineering gap.
 | Current SEMrush tool                   | OpenSEO coverage                                                                                                                                                            | Decision before cancellation                                                                                                |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Dashboard                              | Project dashboard exists                                                                                                                                                    | Covered                                                                                                                     |
-| Site Audit, including AI Search Health | Technical, schema, performance, internal-link, crawler-access, answer, trust, citation-readiness, and crawl-comparison checks exist                                         | Add recurring audit starts and impact overlays before relying on report automation                                          |
+| Site Audit, including AI Search Health | Technical, schema, performance, internal-link, crawler-access, answer, trust, citation-readiness, and crawl-comparison checks exist                                         | Recurring audit starts exist and default paused; add impact overlays before relying on report automation                    |
 | Position Tracking                      | Google and Bing tracking with device, depth, and snapshot history; manual runs have estimate approval, but configs default active weekly and scheduled runs have no ceiling | Add a fail-closed recurring cost ceiling before starting the production scheduler; competitor alignment remains a later gap |
 | Domain Overview                        | Point-in-time domain metrics, ranked keywords, pages, recent searches, and filters exist; backlink totals and metric history are not part of the overview                   | Covered for current research, with those limits made explicit                                                               |
 | Organic Rankings                       | Ranked-keyword tables and filters exist                                                                                                                                     | Covered                                                                                                                     |

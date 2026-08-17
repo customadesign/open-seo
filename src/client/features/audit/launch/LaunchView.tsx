@@ -1,6 +1,7 @@
 import { useCustomer } from "autumn-js/react";
 import { useQuery } from "@tanstack/react-query";
 import { AuditHistorySection } from "@/client/features/audit/launch/AuditHistorySection";
+import { AuditScheduleCard } from "@/client/features/audit/launch/AuditScheduleCard";
 import { LaunchFormCard } from "@/client/features/audit/launch/LaunchFormCard";
 import { useLaunchController } from "@/client/features/audit/launch/useLaunchController";
 import { getCustomerPlanStatus } from "@/client/features/billing/plan-detection";
@@ -94,6 +95,8 @@ function LaunchContent({
           commitMaxPagesInput={controller.commitMaxPagesInput}
           maxPagesLimit={controller.maxPagesLimit}
         />
+
+        <AuditScheduleCard projectId={projectId} />
 
         <AuditHistorySection
           projectId={projectId}

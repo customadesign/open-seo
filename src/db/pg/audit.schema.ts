@@ -6,6 +6,7 @@ import {
   pgTable,
   real,
   text,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { projects } from "./app.schema";
 
@@ -177,5 +178,41 @@ export const auditLighthouseResults = pgTable(
   (table) => [
     index("audit_lighthouse_results_audit_id_idx").on(table.auditId),
     index("audit_lighthouse_results_page_id_idx").on(table.pageId),
+  ],
+);
+
+// Postgres mirror of audit_schedules in ../audit.schema.ts — read that file for
+// the design commentary; schema-parity.test.ts enforces the structural match.
+export const auditSchedules = pgTable(
+  "audit_schedules",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id").notNull(),
+    startUrl: text("start_url").notNull(),
+    maxPages: integer("max_pages").notNull().default(50),
+    lighthouseStrategy: text("lighthouse_strategy", {
+      enum: ["auto", "none"],
+    })
+      .notNull()
+      .default("auto"),
+    scheduleInterval: text("schedule_interval", {
+      enum: ["daily", "weekly", "monthly", "manual"],
+    })
+      .notNull()
+      .default("manual"),
+    isActive: boolean("is_active").notNull().default(false),
+    lastRunAt: timestampColumn("last_run_at"),
+    lastRunAuditId: text("last_run_audit_id"),
+    nextRunAt: timestampColumn("next_run_at"),
+    lastSkipReason: text("last_skip_reason"),
+    createdAt: timestampColumn("created_at").notNull().default(isoNow),
+    updatedAt: timestampColumn("updated_at").notNull().default(isoNow),
+  },
+  (table) => [
+    uniqueIndex("audit_schedules_project_id_idx").on(table.projectId),
+    index("audit_schedules_due_idx").on(table.isActive, table.nextRunAt),
   ],
 );

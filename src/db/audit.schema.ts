@@ -4,6 +4,7 @@ import {
   integer,
   real,
   index,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { projects } from "./app.schema";
@@ -178,5 +179,65 @@ export const auditLighthouseResults = sqliteTable(
   (table) => [
     index("audit_lighthouse_results_audit_id_idx").on(table.auditId),
     index("audit_lighthouse_results_page_id_idx").on(table.pageId),
+  ],
+);
+
+/**
+ * Recurring site audits, at most one schedule per project.
+ *
+ * Nothing here runs on its own: `schedule_interval` defaults to "manual" and
+ * `is_active` to false, so a fresh install — and any project imported from an
+ * older deployment — starts with a dormant scheduler. `next_run_at` is the
+ * single source of due-ness AND the compare-and-set token the cron claims a
+ * slot with, so it is only ever non-null while the schedule is both active and
+ * recurring. It stores a UTC ISO instant (never a local wall-clock time), which
+ * is what makes the `next_run_at <= now` due check correct for every operator
+ * timezone and identical on D1 and Postgres.
+ */
+export const auditSchedules = sqliteTable(
+  "audit_schedules",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    /**
+     * Who armed the schedule. Scheduled audits are attributed to this user, so
+     * they also consume that user's per-tier audit capacity — a scheduler
+     * cannot mint audits outside the limits its owner is subject to.
+     */
+    createdByUserId: text("created_by_user_id").notNull(),
+    startUrl: text("start_url").notNull(),
+    /** Mirrors DEFAULT_AUDIT_PAGES in @/shared/audit-limits. */
+    maxPages: integer("max_pages").notNull().default(50),
+    lighthouseStrategy: text("lighthouse_strategy", {
+      enum: ["auto", "none"],
+    })
+      .notNull()
+      .default("auto"),
+    scheduleInterval: text("schedule_interval", {
+      enum: ["daily", "weekly", "monthly", "manual"],
+    })
+      .notNull()
+      .default("manual"),
+    isActive: integer("is_active", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    lastRunAt: text("last_run_at"),
+    /** Audit started by the most recent scheduled run; links skip/failure UI. */
+    lastRunAuditId: text("last_run_audit_id"),
+    nextRunAt: text("next_run_at"),
+    /** Why the last due tick started nothing; cleared on a successful start. */
+    lastSkipReason: text("last_skip_reason"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("audit_schedules_project_id_idx").on(table.projectId),
+    index("audit_schedules_due_idx").on(table.isActive, table.nextRunAt),
   ],
 );

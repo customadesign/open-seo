@@ -13,6 +13,7 @@ import { ReportService } from "@/server/features/reports/ReportService";
 import { ReportDeliveryProfileService } from "@/server/features/reports/ReportDeliveryProfileService";
 import { ReportShareService } from "@/server/features/reports/ReportShareService";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
+import { runScheduledSiteAudits } from "@/server/features/audit/services/scheduledSiteAudits";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { getAuthMode, isHostedAuthMode } from "@/lib/auth-mode";
@@ -251,6 +252,17 @@ export default {
     }
     // Each scheduler gets its own scoped Postgres client (a no-op in D1 mode)
     // and its own failure boundary so one subsystem cannot suppress the rest.
+    //
+    // Recurring site audits run directly after the reconcile: they refuse to
+    // start while the project has a running audit, so they want the sweep's
+    // zombie rows already retired. No-op until an operator activates a
+    // schedule — cadence and active flag both default to off.
+    try {
+      await withPgClient(() => runScheduledSiteAudits());
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Scheduled site audits failed:", err);
+    }
     try {
       await withPgClient(() => runScheduledRankChecks(env));
     } catch (err) {

@@ -4,8 +4,9 @@
  * Cloudflare runs the `scheduled` handler in src/server.ts from the triggers in
  * wrangler.jsonc. Docker self-hosts serve the same Worker through
  * `vite preview` -> Miniflare, which never fires those triggers on its own, so
- * every scheduled subsystem (rank checks, geo-grids, monthly reports, the
- * stale-audit watchdog) stays dead unless something asks Miniflare to run it.
+ * every scheduled subsystem (recurring site audits, rank checks, geo-grids,
+ * monthly reports, the stale-audit watchdog) stays dead unless something asks
+ * Miniflare to run it.
  * The compose sidecar is that something.
  *
  * Security: the trigger endpoint is unauthenticated and runs metered provider

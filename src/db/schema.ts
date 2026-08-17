@@ -116,6 +116,7 @@ export const {
   auditPages,
   auditIssues,
   auditLighthouseResults,
+  auditSchedules,
   samSessions,
   samProjectMemory,
   user,

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { waitUntil } from "cloudflare:workers";
+import { AuditScheduleService } from "@/server/features/audit/services/AuditScheduleService";
 import { AuditService } from "@/server/features/audit/services/AuditService";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { AppError } from "@/server/lib/errors";
@@ -11,8 +12,10 @@ import {
   deleteAuditSchema,
   getAuditHistorySchema,
   getAuditResultsSchema,
+  getAuditScheduleSchema,
   getAuditStatusSchema,
   getCrawlProgressSchema,
+  saveAuditScheduleSchema,
   startAuditSchema,
 } from "@/types/schemas/audit";
 
@@ -104,6 +107,28 @@ export const getCrawlProgress = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     return AuditService.getCrawlProgress(data.auditId, context.projectId);
   });
+
+export const getAuditSchedule = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getAuditScheduleSchema)
+  .handler(async ({ context }) =>
+    AuditScheduleService.getSchedule(context.projectId),
+  );
+
+export const saveAuditSchedule = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(saveAuditScheduleSchema)
+  .handler(async ({ data, context }) =>
+    AuditScheduleService.saveSchedule({
+      projectId: context.projectId,
+      actorUserId: context.userId,
+      startUrl: data.startUrl,
+      maxPages: data.maxPages,
+      lighthouseStrategy: data.lighthouseStrategy,
+      scheduleInterval: data.scheduleInterval,
+      isActive: data.isActive,
+    }),
+  );
 
 export const deleteAudit = createServerFn({ method: "POST" })
   .middleware(requireProjectUse)
