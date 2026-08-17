@@ -99,6 +99,7 @@ describe("rank check workflow credit ceiling", () => {
             billingCustomer,
             projectId: "project_1",
             domain: "example.com",
+            engine: "google",
             locationCode: 2840,
             languageCode: "en",
             devices: "desktop",

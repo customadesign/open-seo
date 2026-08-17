@@ -35,6 +35,11 @@
       "binding": "REPORT_WORKFLOW",
       "class_name": "ReportWorkflow",
     },
+    {
+      "name": "ai-visibility-workflow",
+      "binding": "AI_VISIBILITY_WORKFLOW",
+      "class_name": "AiVisibilityWorkflow",
+    },
   ],
   // Durable Object backing the onboarding strategy chat (Agents SDK
   // AIChatAgent). One instance per project; messages persist in the DO's

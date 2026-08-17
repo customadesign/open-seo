@@ -52,3 +52,8 @@ export {
   fetchLlmResponse,
   fetchLlmTopPages,
 } from "@/server/lib/dataforseo/ai";
+
+export {
+  fetchAiVisibilityTaskResult,
+  postAiVisibilityTasks,
+} from "@/server/lib/dataforseo/ai-visibility";

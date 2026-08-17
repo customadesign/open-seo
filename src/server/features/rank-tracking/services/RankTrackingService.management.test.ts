@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RankTrackingService } from "./RankTrackingService";
+import { updateConfigSchema } from "@/types/schemas/rank-tracking";
 
 const mocks = vi.hoisted(() => ({
   getConfigById: vi.fn(),
+  getConfigByProjectDomainLocation: vi.fn(),
+  getConfigsForProject: vi.fn(),
+  createConfig: vi.fn(),
+  updateConfig: vi.fn(),
   getKeywordsForConfig: vi.fn(),
   addKeywordsToConfig: vi.fn(),
   removeKeywordsFromConfig: vi.fn(),
@@ -325,5 +330,53 @@ describe("RankTrackingService management invariants", () => {
       RankTrackingService.removeKeywords("foreign", "project_1", ["kw_1"]),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.removeKeywordsFromConfig).not.toHaveBeenCalled();
+  });
+
+  it("scopes a new config to its engine and defaults to google", async () => {
+    // Engine is part of the duplicate check because the unique indexes are
+    // engine-scoped: the same domain+location on Bing is a different tracker.
+    mocks.getConfigByProjectDomainLocation.mockResolvedValue(null);
+    mocks.getConfigsForProject.mockResolvedValue([]);
+
+    await RankTrackingService.createConfig({
+      projectId: "project_1",
+      projectMarket: { locationCode: 2840, languageCode: "en" },
+      domain: "example.com",
+      engine: "bing",
+      serpDepth: 20,
+    });
+    expect(mocks.getConfigByProjectDomainLocation).toHaveBeenCalledWith(
+      "project_1",
+      "example.com",
+      "bing",
+      2840,
+      null,
+    );
+    expect(mocks.createConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ engine: "bing" }),
+    );
+
+    await RankTrackingService.createConfig({
+      projectId: "project_1",
+      projectMarket: { locationCode: 2840, languageCode: "en" },
+      domain: "other.com",
+      serpDepth: 20,
+    });
+    expect(mocks.createConfig).toHaveBeenLastCalledWith(
+      expect.objectContaining({ engine: "google" }),
+    );
+  });
+
+  it("never writes engine on update", async () => {
+    // Snapshots carry no engine of their own, so a mutable engine would
+    // silently reinterpret a config's whole ranking history.
+    await RankTrackingService.updateConfig("config_1", "project_1", {
+      domain: "renamed.com",
+      isActive: false,
+    });
+
+    const updates: unknown = mocks.updateConfig.mock.lastCall?.[2];
+    expect(updates).not.toHaveProperty("engine");
+    expect(updateConfigSchema.shape).not.toHaveProperty("engine");
   });
 });

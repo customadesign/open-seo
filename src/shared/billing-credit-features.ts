@@ -6,6 +6,7 @@ export type CreditFeature =
   | "rank_tracking"
   | "ai_citations"
   | "ai_prompt_responses"
+  | "ai_visibility"
   | "local_seo"
   | "reports"
   | "onboarding"
@@ -19,6 +20,7 @@ const CREDIT_FEATURE_LABELS: Record<string, string> = {
   rank_tracking: "Rank Tracking",
   ai_citations: "AI Citations",
   ai_prompt_responses: "AI Prompt Responses",
+  ai_visibility: "AI Visibility",
   ai_search: "AI Search",
   local_seo: "Local SEO",
   reports: "Reports",

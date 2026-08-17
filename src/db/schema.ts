@@ -11,6 +11,8 @@ import * as sqliteLocalSeo from "./local-seo.schema";
 import * as sqliteGoogleAds from "./google-ads.schema";
 import * as sqliteReports from "./report.schema";
 import * as sqliteDisavow from "./disavow.schema";
+import * as sqliteAiVisibility from "./ai-visibility.schema";
+import * as sqliteRankTracking from "./rank-tracking.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -23,6 +25,8 @@ import * as pgLocalSeo from "./pg/local-seo.schema";
 import * as pgGoogleAds from "./pg/google-ads.schema";
 import * as pgReports from "./pg/report.schema";
 import * as pgDisavow from "./pg/disavow.schema";
+import * as pgAiVisibility from "./pg/ai-visibility.schema";
+import * as pgRankTracking from "./pg/rank-tracking.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -45,7 +49,9 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteLocalSeo &
   typeof sqliteGoogleAds &
   typeof sqliteReports &
-  typeof sqliteDisavow;
+  typeof sqliteDisavow &
+  typeof sqliteAiVisibility &
+  typeof sqliteRankTracking;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -62,6 +68,8 @@ const runtimeSchema =
         ...pgGoogleAds,
         ...pgReports,
         ...pgDisavow,
+        ...pgAiVisibility,
+        ...pgRankTracking,
       }
     : {
         ...sqliteApp,
@@ -76,6 +84,8 @@ const runtimeSchema =
         ...sqliteGoogleAds,
         ...sqliteReports,
         ...sqliteDisavow,
+        ...sqliteAiVisibility,
+        ...sqliteRankTracking,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -128,4 +138,10 @@ export const {
   geoGridCells,
   citationAuditRuns,
   citationObservations,
+  aiVisibilityConfigs,
+  aiVisibilityConfigProviders,
+  aiVisibilityPrompts,
+  aiVisibilityRuns,
+  aiVisibilityObservations,
+  aiVisibilityCitations,
 } = schema;

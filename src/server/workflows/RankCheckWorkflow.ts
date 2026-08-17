@@ -25,6 +25,7 @@ import {
 import {
   estimateRankCheckCredits,
   rankCheckCostApprovalError,
+  type RankTrackingEngine,
 } from "@/shared/rank-tracking";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 
@@ -39,6 +40,7 @@ interface RankCheckParams {
   billingCustomer: BillingCustomerContext;
   projectId: string;
   domain: string;
+  engine: RankTrackingEngine;
   locationCode: number;
   languageCode: string;
   locationName?: string;
@@ -280,6 +282,7 @@ export class RankCheckWorkflow extends WorkflowEntrypoint<
       billingCustomer,
       projectId,
       domain,
+      engine,
       locationCode,
       languageCode,
       locationName,
@@ -345,6 +348,7 @@ export class RankCheckWorkflow extends WorkflowEntrypoint<
           devices,
           serpDepth,
           domain,
+          engine,
           locationCode,
           languageCode,
           locationName,

@@ -46,6 +46,7 @@
     "test:e2e:domain:perf": "playwright test e2e/domain-overview-filters.perf.spec.ts",
     "test:e2e:keywords": "playwright test e2e/keyword-research-navigation.spec.ts",
     "billing:backlinks": "tsx scripts/backlinks-cost-profile.ts",
+    "billing:ai-visibility": "tsx scripts/ai-visibility-cost-profile.ts",
     "billing:brand-lookup": "tsx scripts/brand-lookup-cost-profile.ts",
     "billing:usage": "tsx scripts/dataforseo-account-usage.ts",
     "cleanup:default-projects:d1": "tsx scripts/d1-default-project-cleanup.ts",

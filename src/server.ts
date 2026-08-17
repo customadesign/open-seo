@@ -7,6 +7,7 @@ import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve"
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
+import { runScheduledAiVisibilityRuns } from "@/server/features/ai-visibility/services/scheduledAiVisibilityRuns";
 import { runScheduledGeoGridChecks } from "@/server/features/local-seo/services/scheduledGeoGridChecks";
 import { ReportService } from "@/server/features/reports/ReportService";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
@@ -200,6 +201,7 @@ function handleFetch(
 export { SiteAuditWorkflow } from "./server/workflows/SiteAuditWorkflow";
 export { RankCheckWorkflow } from "./server/workflows/RankCheckWorkflow";
 export { ReportWorkflow } from "./server/workflows/ReportWorkflow";
+export { AiVisibilityWorkflow } from "./server/workflows/AiVisibilityWorkflow";
 // Durable Object class for the onboarding strategy chat (Agents SDK).
 export { OnboardingChatAgent } from "./server/features/onboarding/OnboardingChatAgent";
 // Durable Object class for the SAM in-app agent (Agents SDK).
@@ -258,6 +260,14 @@ export default {
     } catch (err) {
       cronErrors.push(err);
       console.error("[cron] Scheduled geo-grid checks failed:", err);
+    }
+    // No-op until an operator activates an AI visibility config: both the
+    // schedule and the active flag default to off.
+    try {
+      await withPgClient(() => runScheduledAiVisibilityRuns());
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Scheduled AI visibility runs failed:", err);
     }
     try {
       await withPgClient(() =>

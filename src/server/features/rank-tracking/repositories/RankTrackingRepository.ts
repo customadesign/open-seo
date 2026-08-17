@@ -1,15 +1,4 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNull,
-  lte,
-  max,
-  ne,
-} from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, max } from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -17,10 +6,13 @@ import {
   rankCheckRuns,
   rankSnapshots,
   rankTrackingKeywords,
-  projects,
 } from "@/db/schema";
 import { DB_BATCH_SIZE, executeInBatches } from "@/db/runBatch";
-import type { RankTrackingSkipReason } from "@/shared/rank-tracking";
+import type { RankTrackingEngine } from "@/shared/rank-tracking";
+import {
+  claimDueConfig,
+  getDueConfigsWithOrganization,
+} from "./schedulingQueries";
 import {
   getLatestSnapshotsForKeywords,
   getSnapshotsBeforeDate,
@@ -70,6 +62,7 @@ async function getConfigById({
 async function getConfigByProjectDomainLocation(
   projectId: string,
   domain: string,
+  engine: RankTrackingEngine,
   locationCode: number,
   locationName: string | null,
 ) {
@@ -80,6 +73,9 @@ async function getConfigByProjectDomainLocation(
       and(
         eq(rankTrackingConfigs.projectId, projectId),
         eq(rankTrackingConfigs.domain, domain),
+        // Matches the engine-scoped partial unique indexes: a Google and a
+        // Bing config for the same domain+location are separate rows.
+        eq(rankTrackingConfigs.engine, engine),
         eq(rankTrackingConfigs.locationCode, locationCode),
         // National (NULL) and per-city configs are distinct rows — mirrors
         // the partial unique indexes, so a national config and any number of
@@ -113,89 +109,6 @@ async function updateConfig(
         eq(rankTrackingConfigs.projectId, projectId),
       ),
     );
-}
-
-// Caps per-tick loop work (claims, per-org plan checks) against the cron
-// wall clock; paid-heavy ticks are stopped earlier by the unit budget and
-// slow ticks by TICK_DEADLINE_MS in scheduledRankChecks.ts.
-const DUE_CONFIGS_PER_TICK = 500;
-
-async function getDueConfigsWithOrganization(nowIso: string) {
-  return (
-    db
-      .select({
-        id: rankTrackingConfigs.id,
-        projectId: rankTrackingConfigs.projectId,
-        domain: rankTrackingConfigs.domain,
-        locationCode: rankTrackingConfigs.locationCode,
-        languageCode: rankTrackingConfigs.languageCode,
-        locationName: rankTrackingConfigs.locationName,
-        devices: rankTrackingConfigs.devices,
-        serpDepth: rankTrackingConfigs.serpDepth,
-        scheduleInterval: rankTrackingConfigs.scheduleInterval,
-        nextCheckAt: rankTrackingConfigs.nextCheckAt,
-        organizationId: projects.organizationId,
-      })
-      .from(rankTrackingConfigs)
-      .innerJoin(projects, eq(rankTrackingConfigs.projectId, projects.id))
-      .where(
-        and(
-          eq(rankTrackingConfigs.isActive, true),
-          // A manual config can keep a stale non-null next_check_at; without this
-          // it would be selected every tick and never advanced.
-          ne(rankTrackingConfigs.scheduleInterval, "manual"),
-          lte(rankTrackingConfigs.nextCheckAt, nowIso),
-          isNull(projects.archivedAt),
-        ),
-      )
-      // Oldest first so a large backlog drains in order instead of the same
-      // arbitrary rows filling every batch. `lte` already excludes NULL, so both
-      // ordering columns are non-null and SQLite/Postgres agree.
-      .orderBy(
-        asc(rankTrackingConfigs.nextCheckAt),
-        asc(rankTrackingConfigs.id),
-      )
-      .limit(DUE_CONFIGS_PER_TICK)
-  );
-}
-
-/**
- * Conditionally advance a due config's schedule, returning false when the
- * config changed underneath us (manual edit, deactivation).
- *
- * `next_check_at` equality is the compare-and-set token. `schedule_interval` is
- * deliberately absent from the predicate: every schedule edit rewrites
- * `next_check_at` (updateConfig recomputes it, or nulls it for "manual"), so
- * the timestamp check already detects interval changes.
- *
- * `lastSkipReason` is written only when the caller passes it — the restore
- * path omits it so it can't clobber a reason the blocking run just wrote.
- */
-async function claimDueConfig(input: {
-  configId: string;
-  projectId: string;
-  observedNextCheckAt: string;
-  nextCheckAt: string;
-  lastSkipReason?: RankTrackingSkipReason | null;
-}): Promise<boolean> {
-  const claimed = await db
-    .update(rankTrackingConfigs)
-    .set({
-      nextCheckAt: input.nextCheckAt,
-      ...(input.lastSkipReason !== undefined && {
-        lastSkipReason: input.lastSkipReason,
-      }),
-    })
-    .where(
-      and(
-        eq(rankTrackingConfigs.id, input.configId),
-        eq(rankTrackingConfigs.projectId, input.projectId),
-        eq(rankTrackingConfigs.isActive, true),
-        eq(rankTrackingConfigs.nextCheckAt, input.observedNextCheckAt),
-      ),
-    )
-    .returning({ id: rankTrackingConfigs.id });
-  return claimed.length > 0;
 }
 
 // ---------------------------------------------------------------------------

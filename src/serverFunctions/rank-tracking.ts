@@ -80,6 +80,7 @@ export const createRankTrackingConfig = createServerFn({ method: "POST" })
       projectId: context.projectId,
       projectMarket: context.project,
       domain: data.domain,
+      engine: data.engine,
       locationCode: data.locationCode,
       languageCode: data.languageCode,
       locationName: data.locationName,
@@ -96,6 +97,7 @@ export const createRankTrackingConfig = createServerFn({ method: "POST" })
         properties: {
           project_id: context.projectId,
           domain: data.domain,
+          engine: data.engine ?? "google",
           devices: data.devices ?? "both",
           schedule: data.scheduleInterval ?? "weekly",
         },

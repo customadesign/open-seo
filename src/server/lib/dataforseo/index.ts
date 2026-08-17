@@ -34,6 +34,11 @@ export const fetchRankCheckTaskResult: DataforseoSections["fetchRankCheckTaskRes
   async (input) =>
     (await loadDataforseoSections()).fetchRankCheckTaskResult(input);
 
+/** Same deal for AI visibility task collection: free at DataForSEO. */
+export const fetchAiVisibilityTaskResult: DataforseoSections["fetchAiVisibilityTaskResult"] =
+  async (input) =>
+    (await loadDataforseoSections()).fetchAiVisibilityTaskResult(input);
+
 export type {
   LabsKeywordDataItem,
   DomainRankedKeywordItem,

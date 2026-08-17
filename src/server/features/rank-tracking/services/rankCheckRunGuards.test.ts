@@ -43,6 +43,7 @@ const input = {
   config: {
     id: "config_1",
     domain: "example.com",
+    engine: "google" as const,
     locationCode: 2840,
     languageCode: "en",
     locationName: null,

@@ -38,6 +38,7 @@ type RankCheckConfigForStart = Pick<
   RankTrackingConfig,
   | "id"
   | "domain"
+  | "engine"
   | "locationCode"
   | "languageCode"
   | "locationName"
@@ -191,6 +192,7 @@ export async function beginRankCheckRun(input: {
             billingCustomer: input.billingCustomer,
             projectId: input.projectId,
             domain: input.config.domain,
+            engine: input.config.engine,
             locationCode: input.config.locationCode,
             languageCode: input.config.languageCode,
             locationName: input.config.locationName ?? undefined,

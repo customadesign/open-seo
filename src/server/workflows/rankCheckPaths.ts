@@ -11,7 +11,10 @@ import type {
   RankCheckTaskInput,
 } from "@/server/lib/dataforseo";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
-import { KEYWORDS_PER_BATCH } from "@/shared/rank-tracking";
+import {
+  KEYWORDS_PER_BATCH,
+  type RankTrackingEngine,
+} from "@/shared/rank-tracking";
 import { pgStep } from "@/server/workflows/pgStep";
 
 const SINGLE_ATTEMPT_STEP_CONFIG = {
@@ -46,6 +49,7 @@ interface CheckContext {
   devices: RankTrackingConfig["devices"];
   serpDepth: number;
   domain: string;
+  engine: RankTrackingEngine;
   locationCode: number;
   languageCode: string;
   locationName?: string;
@@ -95,6 +99,7 @@ async function checkBatchLive(
           device: task.device,
           targetDomain: ctx.domain,
           depth: ctx.serpDepth,
+          engine: ctx.engine,
         })
         .then((r) => ({ ...r, device: task.device })),
     ),
@@ -209,6 +214,7 @@ async function collectQueuedRound(
           keywordId: task.keywordId,
           keyword: task.keyword,
           targetDomain: ctx.domain,
+          engine: ctx.engine,
         }),
       ),
     );
@@ -299,6 +305,7 @@ export async function runQueuedCheck(
             locationName: ctx.locationName,
             depth: ctx.serpDepth,
             targetDomain: ctx.domain,
+            engine: ctx.engine,
           }),
       );
     } catch (error) {

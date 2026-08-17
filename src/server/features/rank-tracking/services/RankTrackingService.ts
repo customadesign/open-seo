@@ -21,9 +21,11 @@ import {
 import {
   estimateRankCheckCredits,
   computeNextCheckAt,
+  engineLabel,
   isScheduledRankTrackingInterval,
   MAX_CONFIGS_PER_PROJECT,
   rankCheckCostApprovalError,
+  type RankTrackingEngine,
 } from "@/shared/rank-tracking";
 import {
   resolveKeywordDataLanguage,
@@ -41,6 +43,7 @@ async function createConfig(input: {
   projectId: string;
   projectMarket: { locationCode: number; languageCode: string };
   domain: string;
+  engine?: RankTrackingEngine;
   locationCode?: number;
   languageCode?: string;
   locationName?: string;
@@ -49,6 +52,7 @@ async function createConfig(input: {
   scheduleInterval?: RankTrackingConfig["scheduleInterval"];
 }) {
   const normalizedDomain = normalizeDomain(input.domain);
+  const engine = input.engine ?? "google";
 
   const { locationCode, languageCode } = resolveMarket(
     input,
@@ -64,6 +68,7 @@ async function createConfig(input: {
     await RankTrackingRepository.getConfigByProjectDomainLocation(
       input.projectId,
       normalizedDomain,
+      engine,
       locationCode,
       locationName,
     );
@@ -76,8 +81,8 @@ async function createConfig(input: {
     throw new AppError(
       "VALIDATION_ERROR",
       locationName
-        ? "This domain + city combination is already being tracked"
-        : "This domain + country combination is already being tracked",
+        ? `This domain + city combination is already being tracked on ${engineLabel(engine)}`
+        : `This domain + country combination is already being tracked on ${engineLabel(engine)}`,
     );
   }
 
@@ -114,6 +119,8 @@ async function createConfig(input: {
     id: configId,
     projectId: input.projectId,
     domain: normalizedDomain,
+    // Immutable after this point — updateConfig has no path that writes it.
+    engine,
     locationCode,
     languageCode,
     locationName,

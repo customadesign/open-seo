@@ -20,6 +20,10 @@
     "src/db/pg/schema.ts",
     // Standalone CLI/dev scripts, invoked via package.json scripts
     "scripts/**",
+    // AI visibility server functions: RPC endpoints registered by the
+    // TanStack Start compiler. Listed here until the UI imports them; remove
+    // this entry once a route does.
+    "src/serverFunctions/ai-visibility.ts",
     // DataForSEO section barrel — consumed via the dynamic import in
     // client.ts (loadDataforseoSections) + property access, which knip
     // can't trace

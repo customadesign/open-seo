@@ -131,6 +131,17 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       ),
       llmResponse: meter(customer, (s) => s.fetchLlmResponse),
     },
+    aiVisibility: {
+      // Posts up to MAX_AI_VISIBILITY_TASKS_PER_POST queued prompts; one
+      // metered charge covers the batch (task_post is charged at post time,
+      // collection is free). Collection is intentionally NOT on the client —
+      // metering it would bill the customer a second time.
+      taskPost: meter(
+        customer,
+        (s) => s.postAiVisibilityTasks,
+        "ai_visibility",
+      ),
+    },
   } as const;
 }
 

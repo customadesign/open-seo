@@ -27,6 +27,25 @@ const QUEUED_EXTRA_PAGE_COST_USD = 0.00045;
  */
 type RankCheckMethod = "live" | "queued";
 
+/**
+ * Search engine a config tracks. Immutable per config — see the `engine`
+ * column comment in app.schema.ts.
+ *
+ * Cost note: both engines use the same DataForSEO SERP page pricing, so the
+ * ESTIMATE below is engine-independent. What differs is settlement. Google
+ * requests pair `stop_crawl_on_match` with `find_targets_in: ["organic"]` and
+ * usually settle BELOW the estimate. Bing's task_post has no `find_targets_in`
+ * field, so restricting the match to organic results is impossible and a
+ * sitelink or answer-box mention could stop the crawl before the domain's
+ * organic listing — recording a false "not ranking". Bing therefore always
+ * crawls the full depth and settles AT the estimate.
+ */
+export type RankTrackingEngine = "google" | "bing";
+
+export function engineLabel(engine: RankTrackingEngine): string {
+  return engine === "bing" ? "Bing" : "Google";
+}
+
 /** How many keywords are checked per batch */
 export const KEYWORDS_PER_BATCH = 10;
 
