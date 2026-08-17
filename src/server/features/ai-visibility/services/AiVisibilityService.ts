@@ -78,6 +78,11 @@ async function createConfig(input: {
   // schedule AND activation, a new config never bills anything on its own.
   const scheduleInterval = input.scheduleInterval ?? "manual";
   const isActive = input.isActive ?? false;
+  assertRecurringSpendApproval({
+    scheduleInterval,
+    isActive,
+    maxCostCredits: input.maxCostCredits ?? null,
+  });
   const configId = crypto.randomUUID();
 
   await AiVisibilityRepository.createConfig({
@@ -133,6 +138,15 @@ async function updateConfig(
 
   const scheduleInterval = input.scheduleInterval ?? existing.scheduleInterval;
   const isActive = input.isActive ?? existing.isActive;
+  const maxCostCredits =
+    input.maxCostCredits === undefined
+      ? existing.maxCostCredits
+      : input.maxCostCredits;
+  assertRecurringSpendApproval({
+    scheduleInterval,
+    isActive,
+    maxCostCredits,
+  });
   if (input.scheduleInterval !== undefined) {
     updates.scheduleInterval = input.scheduleInterval;
   }
@@ -256,7 +270,7 @@ async function triggerRun(input: {
   configId: string;
   projectId: string;
   billingCustomer: BillingCustomerContext;
-  maxCostCredits?: number;
+  maxCostCredits: number;
 }): Promise<AiVisibilityTriggerResult> {
   const config = await requireConfig(input.configId, input.projectId);
   await requireAiVisibilityAccess(input.billingCustomer.organizationId);
@@ -306,6 +320,26 @@ async function triggerRun(input: {
     maxCostCredits: ceiling,
     trigger: "manual",
   });
+}
+
+function assertRecurringSpendApproval(input: {
+  scheduleInterval: ScheduleInterval;
+  isActive: boolean;
+  maxCostCredits: number | null;
+}) {
+  if (!input.isActive) return;
+  if (input.scheduleInterval === "manual") {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Choose a recurring schedule before activating AI visibility.",
+    );
+  }
+  if (input.maxCostCredits == null) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Set an approved per-run credit ceiling before activating AI visibility.",
+    );
+  }
 }
 
 /** The stricter of the caller's approval and the config's stored ceiling. */

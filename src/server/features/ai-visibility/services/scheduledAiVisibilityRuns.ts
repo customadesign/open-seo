@@ -110,7 +110,7 @@ export async function runScheduledAiVisibilityRuns() {
       // A stored ceiling below the run's own estimate is a standing refusal —
       // skip rather than silently spending up to it.
       if (
-        config.maxCostCredits != null &&
+        config.maxCostCredits == null ||
         costCredits > config.maxCostCredits
       ) {
         const claimed = await AiVisibilityRepository.claimDueConfig({

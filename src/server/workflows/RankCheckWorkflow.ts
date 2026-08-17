@@ -56,6 +56,7 @@ export async function prepareRankCheckKeywords(input: {
   configId: string;
   billingCustomer: BillingCustomerContext;
   devices: RankCheckParams["devices"];
+  engine?: RankTrackingEngine;
   serpDepth: number;
   trigger: RankCheckParams["trigger"];
   keywordIds?: string[];
@@ -91,7 +92,9 @@ export async function prepareRankCheckKeywords(input: {
     trackingKeywords.length,
     input.devices,
     input.serpDepth,
-    input.trigger === "scheduled" ? "queued" : "live",
+    input.trigger === "scheduled" || input.engine === "bing"
+      ? "queued"
+      : "live",
   );
   if (input.maxCostCredits != null && costCredits > input.maxCostCredits) {
     throw new AppError(
@@ -101,8 +104,8 @@ export async function prepareRankCheckKeywords(input: {
   }
 
   // Verify the user has enough credits for the full check before starting.
-  // Scheduled checks go through the cheaper task queue, so estimate at queued
-  // pricing — a live-price estimate would skip checks the user can afford.
+  // Scheduled checks and every Bing check go through the cheaper task queue,
+  // so estimate at queued pricing. Bing intentionally crawls the full depth.
   if (await isHostedServerAuthMode()) {
     const [monthlyCheck, topupCheck] = await Promise.all([
       autumn.check({
@@ -326,6 +329,7 @@ export class RankCheckWorkflow extends WorkflowEntrypoint<
             configId,
             billingCustomer,
             devices,
+            engine,
             serpDepth,
             trigger,
             keywordIds,
@@ -354,9 +358,10 @@ export class RankCheckWorkflow extends WorkflowEntrypoint<
           locationName,
           runId,
         };
-        // Scheduled checks use DataForSEO's task queue (~30% of live cost);
-        // manual checks stay on the live endpoint for instant results.
-        if (trigger === "scheduled") {
+        // Scheduled checks use DataForSEO's task queue (~30% of live cost).
+        // Bing always uses the queue because its full-depth task path is the
+        // reviewed collection contract; only manual Google is instant/live.
+        if (trigger === "scheduled" || engine === "bing") {
           queueStats = await runQueuedCheck(step, checkContext);
         } else {
           await runLiveCheck(step, checkContext);

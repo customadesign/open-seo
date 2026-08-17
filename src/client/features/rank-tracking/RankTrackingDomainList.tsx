@@ -15,7 +15,11 @@ import {
   getRankTrackingConfigSummaries,
   updateRankTrackingConfig,
 } from "@/serverFunctions/rank-tracking";
-import { devicesLabel, scheduleLabel } from "@/shared/rank-tracking";
+import {
+  devicesLabel,
+  engineLabel,
+  scheduleLabel,
+} from "@/shared/rank-tracking";
 import { formatLocationLabel } from "@/shared/keyword-locations";
 import { Modal } from "@/client/components/Modal";
 import {
@@ -225,7 +229,8 @@ function DomainRow({
           {summary.locationName
             ? formatLocationLabel(summary.locationName, 2)
             : (LOCATIONS[summary.locationCode] ?? "US")}{" "}
-          &middot; {devicesLabel(summary.devices)} &middot;{" "}
+          &middot; {engineLabel(summary.engine)} &middot;{" "}
+          {devicesLabel(summary.devices)} &middot;{" "}
           {scheduleLabel(summary.scheduleInterval)}
           {summary.lastRunCompletedAt && (
             <>

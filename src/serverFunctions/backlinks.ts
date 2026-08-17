@@ -11,7 +11,6 @@ import {
 } from "@/types/schemas/backlinks";
 import {
   deleteDisavowEntrySchema,
-  exportDisavowEntriesSchema,
   importDisavowEntriesSchema,
   listDisavowEntriesSchema,
   saveDisavowEntrySchema,
@@ -98,5 +97,5 @@ export const deleteDisavowEntry = createServerFn({ method: "POST" })
 
 export const exportDisavowEntries = createServerFn({ method: "POST" })
   .middleware(requireProjectUse)
-  .validator(exportDisavowEntriesSchema)
+  .validator(listDisavowEntriesSchema)
   .handler(({ context }) => DisavowService.exportGoogleTxt(context.projectId));

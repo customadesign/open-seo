@@ -2,6 +2,7 @@ import {
   Bookmark,
   Bot,
   ClipboardCheck,
+  Eye,
   Globe,
   LayoutDashboard,
   Link2,
@@ -70,6 +71,11 @@ const projectNavItems = [
     icon: FileBarChart,
   },
   {
+    to: "/p/$projectId/ai-visibility" as const,
+    label: "AI Visibility",
+    icon: Eye,
+  },
+  {
     to: "/p/$projectId/brand-lookup" as const,
     label: "Brand Lookup",
     icon: Sparkles,
@@ -136,6 +142,7 @@ export function getProjectNavGroups(
         byPath("/p/$projectId/local-seo"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
+        byPath("/p/$projectId/ai-visibility"),
         byPath("/p/$projectId/reports"),
       ],
     },

@@ -36,8 +36,6 @@ export const importDisavowEntriesSchema = listDisavowEntriesSchema.extend({
   content: z.string().min(1).max(2_000_000),
 });
 
-export const exportDisavowEntriesSchema = listDisavowEntriesSchema;
-
 export type DisavowEntryType = z.infer<typeof disavowEntryTypeSchema>;
 export type DisavowStatus = z.infer<typeof disavowStatusSchema>;
 export type DisavowSource = z.infer<typeof disavowSourceSchema>;

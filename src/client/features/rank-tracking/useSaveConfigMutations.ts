@@ -9,6 +9,7 @@ import { captureClientEvent } from "@/client/lib/posthog";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
 
 type ConfigFields = {
+  engine: RankTrackingConfig["engine"];
   devices: "both" | "desktop" | "mobile";
   serpDepth: number;
   locationCode: number;
@@ -40,6 +41,7 @@ export function useSaveConfigMutations(input: {
         data: {
           projectId,
           domain: normalizedDomain,
+          engine: fields.engine,
           ...common,
           locationName:
             fields.targetingMode === "local" ? fields.locationName : undefined,

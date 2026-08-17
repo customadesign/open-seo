@@ -349,6 +349,7 @@ export function RankTrackingDomainDetail({
         <CheckConfirmModal
           keywordCount={pendingCheck.count}
           devices={config.devices}
+          engine={config.engine}
           serpDepth={config.serpDepth}
           isPending={isPending}
           onRunNow={() =>

@@ -20,6 +20,7 @@ import { useProjectMarket } from "@/client/features/projects/useProjectMarket";
 import { SearchTargetingField } from "./SearchTargetingField";
 import { KeywordSuggestionStep } from "./KeywordSuggestionStep";
 import { useSaveConfigMutations } from "./useSaveConfigMutations";
+import { RankTrackingEngineField } from "./RankTrackingEngineField";
 
 type Props = {
   projectId: string;
@@ -78,6 +79,9 @@ function RankTrackingConfigModalContent({
   const isEdit = !!existingConfig;
   const [step, setStep] = useState<"config" | "keywords">("config");
   const [domain, setDomain] = useState(existingConfig?.domain ?? "");
+  const [engine, setEngine] = useState<RankTrackingConfig["engine"]>(
+    existingConfig?.engine ?? "google",
+  );
   const [devices, setDevices] = useState<"both" | "desktop" | "mobile">(
     existingConfig?.devices ?? "mobile",
   );
@@ -108,6 +112,7 @@ function RankTrackingConfigModalContent({
     projectId,
     existingConfig,
     fields: {
+      engine,
       devices,
       serpDepth,
       locationCode,
@@ -208,6 +213,12 @@ function RankTrackingConfigModalContent({
             onBlur={handleDomainBlur}
           />
         </div>
+
+        <RankTrackingEngineField
+          engine={engine}
+          isEdit={isEdit}
+          onChange={setEngine}
+        />
 
         <div className="form-control">
           <label className="label">

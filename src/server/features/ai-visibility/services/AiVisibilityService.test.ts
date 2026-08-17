@@ -157,6 +157,7 @@ describe("AiVisibilityService", () => {
         configId: config.id,
         projectId: config.projectId,
         billingCustomer,
+        maxCostCredits: 1,
       }),
     ).rejects.toThrow(/at least one AI provider/i);
     expect(mocks.beginAiVisibilityRun).not.toHaveBeenCalled();
@@ -182,5 +183,37 @@ describe("AiVisibilityService", () => {
       }),
     );
     expect(mocks.setProvidersForConfig).not.toHaveBeenCalled();
+  });
+
+  it("refuses recurring activation without a standing cost ceiling", async () => {
+    mocks.getConfigsForProject.mockResolvedValue([]);
+
+    await expect(
+      AiVisibilityService.createConfig({
+        projectId: "project_1",
+        projectMarket: { locationCode: 2840, languageCode: "en" },
+        brandName: "OpenSEO",
+        domain: "openseo.so",
+        scheduleInterval: "weekly",
+        isActive: true,
+      }),
+    ).rejects.toThrow(/approved per-run credit ceiling/i);
+    expect(mocks.createConfig).not.toHaveBeenCalled();
+  });
+
+  it("refuses to clear the ceiling while a recurring config is active", async () => {
+    mocks.getConfigById.mockResolvedValue({
+      ...config,
+      scheduleInterval: "weekly",
+      isActive: true,
+      maxCostCredits: 100,
+    });
+
+    await expect(
+      AiVisibilityService.updateConfig(config.id, config.projectId, {
+        maxCostCredits: null,
+      }),
+    ).rejects.toThrow(/approved per-run credit ceiling/i);
+    expect(mocks.updateConfig).not.toHaveBeenCalled();
   });
 });

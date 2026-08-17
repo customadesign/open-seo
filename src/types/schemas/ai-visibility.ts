@@ -85,7 +85,7 @@ export const triggerAiVisibilityRunSchema = z.object({
   projectId: z.string().uuid(),
   configId: z.string().uuid(),
   /** Caller-approved ceiling; combined with the config's own via Math.min. */
-  maxCostCredits: maxCostCreditsField.optional(),
+  maxCostCredits: maxCostCreditsField,
 });
 
 export const getAiVisibilityRunResultsSchema = z.object({

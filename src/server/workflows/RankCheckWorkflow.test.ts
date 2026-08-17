@@ -161,4 +161,37 @@ describe("rank check workflow credit ceiling", () => {
     expect(result.keywords).toHaveLength(5);
     expect(mocks.autumnCheck).not.toHaveBeenCalled();
   });
+
+  it("uses queued pricing for a manual Bing check", async () => {
+    mocks.getKeywordsForConfig.mockResolvedValue([
+      { id: "kw_1", keyword: "seo software" },
+    ]);
+    mocks.isHostedServerAuthMode.mockResolvedValue(false);
+
+    await expect(
+      prepareRankCheckKeywords({
+        runId: "run_1",
+        configId: "config_1",
+        billingCustomer,
+        devices: "desktop",
+        engine: "bing",
+        serpDepth: 10,
+        trigger: "manual",
+        maxCostCredits: 1,
+      }),
+    ).resolves.toMatchObject({ keywords: [{ id: "kw_1" }] });
+
+    await expect(
+      prepareRankCheckKeywords({
+        runId: "run_1",
+        configId: "config_1",
+        billingCustomer,
+        devices: "desktop",
+        engine: "google",
+        serpDepth: 10,
+        trigger: "manual",
+        maxCostCredits: 1,
+      }),
+    ).rejects.toThrow(/above the approved maximum/i);
+  });
 });
