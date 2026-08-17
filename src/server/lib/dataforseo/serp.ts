@@ -364,7 +364,11 @@ export async function fetchLocalSerp(input: {
         search_places: input.searchPlaces,
       }),
     ]);
-    const task = assertOk(response);
+    // An empty Maps result is a valid observation for a geo-grid cell: the
+    // business is unranked there. DataForSEO can report that as a task-level
+    // "No Search Results" status even though the lookup was performed and
+    // metered, so preserve it instead of aborting the whole heatmap.
+    const task = assertOk(response, { treatNoResultsAsEmpty: true });
     return {
       data: task.result?.[0]?.items ?? [],
       billing: buildTaskBilling(task),
@@ -381,7 +385,8 @@ export async function fetchLocalSerp(input: {
       depth: input.depth,
     }),
   ]);
-  const task = assertOk(response);
+  // Local Finder uses the same task-level empty-result convention as Maps.
+  const task = assertOk(response, { treatNoResultsAsEmpty: true });
   return {
     data: task.result?.[0]?.items ?? [],
     billing: buildTaskBilling(task),

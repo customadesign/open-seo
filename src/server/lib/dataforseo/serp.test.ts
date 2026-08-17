@@ -5,6 +5,7 @@ vi.mock("@/server/lib/runtime-env", () => ({
 }));
 
 import {
+  fetchLocalSerp,
   fetchRankCheckTaskResult,
   postRankCheckTasks,
 } from "@/server/lib/dataforseo/serp";
@@ -16,6 +17,52 @@ function parseDataforseoRequestBody(init: RequestInit | undefined): unknown {
   }
   return JSON.parse(body) as unknown;
 }
+
+describe("local SERPs", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["maps", "maps"],
+    ["local_finder", "local_finder"],
+  ] as const)(
+    "treats a %s no-results task as an empty metered observation",
+    async (searchType, pathSegment) => {
+      const path = ["v3", "serp", "google", pathSegment, "live", "advanced"];
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 40501,
+              status_message: "No Search Results",
+              cost: 0.002,
+              path,
+              result: null,
+            },
+          ],
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        fetchLocalSerp({
+          keyword: "sign shop",
+          locationCoordinate: "33.1294592,-117.1201598,15z",
+          languageCode: "en",
+          searchType,
+          device: "mobile",
+          depth: 20,
+          searchPlaces: false,
+        }),
+      ).resolves.toEqual({
+        data: [],
+        billing: { path, costUsd: 0.002 },
+      });
+    },
+  );
+});
 
 describe("rank check task queue", () => {
   beforeEach(() => {
