@@ -597,7 +597,10 @@ function countryLocationCode(value) {
 
 function historyTimestamp(value) {
   if (!/^\d{8}$/.test(value)) throw new Error(`Invalid SEMrush date: ${value}`);
-  return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}T12:00:00.000Z`;
+  // SEMrush position history is day-granular. Anchor it at the start of the
+  // UTC day using the same sortable text format as SQLite CURRENT_TIMESTAMP,
+  // so an import never appears newer than a live check from that day.
+  return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)} 00:00:00`;
 }
 
 function objectValues(value) {
