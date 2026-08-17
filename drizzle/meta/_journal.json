@@ -351,6 +351,13 @@
       "when": 1786997880403,
       "tag": "0049_bored_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1787004552829,
+      "tag": "0050_dashing_killer_shrike",
+      "breakpoints": true
     }
   ]
 }
