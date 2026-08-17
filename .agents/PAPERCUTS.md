@@ -10,6 +10,7 @@ data, or sensitive paths.
 
 ## Open
 
+- [ ] `2026-08-17T11:30:41Z` — `codex` — `node scripts/import-semrush-rank-history.mjs --help` fails with the misleading error `--help requires a value` because the importer has no help-mode branch. Add normal `--help` output that documents the required database, archive, mapping, audit, and apply flags.
 - [ ] `2026-08-16T22:39:11Z` — `codex` — Copying self-host deployment data from a macOS SMB mount with `cp -a` emits an `Operation not permitted` warning for every attempted `chflags`, even though file contents copy successfully and the database passes integrity checks. Document a quieter SMB-safe backup command that preserves the metadata OpenSEO actually needs without attempting unsupported BSD flags.
 - [ ] `2026-08-16T22:30:24Z` — `codex` — `pnpm db:generate` completes D1 generation and then fails PostgreSQL generation in non-TTY/CI shells when Drizzle detects possible table renames, with no repository-documented deterministic answer path. Document the required TTY flow or add a repo wrapper that records explicit create-versus-rename choices.
 - [ ] `2026-08-16T21:58:25Z` — `codex` — A self-hosted image with precompiled `dist/` and a matching build fingerprint still fails on a fresh volume because Vite preview expects `.wrangler/deploy/config.json`, which only the skipped build creates. Treat missing deployment metadata as a rebuild condition or package the metadata with supported prebuilt images.
