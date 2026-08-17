@@ -11,6 +11,7 @@ import {
   deliveryPeriod,
   isValidTimeZone,
   nextDeliveryRun,
+  resolveDueOccurrence,
 } from "./reportDates";
 import {
   isScheduledRecipientAllowed,
@@ -171,10 +172,20 @@ type DueProfile = Awaited<
   ReturnType<typeof ReportDeliveryProfileRepository.listDueProfiles>
 >[number];
 
+/** Inclusive length of a reporting window, in milliseconds. */
+function periodLengthMs(period: { periodStart: string; periodEnd: string }) {
+  return (
+    Date.parse(`${period.periodEnd}T00:00:00Z`) -
+    Date.parse(`${period.periodStart}T00:00:00Z`) +
+    86_400_000
+  );
+}
+
 async function startProfileRun(input: {
   workflow: Env["REPORT_WORKFLOW"];
   due: DueProfile;
-  observedNextRunAt: string;
+  occurrence: string;
+  period: ReturnType<typeof deliveryPeriod>;
 }) {
   const { profile } = input.due;
   const settings = await ReportService.ensureSettings({
@@ -182,19 +193,14 @@ async function startProfileRun(input: {
     organizationId: input.due.organizationId,
   });
   if (!settings) throw new Error("Could not create report settings");
-  const period = deliveryPeriod(
-    profile.frequency,
-    new Date(input.observedNextRunAt),
-    profile.timeZone,
-  );
   const run = await ReportRepository.createRun({
     id: crypto.randomUUID(),
     projectId: profile.projectId,
     settingsId: settings.id,
     trigger: "scheduled",
-    scheduledKey: `profile:${profile.id}:${input.observedNextRunAt}`,
+    scheduledKey: `profile:${profile.id}:${input.occurrence}`,
     profileId: profile.id,
-    ...period,
+    ...input.period,
   });
   if (!run || run.status !== "queued") return null;
   await ReportService.startWorkflow(input.workflow, {
@@ -227,15 +233,22 @@ async function processDueProfiles(
   };
 
   let started = 0;
+  let skippedFree = 0;
+  let skippedStale = 0;
   let errors = 0;
   for (const item of due) {
     const observedNextRunAt = item.profile.nextRunAt;
     if (!observedNextRunAt) continue;
+    const { frequency, timeZone } = item.profile;
     try {
-      const nextRunAt = nextDeliveryRun({
-        after: new Date(observedNextRunAt),
-        timeZone: item.profile.timeZone,
-        frequency: item.profile.frequency,
+      // One claim covers every occurrence a stopped deployment missed, so an
+      // overdue profile jumps straight to its next future slot instead of
+      // starting one backlog report per tick until it catches up.
+      const { occurrence, nextRunAt } = resolveDueOccurrence({
+        scheduledFor: new Date(observedNextRunAt),
+        now,
+        timeZone,
+        frequency,
         runDay: item.profile.runDay,
         runWeekday: item.profile.runWeekday,
         runHour: item.profile.runHour,
@@ -244,15 +257,30 @@ async function processDueProfiles(
         profileId: item.profile.id,
         observedNextRunAt,
         nextRunAt,
+        lastRunAt: occurrence,
       });
       // Claim first even for unpaid organizations: the schedule still advances,
       // it just does not produce a run.
       if (!claimed) continue;
-      if (hosted && !(await hasPaidPlan(item.organizationId))) continue;
+      if (hosted && !(await hasPaidPlan(item.organizationId))) {
+        skippedFree += 1;
+        continue;
+      }
+      // No backfilling: the newest missed occurrence is only worth delivering
+      // while it is less than one reporting period late. A longer gap means its
+      // window has already been superseded, and the next scheduled run covers
+      // fresher data than a backfilled email would. Older windows stay
+      // available through manual generation.
+      const period = deliveryPeriod(frequency, new Date(occurrence), timeZone);
+      if (now.valueOf() - Date.parse(occurrence) > periodLengthMs(period)) {
+        skippedStale += 1;
+        continue;
+      }
       const runId = await startProfileRun({
         workflow,
         due: item,
-        observedNextRunAt,
+        occurrence,
+        period,
       });
       if (runId) started += 1;
     } catch (error) {
@@ -263,7 +291,7 @@ async function processDueProfiles(
       errors += 1;
     }
   }
-  return { started, errors };
+  return { started, skippedFree, skippedStale, errors };
 }
 
 export const ReportDeliveryProfileService = {

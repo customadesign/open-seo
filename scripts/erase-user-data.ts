@@ -20,7 +20,6 @@ import {
   eq,
   gt,
   inArray,
-  isNotNull,
   ne,
   notExists,
   or,
@@ -38,6 +37,7 @@ import {
 } from "../src/shared/gdpr-erasure";
 import { GSC_OAUTH_PROVIDER_ID } from "../src/shared/gsc";
 import { loadLocalEnv, parseArgs } from "./cli-utils";
+import { collectProjectR2Keys } from "./gdpr-r2-inventory";
 // The Node-safe raw barrel (not ../src/db/schema, the provider-aware one,
 // which imports cloudflare:workers).
 import * as schema from "../src/db/pg/schema";
@@ -177,24 +177,10 @@ async function buildInventory(db: Db, user: UserRow) {
           )
           .orderBy(schema.audits.id);
 
-  const r2Rows =
-    projectIds.length === 0
-      ? []
-      : await db
-          .selectDistinct({ r2Key: schema.auditLighthouseResults.r2Key })
-          .from(schema.auditLighthouseResults)
-          .innerJoin(
-            schema.audits,
-            eq(schema.audits.id, schema.auditLighthouseResults.auditId),
-          )
-          .where(
-            and(
-              inArray(schema.audits.projectId, projectIds),
-              isNotNull(schema.auditLighthouseResults.r2Key),
-            ),
-          )
-          .orderBy(schema.auditLighthouseResults.r2Key);
-  const r2Keys = r2Rows.flatMap((row) => (row.r2Key ? [row.r2Key] : []));
+  // Lighthouse payloads, AI visibility evidence and rendered report PDFs. These
+  // rows cascade away with the organization, so their keys have to be read
+  // before the delete or the objects are stranded in R2.
+  const r2Keys = await collectProjectR2Keys(db, projectIds);
 
   const googleAccountRows = await db
     .selectDistinct({

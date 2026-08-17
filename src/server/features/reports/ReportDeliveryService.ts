@@ -18,6 +18,9 @@ import { ReportDeliveryRepository } from "./repositories/ReportDeliveryRepositor
 import { ReportRepository } from "./repositories/ReportRepository";
 import { ReportShareService } from "./ReportShareService";
 
+const TEST_MODE_SKIP_REASON =
+  "Delivery test mode is on and this address is not allowlisted.";
+
 function addMonths(from: Date, months: number): Date {
   const next = new Date(from.valueOf());
   next.setUTCMonth(next.getUTCMonth() + months);
@@ -60,6 +63,12 @@ async function pdfStorageKeyFor(runId: string): Promise<string | null> {
 /**
  * A share link is only worth minting when the email can carry it: without a
  * configured base URL the token would be unreachable, so no row is created.
+ *
+ * Only a token hash is stored, so a re-delivery cannot re-send the original
+ * link and has to mint a new one. Revoking the run's live links first bounds a
+ * run to a single working unauthenticated URL, instead of leaving one behind
+ * per delivery attempt — at the cost of invalidating a link an earlier
+ * recipient already received, which the operator can re-issue from the run.
  */
 async function shareLinkForDelivery(input: {
   profile: { includeShareLink: boolean; shareLinkTtlDays: number } | null;
@@ -70,6 +79,10 @@ async function shareLinkForDelivery(input: {
   if (!input.profile?.includeShareLink) return null;
   const { shareBaseUrl } = await getReportProviders();
   if (!shareBaseUrl) return null;
+  await ReportDeliveryRepository.revokeShareLinksForRun(
+    input.runId,
+    input.now.toISOString(),
+  );
   return ReportShareService.createShareLink({
     projectId: input.projectId,
     runId: input.runId,
@@ -168,9 +181,7 @@ async function deliverRun(input: {
       idempotencyKey: `report:${run.id}:${recipient.email}`,
       isTest: false,
       status: allowed ? ("pending" as const) : ("skipped" as const),
-      errorMessage: allowed
-        ? null
-        : "Delivery test mode is on and this address is not allowlisted.",
+      errorMessage: allowed ? null : TEST_MODE_SKIP_REASON,
     };
   });
   await ReportDeliveryRepository.insertDeliveries(rows);
@@ -188,7 +199,9 @@ async function deliverRun(input: {
     pdf,
     shareUrl: share?.url ?? null,
     ...outcome,
-    skipped: rows.filter((row) => row.status === "skipped").length,
+    // Rows held back at insert plus any the guard held back at send time.
+    skipped:
+      outcome.skipped + rows.filter((row) => row.status === "skipped").length,
   };
 }
 
@@ -201,13 +214,33 @@ async function sendPendingDeliveries(input: {
   now: Date;
 }) {
   const { emailProvider } = await getReportProviders();
+  // Read the guard here, not only when the row was created: a row written while
+  // test mode was off stays `pending` across a deployment that turns test mode
+  // back on, and this loop is the last point before mail leaves the system.
+  // Manual test sends never reach this path — they are checked against the
+  // requester's own address in sendTestDelivery — so a retry of one is held
+  // back unless the address is on the operator allowlist.
+  const guard = await loadReportDeliveryGuard();
   const pending = await ReportDeliveryRepository.listSendableDeliveries(
     input.run.id,
     MAX_REPORT_DELIVERY_ATTEMPTS,
   );
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   for (const delivery of pending) {
+    if (!isScheduledRecipientAllowed(delivery.email, guard)) {
+      skipped += 1;
+      await ReportDeliveryRepository.recordDeliveryResult({
+        deliveryId: delivery.id,
+        status: "skipped",
+        // Being held back is not a failed attempt, so the retry budget is
+        // untouched: the row sends normally once test mode is turned off.
+        attempts: delivery.attempts,
+        errorMessage: TEST_MODE_SKIP_REASON,
+      });
+      continue;
+    }
     const attempts = delivery.attempts + 1;
     const result = await emailProvider.send({
       to: { email: delivery.email, name: delivery.name },
@@ -253,7 +286,7 @@ async function sendPendingDeliveries(input: {
       occurredAt: input.now.toISOString(),
     });
   }
-  return { sent, failed };
+  return { sent, failed, skipped };
 }
 
 /** Operator-triggered retry of the failed recipients on one run. */
@@ -267,9 +300,6 @@ async function retryDeliveries(input: { projectId: string; runId: string }) {
     ? await ReportDeliveryProfileRepository.getProfileById(run.profileId)
     : null;
   const reset = await ReportDeliveryRepository.resetFailedDeliveries(run.id);
-  // A stored token is only a hash, so a retry cannot reuse the original link.
-  // Minting a new one keeps the retried email as useful as the first attempt;
-  // links from the first attempt stay valid until they expire or are revoked.
   const share = await shareLinkForDelivery({
     profile,
     projectId: input.projectId,

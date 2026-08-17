@@ -1,3 +1,5 @@
+type ReportRunFrequency = "daily" | "weekly" | "monthly";
+
 type LocalDateTime = {
   year: number;
   month: number;
@@ -129,22 +131,28 @@ export function comparisonPeriod(periodStart: string, periodEnd: string) {
  * Collapse every occurrence a stopped deployment missed into one claim: the
  * latest occurrence that has already passed, plus the first one still ahead.
  *
- * Advancing a single month per tick would make an overdue schedule due again
- * immediately, so each cron tick would start another report until the schedule
- * caught up. Reporting on the newest missed occurrence only — the caller still
- * decides whether its period is current — keeps that to one report.
+ * Advancing a single occurrence per tick would make an overdue schedule due
+ * again immediately, so each cron tick would start another report until the
+ * schedule caught up — 48 runs for a daily profile idle for 48 days. Reporting
+ * on the newest missed occurrence only — the caller still decides whether its
+ * period is current — keeps that to one report.
  */
-export function resolveDueMonthlyOccurrence(input: {
+export function resolveDueOccurrence(input: {
   scheduledFor: Date;
   now: Date;
   timeZone: string;
-  runDay: number;
+  frequency: ReportRunFrequency;
+  runDay?: number | null;
+  runWeekday?: number | null;
   runHour: number;
 }): { occurrence: string; nextRunAt: string } {
   let occurrence = input.scheduledFor;
-  // Bounded so a corrupt anchor can't spin; 20 years of monthly occurrences.
-  for (let step = 0; step < 240; step += 1) {
-    const next = new Date(nextMonthlyRun({ ...input, after: occurrence }));
+  // Bounded so a corrupt anchor can't spin the cron tick through thousands of
+  // time-zone conversions. Anything past the bound falls through to the next
+  // occurrence after `now`, which the caller then rejects as stale.
+  const maxSteps = { daily: 1_100, weekly: 550, monthly: 240 }[input.frequency];
+  for (let step = 0; step < maxSteps; step += 1) {
+    const next = new Date(nextDeliveryRun({ ...input, after: occurrence }));
     if (next > input.now) {
       return {
         occurrence: occurrence.toISOString(),
@@ -155,8 +163,20 @@ export function resolveDueMonthlyOccurrence(input: {
   }
   return {
     occurrence: occurrence.toISOString(),
-    nextRunAt: nextMonthlyRun({ ...input, after: input.now }),
+    nextRunAt: nextDeliveryRun({ ...input, after: input.now }),
   };
+}
+
+/** Monthly report settings carry no weekday, so they collapse through the same
+ * loop with the frequency pinned. */
+export function resolveDueMonthlyOccurrence(input: {
+  scheduledFor: Date;
+  now: Date;
+  timeZone: string;
+  runDay: number;
+  runHour: number;
+}): { occurrence: string; nextRunAt: string } {
+  return resolveDueOccurrence({ ...input, frequency: "monthly" });
 }
 
 export function nextMonthlyRun(input: {
@@ -202,8 +222,6 @@ function shiftDays(
     day: date.getUTCDate(),
   };
 }
-
-type ReportRunFrequency = "daily" | "weekly" | "monthly";
 
 /**
  * Next wall-clock instant a delivery profile is due, in its own time zone.

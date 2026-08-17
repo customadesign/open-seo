@@ -28,6 +28,14 @@ The cron tick claims a due profile with a compare-and-set on `next_run_at`,
 creates a scheduled run, and the report workflow generates the snapshot and then
 delivers it as a separate step.
 
+A profile that fell behind — a stopped deployment, a paused cron — is collapsed
+in one claim: `next_run_at` jumps straight to the first slot still in the future
+and at most one report is started, for the newest missed occurrence. There is no
+backfill queue, so a daily profile idle for 48 days sends one report, not 48. If
+that newest occurrence is itself more than one reporting period late, nothing is
+sent and the tick counts it as `skippedStale`; the next scheduled run then covers
+fresher data than the backfill would have.
+
 ## Configuration
 
 | Variable                         | Required for | Value                                                                                                          |
@@ -63,8 +71,17 @@ being called unauthenticated — only a loopback renderer may run tokenless.
   allowlist, in every environment, and it is not affected by test mode. A
   successful manual test therefore does not prove a scheduled profile will
   deliver — see "Verifying a deployment".
+- **The guard is re-read before every send.** A delivery row's status is decided
+  when the row is created, so rows written while test mode was off would
+  otherwise still be `pending` — and still mailable — after a deployment turns
+  test mode back on. Each scheduled send and each operator retry re-checks the
+  address against the live guard and records `skipped` instead of mailing.
+  Being held back does not consume a delivery attempt.
 - **PDF validation.** The renderer response must start with `%PDF-` and stay at
-  or under 25 MB, checked before storage and again before attaching.
+  or under 15 MB, checked before storage and again before attaching. The cap is
+  raw bytes: Resend rejects a request over 25 MB, and an attachment reaches it
+  base64-encoded (4 bytes per 3) inside a JSON body that also carries the HTML
+  and text parts.
 - **Stable storage keys.** Each run's PDF lives at `reports/<run-id>/report.pdf`,
   uploaded with its SHA-256 as both R2 metadata and the `sha256` integrity check
   R2 verifies server-side, so a retry replaces the object instead of orphaning
@@ -82,11 +99,18 @@ report:<run-id>:<email>`; Resend keeps those keys for 24 hours. Past that
   an expiry (max 90 days), revocation, and access counting. The share endpoint
   answers one 404 for missing, expired, revoked and unpublished alike, and serves
   the report under a no-store, `frame-ancestors 'none'` CSP.
+- **One live share link per run.** Because only the hash is stored, a re-delivery
+  cannot re-send the original link and has to mint a new token. The run's live
+  links are revoked first, so retries cannot leave a trail of working
+  unauthenticated URLs behind — a recipient who kept an earlier link needs a
+  fresh one, which the run's share panel issues.
 
 ## Retention
 
 - Stored PDFs expire 13 months after delivery; the cron sweep deletes the R2
-  object first and drops the row only after that succeeds.
+  object first and drops the row only after that succeeds. A failed delete, or a
+  deployment with no R2 binding at all, keeps the row for the next sweep: the row
+  is the only pointer to the object, so dropping it would strand the PDF.
 - Share link rows are purged 90 days after their expiry, keeping the audit trail
   (last access, access count) available for the period that matters.
 

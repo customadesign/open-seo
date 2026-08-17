@@ -207,13 +207,16 @@ async function listDueProfiles(nowIso: string) {
 async function claimProfile(input: {
   profileId: string;
   observedNextRunAt: string;
+  /** The occurrence actually being delivered, which is the newest one an
+   * overdue profile missed rather than the stale `nextRunAt` it carried. */
+  lastRunAt: string;
   nextRunAt: string;
 }) {
   const rows = await db
     .update(reportDeliveryProfiles)
     .set({
       nextRunAt: input.nextRunAt,
-      lastRunAt: input.observedNextRunAt,
+      lastRunAt: input.lastRunAt,
       updatedAt: new Date().toISOString(),
     })
     .where(

@@ -96,8 +96,14 @@ export function ReportRunDeliveryCard({
     mutationFn: () => retryReportDeliveries({ data: { projectId, runId } }),
     onSuccess: async (result) => {
       await invalidate(deliveriesKey);
+      // A retry re-checks the delivery guard, so "0 sent, 0 failed" needs the
+      // held-back count to be readable.
+      const outcome = [`${result.sent} sent`, `${result.failed} failed`];
+      if (result.skipped > 0) {
+        outcome.push(`${result.skipped} held back by test mode`);
+      }
       toast.success(
-        `Retried ${result.reset} delivery${result.reset === 1 ? "" : "ies"}: ${result.sent} sent, ${result.failed} failed`,
+        `Retried ${result.reset} delivery${result.reset === 1 ? "" : "ies"}: ${outcome.join(", ")}`,
       );
     },
     onError,

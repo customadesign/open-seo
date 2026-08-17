@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   reportArtifacts,
@@ -114,6 +114,26 @@ async function revokeShareLink(input: {
   return Boolean(rows[0]);
 }
 
+/**
+ * Revokes every still-usable link on a run. Only a token hash is stored, so a
+ * re-delivery has to mint a new token; revoking the previous ones first keeps a
+ * run to a single live unauthenticated URL instead of one per attempt.
+ */
+async function revokeShareLinksForRun(runId: string, nowIso: string) {
+  const rows = await db
+    .update(reportShareLinks)
+    .set({ revokedAt: nowIso })
+    .where(
+      and(
+        eq(reportShareLinks.runId, runId),
+        isNull(reportShareLinks.revokedAt),
+        gt(reportShareLinks.expiresAt, nowIso),
+      ),
+    )
+    .returning({ id: reportShareLinks.id });
+  return rows.length;
+}
+
 async function deleteShareLinksExpiredBefore(cutoffIso: string) {
   const rows = await db
     .delete(reportShareLinks)
@@ -187,10 +207,20 @@ async function recordDeliveryResult(input: {
     .where(eq(reportDeliveries.id, input.deliveryId));
 }
 
+/**
+ * Operator-triggered reset of the failed recipients on a run. Attempts go back
+ * to zero as well: a row that already burned its whole budget would otherwise
+ * be parked as `pending` forever, since listSendableDeliveries skips it.
+ */
 async function resetFailedDeliveries(runId: string) {
   const rows = await db
     .update(reportDeliveries)
-    .set({ status: "pending", updatedAt: new Date().toISOString() })
+    .set({
+      status: "pending",
+      attempts: 0,
+      errorMessage: null,
+      updatedAt: new Date().toISOString(),
+    })
     .where(
       and(
         eq(reportDeliveries.runId, runId),
@@ -211,6 +241,7 @@ export const ReportDeliveryRepository = {
   getShareLinkByHash,
   markShareLinkAccessed,
   revokeShareLink,
+  revokeShareLinksForRun,
   deleteShareLinksExpiredBefore,
   insertDeliveries,
   listDeliveries,

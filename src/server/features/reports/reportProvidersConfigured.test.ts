@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { MAX_REPORT_PDF_BYTES } from "@/shared/report-delivery";
+import {
+  MAX_EMAIL_REQUEST_BYTES,
+  MAX_REPORT_PDF_BYTES,
+} from "@/shared/report-delivery";
 import type { ReportSnapshot } from "@/types/schemas/reports";
 import { DEFAULT_REPORT_BRANDING } from "./reportPresentation";
 import {
@@ -39,6 +42,13 @@ function recordingFetcher(response: () => Response) {
 function bucket() {
   const put = vi.fn().mockResolvedValue(undefined);
   return { put, stub: { put } };
+}
+
+/** Both providers post a JSON string, so the recorded body has a byte size. */
+function bodyBytes(init: RequestInit | undefined): number {
+  const body = init?.body;
+  if (typeof body !== "string") throw new Error("Expected a string body");
+  return Buffer.byteLength(body);
 }
 
 const renderRequest = {
@@ -201,6 +211,39 @@ describe("Resend email provider", () => {
       status: "failed",
       retryable: true,
     });
+  });
+
+  // The attachment cap governs raw PDF bytes, but the provider sees them
+  // base64-encoded inside a JSON body that also carries the HTML and text
+  // parts. A cap set at the provider's request limit would send a request the
+  // provider rejects outright.
+  it("keeps a maximum-size attachment inside the provider's request limit", async () => {
+    const recorder = recordingFetcher(() =>
+      Response.json({ id: "message-1" }, { status: 200 }),
+    );
+    const pdf = new ArrayBuffer(MAX_REPORT_PDF_BYTES);
+    const provider = createResendReportEmailProvider({
+      apiKey: "re_key",
+      from: "reports@example.com",
+      bucket: {
+        get: () =>
+          Promise.resolve({
+            size: pdf.byteLength,
+            arrayBuffer: () => Promise.resolve(pdf),
+          }),
+      },
+      fetcher: recorder.fetcher,
+    });
+
+    await expect(
+      provider.send({
+        ...sendRequest,
+        pdfStorageKey: "reports/run-1/report.pdf",
+      }),
+    ).resolves.toMatchObject({ status: "sent" });
+    expect(bodyBytes(recorder.calls[0]?.init)).toBeLessThan(
+      MAX_EMAIL_REQUEST_BYTES,
+    );
   });
 
   it("reports itself unconfigured without an API key", async () => {

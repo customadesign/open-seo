@@ -122,8 +122,9 @@ async function resolveShareLink(token: string, now: Date = new Date()) {
 
 /**
  * Retention sweep: PDFs live 13 months, share rows are dropped 90 days after
- * they expire. Storage objects are deleted before their rows so a failure
- * mid-sweep leaves a retryable pointer rather than an orphaned object.
+ * they expire. A row is the only pointer to its stored object, so it is dropped
+ * strictly after that object is gone — a failed delete, or no bucket binding at
+ * all, keeps the row for the next sweep instead of orphaning the PDF in R2.
  */
 async function purgeExpiredArtifacts(now: Date = new Date()) {
   const { bucket } = await getReportProviders();
@@ -131,10 +132,20 @@ async function purgeExpiredArtifacts(now: Date = new Date()) {
     now.toISOString(),
     ARTIFACT_PURGE_BATCH,
   );
+  const shareLinks =
+    await ReportDeliveryRepository.deleteShareLinksExpiredBefore(
+      addDays(now, -SHARE_LINK_RETENTION_DAYS).toISOString(),
+    );
+  if (!bucket) {
+    console.error(
+      `[retention] Keeping ${expired.length} expired report artifact row(s): no R2 binding is configured, so the stored PDFs cannot be deleted.`,
+    );
+    return { artifacts: 0, retained: expired.length, shareLinks };
+  }
   const deletedIds: string[] = [];
   for (const artifact of expired) {
     try {
-      await bucket?.delete(artifact.storageKey);
+      await bucket.delete(artifact.storageKey);
       deletedIds.push(artifact.id);
     } catch (error) {
       console.error(
@@ -144,11 +155,13 @@ async function purgeExpiredArtifacts(now: Date = new Date()) {
     }
   }
   await ReportDeliveryRepository.deleteArtifacts(deletedIds);
-  const shareLinks =
-    await ReportDeliveryRepository.deleteShareLinksExpiredBefore(
-      addDays(now, -SHARE_LINK_RETENTION_DAYS).toISOString(),
-    );
-  return { artifacts: deletedIds.length, shareLinks };
+  return {
+    artifacts: deletedIds.length,
+    // Expired rows whose object could not be removed; they are retried next
+    // sweep rather than dropped.
+    retained: expired.length - deletedIds.length,
+    shareLinks,
+  };
 }
 
 export const ReportShareService = {

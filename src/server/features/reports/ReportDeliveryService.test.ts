@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   listExpiredArtifacts: vi.fn(),
   deleteArtifacts: vi.fn(),
   deleteShareLinksExpiredBefore: vi.fn(),
+  revokeShareLinksForRun: vi.fn(),
+  resetFailedDeliveries: vi.fn(),
+  getReportProviders: vi.fn(),
   render: vi.fn(),
   send: vi.fn(),
   bucketDelete: vi.fn(),
@@ -59,6 +62,8 @@ vi.mock("./repositories/ReportDeliveryRepository", () => ({
     listExpiredArtifacts: mocks.listExpiredArtifacts,
     deleteArtifacts: mocks.deleteArtifacts,
     deleteShareLinksExpiredBefore: mocks.deleteShareLinksExpiredBefore,
+    revokeShareLinksForRun: mocks.revokeShareLinksForRun,
+    resetFailedDeliveries: mocks.resetFailedDeliveries,
   },
 }));
 
@@ -71,13 +76,7 @@ vi.mock("./ReportService", () => ({
 }));
 
 vi.mock("./defaultReportProviders", () => ({
-  getReportProviders: () =>
-    Promise.resolve({
-      pdfRenderer: { configured: true, render: mocks.render },
-      emailProvider: { configured: true, send: mocks.send },
-      shareBaseUrl: "https://app.example.com",
-      bucket: { delete: mocks.bucketDelete },
-    }),
+  getReportProviders: mocks.getReportProviders,
 }));
 
 vi.mock("@/server/features/change-events/services/ChangeEventService", () => ({
@@ -95,7 +94,6 @@ vi.mock("@/server/billing/subscription", () => ({
 }));
 
 import { ReportDeliveryService } from "./ReportDeliveryService";
-import { ReportDeliveryProfileService } from "./ReportDeliveryProfileService";
 import { ReportShareService } from "./ReportShareService";
 
 const snapshot: ReportSnapshot = {
@@ -156,6 +154,12 @@ beforeEach(() => {
   // Delivery is fail-closed, so the production path needs the explicit opt-out.
   process.env.REPORT_DELIVERY_TEST_MODE = "false";
   delete process.env.REPORT_TEST_RECIPIENTS;
+  mocks.getReportProviders.mockResolvedValue({
+    pdfRenderer: { configured: true, render: mocks.render },
+    emailProvider: { configured: true, send: mocks.send },
+    shareBaseUrl: "https://app.example.com",
+    bucket: { delete: mocks.bucketDelete },
+  });
   mocks.getRun.mockResolvedValue(publishedRun);
   mocks.listCommentary.mockResolvedValue([]);
   mocks.getProfileById.mockResolvedValue(profile);
@@ -231,6 +235,35 @@ describe("deliverRun", () => {
     expect(mocks.send).not.toHaveBeenCalled();
   });
 
+  // The row's status was decided when it was created. Re-enabling test mode
+  // after that must still stop the mail, or a deployment that turns the guard
+  // back on keeps mailing every client row created while it was off.
+  it("holds back a pending row once test mode is turned back on", async () => {
+    delete process.env.REPORT_DELIVERY_TEST_MODE;
+    process.env.REPORT_TEST_RECIPIENTS = "qa@agency.test";
+    // Created by an earlier delivery, while test mode was off.
+    mocks.listSendableDeliveries.mockResolvedValue([
+      delivery({ status: "pending", attempts: 1 }),
+    ]);
+
+    const result = await ReportDeliveryService.deliverRun({
+      projectId: "project-1",
+      runId: "run-1",
+      now,
+    });
+
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ sent: 0, failed: 0, skipped: 2 });
+    expect(mocks.recordDeliveryResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deliveryId: "delivery-1",
+        status: "skipped",
+        // Held back, not a burned attempt.
+        attempts: 1,
+      }),
+    );
+  });
+
   it("records a failed delivery and raises a change event", async () => {
     mocks.send.mockResolvedValue({
       status: "failed",
@@ -258,79 +291,25 @@ describe("deliverRun", () => {
   });
 });
 
-describe("listProfiles", () => {
-  // Without this the Reports page cannot tell a working profile from one whose
-  // every scheduled send is silently recorded as skipped.
-  it("reports the fail-closed guard state and which recipients it holds back", async () => {
-    delete process.env.REPORT_DELIVERY_TEST_MODE;
-    process.env.REPORT_TEST_RECIPIENTS = "qa@agency.test";
-    mocks.listProfiles.mockResolvedValue([
-      {
-        profile,
-        sections: [],
-        recipients: [
-          { email: "qa@agency.test", name: null },
-          { email: "client@acme.test", name: "Client" },
-        ],
-      },
-    ]);
+describe("retryDeliveries", () => {
+  // Only a token hash is stored, so a retry has to mint a new token. Without
+  // revoking the previous ones, every retry leaves another live, permanently
+  // unauthenticated URL for the same report.
+  it("revokes the run's live share links before minting the retry link", async () => {
+    mocks.resetFailedDeliveries.mockResolvedValue(1);
+    mocks.listSendableDeliveries.mockResolvedValue([delivery()]);
 
-    const result = await ReportDeliveryProfileService.listProfiles("project-1");
+    const result = await ReportDeliveryService.retryDeliveries({
+      projectId: "project-1",
+      runId: "run-1",
+    });
 
-    expect(result.delivery).toEqual({ testMode: true, allowlistSize: 1 });
-    expect(result.profiles[0].recipients).toEqual([
-      { email: "qa@agency.test", name: null, isAllowed: true },
-      { email: "client@acme.test", name: "Client", isAllowed: false },
-    ]);
-  });
-});
-
-describe("processDueProfiles", () => {
-  it("starts one run per claimed profile", async () => {
-    mocks.listDueProfiles.mockResolvedValue([
-      {
-        profile: { ...profile, nextRunAt: "2026-08-04T09:00:00.000Z" },
-        organizationId: "org-1",
-      },
-    ]);
-    mocks.claimProfile.mockResolvedValue(true);
-    mocks.ensureSettings.mockResolvedValue({ id: "settings-1" });
-    mocks.createRun.mockResolvedValue({ id: "run-2", status: "queued" });
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- focused Workflow binding stub
-    const workflow = {} as Env["REPORT_WORKFLOW"];
-
-    await expect(
-      ReportDeliveryProfileService.processDueProfiles(workflow, now),
-    ).resolves.toEqual({ started: 1, errors: 0 });
-    expect(mocks.createRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        profileId: "profile-1",
-        trigger: "scheduled",
-        scheduledKey: "profile:profile-1:2026-08-04T09:00:00.000Z",
-        periodStart: "2026-07-01",
-        periodEnd: "2026-07-31",
-      }),
+    expect(mocks.revokeShareLinksForRun).toHaveBeenCalledWith(
+      "run-1",
+      expect.any(String),
     );
-    expect(mocks.startWorkflow).toHaveBeenCalledOnce();
-  });
-
-  it("does not run a profile another tick already claimed", async () => {
-    mocks.listDueProfiles.mockResolvedValue([
-      {
-        profile: { ...profile, nextRunAt: "2026-08-04T09:00:00.000Z" },
-        organizationId: "org-1",
-      },
-    ]);
-    mocks.claimProfile.mockResolvedValue(false);
-
-    await expect(
-      ReportDeliveryProfileService.processDueProfiles(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- focused Workflow binding stub
-        {} as Env["REPORT_WORKFLOW"],
-        now,
-      ),
-    ).resolves.toEqual({ started: 0, errors: 0 });
-    expect(mocks.createRun).not.toHaveBeenCalled();
+    expect(mocks.createShareLink).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ reset: 1, sent: 1 });
   });
 });
 
@@ -343,12 +322,46 @@ describe("purgeExpiredArtifacts", () => {
 
     await expect(
       ReportShareService.purgeExpiredArtifacts(now),
-    ).resolves.toEqual({ artifacts: 1, shareLinks: 3 });
+    ).resolves.toEqual({ artifacts: 1, retained: 0, shareLinks: 3 });
     expect(mocks.bucketDelete).toHaveBeenCalledWith("reports/run-1/report.pdf");
     expect(mocks.deleteArtifacts).toHaveBeenCalledWith(["artifact-1"]);
     // Share rows outlive their expiry by the retention window.
     expect(mocks.deleteShareLinksExpiredBefore).toHaveBeenCalledWith(
       "2026-05-19T00:00:00.000Z",
     );
+  });
+
+  // The row is the only pointer to the object, so dropping it while storage is
+  // unreachable strands the PDF in R2 for good.
+  it("keeps the rows when the bucket is unavailable", async () => {
+    mocks.getReportProviders.mockResolvedValue({
+      pdfRenderer: { configured: false, render: mocks.render },
+      emailProvider: { configured: true, send: mocks.send },
+      shareBaseUrl: "https://app.example.com",
+      bucket: undefined,
+    });
+    mocks.listExpiredArtifacts.mockResolvedValue([
+      { id: "artifact-1", storageKey: "reports/run-1/report.pdf" },
+    ]);
+    mocks.deleteShareLinksExpiredBefore.mockResolvedValue(0);
+
+    await expect(
+      ReportShareService.purgeExpiredArtifacts(now),
+    ).resolves.toEqual({ artifacts: 0, retained: 1, shareLinks: 0 });
+    expect(mocks.deleteArtifacts).not.toHaveBeenCalled();
+  });
+
+  it("keeps a row whose object could not be deleted", async () => {
+    mocks.listExpiredArtifacts.mockResolvedValue([
+      { id: "artifact-1", storageKey: "reports/run-1/report.pdf" },
+      { id: "artifact-2", storageKey: "reports/run-2/report.pdf" },
+    ]);
+    mocks.deleteShareLinksExpiredBefore.mockResolvedValue(0);
+    mocks.bucketDelete.mockRejectedValueOnce(new Error("R2 unavailable"));
+
+    await expect(
+      ReportShareService.purgeExpiredArtifacts(now),
+    ).resolves.toEqual({ artifacts: 1, retained: 1, shareLinks: 0 });
+    expect(mocks.deleteArtifacts).toHaveBeenCalledWith(["artifact-2"]);
   });
 });

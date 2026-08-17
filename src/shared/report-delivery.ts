@@ -13,9 +13,17 @@ export const REPORT_DELIVERY_STATUSES = [
 
 export const REPORT_ARTIFACT_KINDS = ["pdf"] as const;
 
-/** Resend accepts 25 MB per request; the renderer output is capped to match so
- * an oversized PDF fails before it reaches storage or an attachment. */
-export const MAX_REPORT_PDF_BYTES = 25 * 1024 * 1024;
+/** Resend rejects any request above 25 MB. */
+export const MAX_EMAIL_REQUEST_BYTES = 25 * 1024 * 1024;
+
+/**
+ * An attachment reaches Resend base64-encoded (4 bytes for every 3) inside a
+ * JSON body that also carries the HTML and text parts, so the raw PDF has to
+ * stay well under the request limit rather than match it: 15 MB encodes to
+ * ~20 MB and leaves ~5 MB of headroom for the rest of the message. The renderer
+ * enforces the same cap, so an oversized PDF fails before it reaches storage.
+ */
+export const MAX_REPORT_PDF_BYTES = 15 * 1024 * 1024;
 
 export const MAX_REPORT_RECIPIENTS = 25;
 
