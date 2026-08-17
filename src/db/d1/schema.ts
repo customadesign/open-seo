@@ -11,5 +11,6 @@ export * from "../gsc.schema";
 export * from "../google-ads.schema";
 export * from "../report.schema";
 export * from "../disavow.schema";
+export * from "../change-events.schema";
 export * from "../telemetry.schema";
 export * from "../local-seo.schema";

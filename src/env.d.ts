@@ -34,6 +34,19 @@ declare namespace Cloudflare {
     LOOPS_API_KEY?: string;
     LOOPS_TRANSACTIONAL_VERIFY_EMAIL_ID?: string;
     LOOPS_TRANSACTIONAL_RESET_PASSWORD_ID?: string;
+
+    // Scheduled report delivery. The renderer URL must be an access-controlled
+    // public HTTPS endpoint in front of Gotenberg (loopback http is accepted
+    // for local development only).
+    REPORT_PDF_RENDER_URL?: string;
+    REPORT_PDF_RENDER_BEARER_TOKEN?: string;
+    RESEND_API_KEY?: string;
+    REPORT_EMAIL_FROM?: string;
+    REPORT_EMAIL_REPLY_TO?: string;
+    // Fail-closed: report email only reaches REPORT_TEST_RECIPIENTS unless
+    // this is exactly "false". Other recipients are recorded as skipped.
+    REPORT_DELIVERY_TEST_MODE?: string;
+    REPORT_TEST_RECIPIENTS?: string;
     AUTUMN_SECRET_KEY?: string;
     AUTUMN_WEBHOOK_SECRET?: string;
     // HMAC secret for the operator-only GDPR storage-erasure endpoint.

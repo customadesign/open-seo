@@ -184,3 +184,108 @@ export function nextMonthlyRun(input: {
   }
   return instant.toISOString();
 }
+
+function dayOfWeek(year: number, month: number, day: number): number {
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
+function shiftDays(
+  parts: { year: number; month: number; day: number },
+  delta: number,
+) {
+  const date = new Date(
+    Date.UTC(parts.year, parts.month - 1, parts.day + delta),
+  );
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+type ReportRunFrequency = "daily" | "weekly" | "monthly";
+
+/**
+ * Next wall-clock instant a delivery profile is due, in its own time zone.
+ * Working in local parts (rather than adding fixed milliseconds) is what keeps
+ * a 09:00 schedule at 09:00 across a DST transition.
+ */
+export function nextDeliveryRun(input: {
+  after: Date;
+  timeZone: string;
+  frequency: ReportRunFrequency;
+  runDay?: number | null;
+  runWeekday?: number | null;
+  runHour: number;
+}): string {
+  if (!isValidTimeZone(input.timeZone)) {
+    throw new Error("Invalid report timezone");
+  }
+  const local = localParts(input.after, input.timeZone);
+  const base = { hour: input.runHour, minute: 0, second: 0 };
+
+  if (input.frequency === "monthly") {
+    return nextMonthlyRun({
+      after: input.after,
+      timeZone: input.timeZone,
+      runDay: input.runDay ?? 1,
+      runHour: input.runHour,
+    });
+  }
+
+  if (input.frequency === "weekly") {
+    const target = input.runWeekday ?? 1;
+    let day = { year: local.year, month: local.month, day: local.day };
+    const forward = (target - dayOfWeek(day.year, day.month, day.day) + 7) % 7;
+    day = shiftDays(day, forward);
+    let instant = fromLocalParts({ ...day, ...base }, input.timeZone);
+    if (instant.valueOf() <= input.after.valueOf()) {
+      instant = fromLocalParts(
+        { ...shiftDays(day, 7), ...base },
+        input.timeZone,
+      );
+    }
+    return instant.toISOString();
+  }
+
+  const today = { year: local.year, month: local.month, day: local.day };
+  let instant = fromLocalParts({ ...today, ...base }, input.timeZone);
+  if (instant.valueOf() <= input.after.valueOf()) {
+    instant = fromLocalParts(
+      { ...shiftDays(today, 1), ...base },
+      input.timeZone,
+    );
+  }
+  return instant.toISOString();
+}
+
+/**
+ * Reporting window for a scheduled delivery: the last complete period before
+ * `at`, plus the equally long window before it for period-over-period change.
+ */
+export function deliveryPeriod(
+  frequency: ReportRunFrequency,
+  at: Date,
+  timeZone: string,
+): {
+  periodStart: string;
+  periodEnd: string;
+  compareStart: string;
+  compareEnd: string;
+} {
+  if (!isValidTimeZone(timeZone)) throw new Error("Invalid report timezone");
+  if (frequency === "monthly") return previousFullCalendarMonth(at, timeZone);
+
+  const local = localParts(at, timeZone);
+  const today = { year: local.year, month: local.month, day: local.day };
+  const length = frequency === "weekly" ? 7 : 1;
+  const end = shiftDays(today, -1);
+  const start = shiftDays(today, -length);
+  const periodStart = dateString(start.year, start.month, start.day);
+  const periodEnd = dateString(end.year, end.month, end.day);
+  return {
+    periodStart,
+    periodEnd,
+    ...comparisonPeriod(periodStart, periodEnd),
+  };
+}

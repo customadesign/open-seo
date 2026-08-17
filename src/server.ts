@@ -10,6 +10,8 @@ import { runScheduledRankChecks } from "@/server/features/rank-tracking/services
 import { runScheduledAiVisibilityRuns } from "@/server/features/ai-visibility/services/scheduledAiVisibilityRuns";
 import { runScheduledGeoGridChecks } from "@/server/features/local-seo/services/scheduledGeoGridChecks";
 import { ReportService } from "@/server/features/reports/ReportService";
+import { ReportDeliveryProfileService } from "@/server/features/reports/ReportDeliveryProfileService";
+import { ReportShareService } from "@/server/features/reports/ReportShareService";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -276,6 +278,20 @@ export default {
     } catch (err) {
       cronErrors.push(err);
       console.error("[cron] Monthly report scheduler failed:", err);
+    }
+    try {
+      await withPgClient(() =>
+        ReportDeliveryProfileService.processDueProfiles(env.REPORT_WORKFLOW),
+      );
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Report delivery scheduler failed:", err);
+    }
+    try {
+      await withPgClient(() => ReportShareService.purgeExpiredArtifacts());
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Report retention sweep failed:", err);
     }
     if (cronErrors.length > 0) throw cronErrors[0];
   },

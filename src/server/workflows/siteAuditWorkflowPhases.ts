@@ -18,6 +18,7 @@ import {
 } from "@/server/lib/audit/url-utils";
 import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { AuditChangeEventService } from "@/server/features/audit/services/AuditChangeEventService";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import { runMultipageChecks } from "@/server/lib/audit/issues/multipage";
@@ -415,6 +416,10 @@ async function finalizeAudit(args: {
     // Crawl scratch state (frontier, links, mirror) is no longer needed.
     await getAuditScratchpad(auditId).destroy();
   });
+
+  await pgStep(step, "audit-change-events", DB_STEP, () =>
+    AuditChangeEventService.recordForCompletedAudit({ auditId, projectId }),
+  );
 }
 
 /**

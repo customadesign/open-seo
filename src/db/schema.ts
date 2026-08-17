@@ -13,6 +13,7 @@ import * as sqliteReports from "./report.schema";
 import * as sqliteDisavow from "./disavow.schema";
 import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as sqliteRankTracking from "./rank-tracking.schema";
+import * as sqliteChangeEvents from "./change-events.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -27,6 +28,7 @@ import * as pgReports from "./pg/report.schema";
 import * as pgDisavow from "./pg/disavow.schema";
 import * as pgAiVisibility from "./pg/ai-visibility.schema";
 import * as pgRankTracking from "./pg/rank-tracking.schema";
+import * as pgChangeEvents from "./pg/change-events.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -51,7 +53,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteReports &
   typeof sqliteDisavow &
   typeof sqliteAiVisibility &
-  typeof sqliteRankTracking;
+  typeof sqliteRankTracking &
+  typeof sqliteChangeEvents;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -70,6 +73,7 @@ const runtimeSchema =
         ...pgDisavow,
         ...pgAiVisibility,
         ...pgRankTracking,
+        ...pgChangeEvents,
       }
     : {
         ...sqliteApp,
@@ -86,6 +90,7 @@ const runtimeSchema =
         ...sqliteDisavow,
         ...sqliteAiVisibility,
         ...sqliteRankTracking,
+        ...sqliteChangeEvents,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -129,6 +134,14 @@ export const {
   reportSections,
   reportRuns,
   reportCommentaryItems,
+  reportDeliveryProfiles,
+  reportDeliveryProfileSections,
+  reportRecipients,
+  reportArtifacts,
+  reportShareLinks,
+  reportDeliveries,
+  projectChangeEvents,
+  projectChangeEventStates,
   backlinkDisavowEntries,
   telemetryState,
   localBusinessProfiles,

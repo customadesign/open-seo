@@ -116,6 +116,7 @@ async function createRun(input: {
   trigger: "manual" | "scheduled";
   scheduledKey?: string | null;
   workflowInstanceId?: string | null;
+  profileId?: string | null;
   periodStart: string;
   periodEnd: string;
   compareStart: string;

@@ -23,6 +23,8 @@ import {
   type ReportSectionKey,
   type ReportSnapshot,
 } from "@/types/schemas/reports";
+import { ReportDeliveryProfilesPanel } from "./ReportDeliveryProfilesPanel";
+import { ReportRunDeliveryCard } from "./ReportRunDeliveryCard";
 
 const SECTION_LABELS: Record<ReportSectionKey, string> = {
   rankings: "Rankings",
@@ -97,13 +99,16 @@ export function ReportsPage({ projectId }: { projectId: string }) {
         </header>
 
         {canManage && dashboardQuery.data ? (
-          <ReportSettingsPanel
-            projectId={projectId}
-            settings={dashboardQuery.data.settings}
-            onSaved={() =>
-              queryClient.invalidateQueries({ queryKey: dashboardKey })
-            }
-          />
+          <>
+            <ReportSettingsPanel
+              projectId={projectId}
+              settings={dashboardQuery.data.settings}
+              onSaved={() =>
+                queryClient.invalidateQueries({ queryKey: dashboardKey })
+              }
+            />
+            <ReportDeliveryProfilesPanel projectId={projectId} />
+          </>
         ) : null}
 
         {dashboardQuery.isLoading ? (
@@ -124,14 +129,24 @@ export function ReportsPage({ projectId }: { projectId: string }) {
               onSelect={setSelectedRunId}
             />
             {selectedRunId ? (
-              <ReportDetail
-                projectId={projectId}
-                runId={selectedRunId}
-                canManage={canManage}
-                onChanged={() =>
-                  queryClient.invalidateQueries({ queryKey: dashboardKey })
-                }
-              />
+              <div className="space-y-5">
+                <ReportDetail
+                  projectId={projectId}
+                  runId={selectedRunId}
+                  canManage={canManage}
+                  onChanged={() =>
+                    queryClient.invalidateQueries({ queryKey: dashboardKey })
+                  }
+                />
+                {canManage &&
+                runs.find((run) => run.id === selectedRunId)?.status ===
+                  "published" ? (
+                  <ReportRunDeliveryCard
+                    projectId={projectId}
+                    runId={selectedRunId}
+                  />
+                ) : null}
+              </div>
             ) : null}
           </div>
         )}

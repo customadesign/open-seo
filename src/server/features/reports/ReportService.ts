@@ -357,5 +357,10 @@ export const ReportService = {
   retry,
   getReport,
   processDueSchedules,
+  // Shared with the delivery scheduler, which creates runs against the same
+  // settings row and workflow binding.
+  ensureSettings: getOrCreateSettings,
+  startWorkflow,
+  assertPaidPlan: assertReportsPaidPlan,
   defaultSections: DEFAULT_REPORT_SECTIONS,
 };

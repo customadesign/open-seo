@@ -1,6 +1,8 @@
 import { reportSnapshotSchema } from "@/types/schemas/reports";
 import { generateReportCommentary } from "./ReportCommentaryService";
+import { ReportChangeEventService } from "./ReportChangeEventService";
 import { assembleReportSnapshot } from "./ReportSnapshotAssembler";
+import { ReportDeliveryProfileRepository } from "./repositories/ReportDeliveryProfileRepository";
 import { ReportRepository } from "./repositories/ReportRepository";
 
 export async function executeReportRun(input: {
@@ -15,9 +17,14 @@ export async function executeReportRun(input: {
   if (!settings || settings.id !== run.settingsId) {
     throw new Error("Report settings not found");
   }
+  const wasFailed = run.status === "failed";
   await ReportRepository.setRunRunning(input.runId, input.workflowInstanceId);
   try {
-    const sectionRows = await ReportRepository.getSections(settings.id);
+    // A delivery profile owns its own section selection; project settings are
+    // the fallback for manual and legacy monthly runs.
+    const sectionRows = run.profileId
+      ? await ReportDeliveryProfileRepository.getProfileSections(run.profileId)
+      : await ReportRepository.getSections(settings.id);
     const snapshot = reportSnapshotSchema.parse(
       await assembleReportSnapshot({
         projectId: input.projectId,
@@ -42,11 +49,23 @@ export async function executeReportRun(input: {
       snapshotJson: JSON.stringify(snapshot),
       commentary,
     });
+    if (wasFailed) {
+      await ReportChangeEventService.recordRunRecovered({
+        projectId: input.projectId,
+        runId: input.runId,
+      });
+    }
     return { status: "published" as const };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Report generation failed";
     await ReportRepository.failRun(input.runId, message);
+    await ReportChangeEventService.recordRunFailed({
+      projectId: input.projectId,
+      runId: input.runId,
+      trigger: run.trigger,
+      errorMessage: message,
+    });
     throw error;
   }
 }
