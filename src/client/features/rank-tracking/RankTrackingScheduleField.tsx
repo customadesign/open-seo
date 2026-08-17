@@ -76,7 +76,9 @@ export function RankTrackingScheduleField({
           <div className="mt-1.5 text-xs text-base-content/50">
             Required for a recurring schedule. A check whose estimate exceeds
             this ceiling is skipped instead of run, so adding keywords can never
-            quietly raise your recurring bill. Raise the ceiling to resume.
+            quietly raise your recurring bill. The queued check and any live
+            fallback share this hard cap; unavailable results stay incomplete
+            when no approved credits remain. Raise the ceiling to resume.
           </div>
         </div>
       )}

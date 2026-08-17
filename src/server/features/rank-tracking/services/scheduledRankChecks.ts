@@ -18,9 +18,10 @@ import {
 // term: one call per unit per poll round, rounds wake synchronized per tick,
 // and up to three ticks' ~15-minute poll windows overlap the */5 cron — so a
 // full tick can burst ~1,000 polls into a single minute, stacking with the
-// residual rounds of the two prior ticks. Overruns aren't
-// loud failures: throttled polls age into the live fallback at ~3× cost,
-// billed to the customer, so keep real headroom under the cap.
+// residual rounds of the two prior ticks. Throttled polls can age into the
+// more expensive live fallback. Each config's hard ceiling limits that
+// fallback, while this global budget keeps real headroom under the provider
+// request cap.
 // 1,000/tick ≈ 288,000 units/day, ~45× steady-state demand — it only binds
 // during backlog catch-up.
 const SCHEDULED_TASK_UNIT_BUDGET = 1000;

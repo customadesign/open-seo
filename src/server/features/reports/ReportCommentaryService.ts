@@ -97,6 +97,12 @@ export async function generateReportCommentary(
 ): Promise<ReportCommentary[]> {
   const deterministic = fallback(snapshot);
   const hosted = await isHostedServerAuthMode();
+  // A self-hosted schedule is a standing authorization to assemble a report,
+  // not an open-ended authorization to call an LLM. Hosted schedules are
+  // bounded by product credits below; self-hosted scheduled runs use the
+  // deterministic evidence summary until a separately reviewed provider-cost
+  // ceiling exists.
+  if (!hosted && context.trigger === "scheduled") return deterministic;
   let monthlyRemaining: number | null = null;
   if (hosted) {
     try {

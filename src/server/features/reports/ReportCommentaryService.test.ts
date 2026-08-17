@@ -108,10 +108,25 @@ describe("generateReportCommentary", () => {
     );
   });
 
-  it("uses the self-hosted provider without Autumn checks or metering", async () => {
+  it("uses deterministic commentary for self-hosted scheduled runs without provider spend", async () => {
     mocks.isHostedServerAuthMode.mockResolvedValue(false);
 
     const result = await generateReportCommentary(snapshot, context);
+
+    expect(result).toHaveLength(4);
+    expect(mocks.assertUsageCreditsAvailable).not.toHaveBeenCalled();
+    expect(mocks.trackUsageCreditSpend).not.toHaveBeenCalled();
+    expect(mocks.getChatAgentModel).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("allows an explicit manual self-hosted report to use the configured provider", async () => {
+    mocks.isHostedServerAuthMode.mockResolvedValue(false);
+
+    const result = await generateReportCommentary(snapshot, {
+      ...context,
+      trigger: "manual",
+    });
 
     expect(result).toHaveLength(4);
     expect(mocks.assertUsageCreditsAvailable).not.toHaveBeenCalled();

@@ -168,7 +168,8 @@ export async function beginRankCheckRun(input: {
   keywordsTotal: number;
   keywordIds?: string[];
   // Nullable so a scheduled caller can forward a config's stored ceiling
-  // straight through; null never reaches the workflow params.
+  // straight through. Null is omitted from workflow params, and the workflow
+  // independently rejects that omission for every scheduled trigger.
   maxCostCredits?: number | null;
   trigger: "manual" | "scheduled";
   workflowStartErrorMessage: string;

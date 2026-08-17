@@ -162,6 +162,23 @@ describe("rank check workflow credit ceiling", () => {
     expect(mocks.autumnCheck).not.toHaveBeenCalled();
   });
 
+  it("rejects a persisted scheduled payload with no ceiling before paid work", async () => {
+    await expect(
+      prepareRankCheckKeywords({
+        runId: "run_1",
+        configId: "config_1",
+        billingCustomer,
+        devices: "desktop",
+        serpDepth: 10,
+        trigger: "scheduled",
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    expect(mocks.getKeywordsForConfig).not.toHaveBeenCalled();
+    expect(mocks.autumnCheck).not.toHaveBeenCalled();
+    expect(mocks.createDataforseoClient).not.toHaveBeenCalled();
+  });
+
   it("uses queued pricing for a manual Bing check", async () => {
     mocks.getKeywordsForConfig.mockResolvedValue([
       { id: "kw_1", keyword: "seo software" },

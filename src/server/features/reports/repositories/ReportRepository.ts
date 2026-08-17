@@ -185,6 +185,27 @@ async function setRunRunning(runId: string, workflowInstanceId?: string) {
     .where(eq(reportRuns.id, runId));
 }
 
+async function setRunWorkflowInstanceId(input: {
+  runId: string;
+  projectId: string;
+  workflowInstanceId: string;
+}) {
+  const rows = await db
+    .update(reportRuns)
+    .set({
+      workflowInstanceId: input.workflowInstanceId,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(reportRuns.id, input.runId),
+        eq(reportRuns.projectId, input.projectId),
+      ),
+    )
+    .returning({ id: reportRuns.id });
+  if (!rows[0]) throw new Error("Report run disappeared after workflow start");
+}
+
 async function publishRun(input: {
   runId: string;
   snapshotJson: string;
@@ -340,6 +361,7 @@ export const ReportRepository = {
   createRun,
   getRun,
   listRuns,
+  setRunWorkflowInstanceId,
   setRunRunning,
   publishRun,
   failRun,

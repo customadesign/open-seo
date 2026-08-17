@@ -26,6 +26,7 @@ import {
   estimateRankCheckCredits,
   rankCheckCostApprovalError,
   rankCheckMethod,
+  rankCheckRecurringCeilingError,
   type RankTrackingEngine,
 } from "@/shared/rank-tracking";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -63,6 +64,16 @@ export async function prepareRankCheckKeywords(input: {
   keywordIds?: string[];
   maxCostCredits?: number;
 }) {
+  // A persisted Workflow invocation can outlive the scheduler version that
+  // created it. Re-check recurring approval inside the workflow so a legacy or
+  // replayed scheduled payload cannot reach provider work without a ceiling.
+  if (
+    input.trigger === "scheduled" &&
+    (input.maxCostCredits == null || input.maxCostCredits <= 0)
+  ) {
+    throw new AppError("VALIDATION_ERROR", rankCheckRecurringCeilingError);
+  }
+
   // If stale-cleanup marked our run failed before we got here, bail out
   // rather than resurrecting a superseded run.
   const run = await RankTrackingRepository.getRunById(input.runId);
@@ -204,7 +215,7 @@ async function finalizeRankCheckRun(input: {
   // One-line summary per run so fallback rates are visible in Workers Logs.
   // Keys match the PostHog event properties for log/event correlation.
   const queueSummary = input.queueStats
-    ? ` queue_tasks=${input.queueStats.queueTasks} queue_collected=${input.queueStats.queueCollected} fallback_tasks=${input.queueStats.fallbackTasks} fallback_checked=${input.queueStats.fallbackChecked}`
+    ? ` queue_tasks=${input.queueStats.queueTasks} queue_collected=${input.queueStats.queueCollected} fallback_tasks=${input.queueStats.fallbackTasks} fallback_checked=${input.queueStats.fallbackChecked} fallback_skipped_cost_ceiling=${input.queueStats.fallbackSkippedCostCeiling}`
     : "";
   // Error text can echo vendor/user content — keep it one line and bounded.
   const errorSummary = errorMessage
@@ -229,6 +240,8 @@ async function finalizeRankCheckRun(input: {
             queue_collected: input.queueStats.queueCollected,
             fallback_tasks: input.queueStats.fallbackTasks,
             fallback_checked: input.queueStats.fallbackChecked,
+            fallback_skipped_cost_ceiling:
+              input.queueStats.fallbackSkippedCostCeiling,
           }
         : {}),
     },
@@ -361,6 +374,7 @@ export class RankCheckWorkflow extends WorkflowEntrypoint<
           languageCode,
           locationName,
           runId,
+          maxCostCredits,
         };
         // Scheduled checks use DataForSEO's task queue (~30% of live cost).
         // Bing always uses the queue because its full-depth task path is the

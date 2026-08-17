@@ -102,8 +102,10 @@ describe("RankTrackingService management invariants", () => {
     expect(error).toBeInstanceOf(Error);
     if (!(error instanceof Error) || !("code" in error)) throw error;
     expect(error.code).toBe("VALIDATION_ERROR");
-    expect(error.message).toContain("nominal queued estimate");
-    expect(error.message).toContain("Live fallback");
+    expect(error.message).toContain("approved total per-check ceiling");
+    expect(error.message).toContain(
+      "caps the queued check plus any live fallback",
+    );
     expect(mocks.addKeywordsToConfig).not.toHaveBeenCalled();
   });
 

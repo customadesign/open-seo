@@ -121,6 +121,19 @@ export function estimateRankCheckCredits(
   method: RankCheckMethod,
 ) {
   const totalChecks = keywordCount * devicesCount(devices);
+  return estimateRankCheckTaskCredits(totalChecks, depth, method);
+}
+
+/**
+ * Cost for an exact number of keyword/device task units. Queued fallback uses
+ * this form because each straggler already represents one device-specific
+ * task, rather than a keyword with a device setting that still needs expanding.
+ */
+export function estimateRankCheckTaskCredits(
+  taskCount: number,
+  depth: number,
+  method: RankCheckMethod,
+) {
   const checksPerMeteredCall = method === "queued" ? MAX_TASKS_PER_POST : 1;
   let costUsd = 0;
   let costCredits = 0;
@@ -129,8 +142,8 @@ export function estimateRankCheckCredits(
   // checks make one call per keyword/device pair, while queued checks post up
   // to MAX_TASKS_PER_POST pairs per call. Summing one aggregate and rounding
   // once can therefore understate the credits that will actually be charged.
-  for (let offset = 0; offset < totalChecks; offset += checksPerMeteredCall) {
-    const checksInCall = Math.min(checksPerMeteredCall, totalChecks - offset);
+  for (let offset = 0; offset < taskCount; offset += checksPerMeteredCall) {
+    const checksInCall = Math.min(checksPerMeteredCall, taskCount - offset);
     const callCostUsd = roundUsdForBilling(
       checksInCall * costPerSerpAtDepth(depth, method) * SEO_DATA_COST_MARKUP,
     );
@@ -138,8 +151,8 @@ export function estimateRankCheckCredits(
     costCredits += Math.ceil(callCostUsd * AUTUMN_SEO_DATA_CREDITS_PER_USD);
   }
 
-  // This is the nominal queued task_post estimate. Rejected, failed, or
-  // timed-out tasks can later incur additional live-fallback spend.
+  // A queued call reserves this nominal task_post estimate. The workflow then
+  // gives live fallback only the credits left under the same approved ceiling.
   costUsd = roundUsdForBilling(costUsd);
   return { costUsd, costCredits };
 }

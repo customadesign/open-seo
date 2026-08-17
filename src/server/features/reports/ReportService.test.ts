@@ -9,6 +9,14 @@ const mocks = vi.hoisted(() => ({
   claimDueSettings: vi.fn(),
   updateSettings: vi.fn(),
   createRun: vi.fn(),
+  setRunWorkflowInstanceId:
+    vi.fn<
+      (input: {
+        projectId: string;
+        runId: string;
+        workflowInstanceId: string;
+      }) => Promise<void>
+    >(),
   failRun: vi.fn(),
   getRun: vi.fn(),
   resetRun: vi.fn(),
@@ -73,6 +81,7 @@ describe("ReportService", () => {
     mocks.isHostedServerAuthMode.mockResolvedValue(true);
     mocks.customerHasPaidPlan.mockResolvedValue(true);
     mocks.updateSettings.mockResolvedValue(undefined);
+    mocks.setRunWorkflowInstanceId.mockResolvedValue(undefined);
   });
 
   it("does not create report settings when a client reads an empty dashboard", async () => {
@@ -116,6 +125,13 @@ describe("ReportService", () => {
       }),
     );
     expect(create).toHaveBeenCalledOnce();
+    expect(mocks.setRunWorkflowInstanceId).toHaveBeenCalledOnce();
+    const persistedWorkflow = mocks.setRunWorkflowInstanceId.mock.calls[0]?.[0];
+    expect(persistedWorkflow).toMatchObject({
+      projectId: "project-1",
+      runId: "run-1",
+    });
+    expect(persistedWorkflow?.workflowInstanceId).toMatch(/^run-1-/);
   });
 
   it("advances past missed occurrences without backfilling their months", async () => {

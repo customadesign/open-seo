@@ -20,6 +20,7 @@ import {
   eq,
   gt,
   inArray,
+  isNotNull,
   ne,
   notExists,
   or,
@@ -239,6 +240,33 @@ async function buildInventory(db: Db, user: UserRow) {
             ),
           )
           .orderBy(schema.rankCheckRuns.id);
+  // AI visibility uses the run id as the Workflow instance id.
+  const activeAiVisibilityWorkflows =
+    projectIds.length === 0
+      ? []
+      : await db
+          .select({ id: schema.aiVisibilityRuns.id })
+          .from(schema.aiVisibilityRuns)
+          .where(
+            and(
+              inArray(schema.aiVisibilityRuns.projectId, projectIds),
+              inArray(schema.aiVisibilityRuns.status, ["pending", "running"]),
+            ),
+          )
+          .orderBy(schema.aiVisibilityRuns.id);
+  const activeReportWorkflows =
+    projectIds.length === 0
+      ? []
+      : await db
+          .select({ id: schema.reportRuns.workflowInstanceId })
+          .from(schema.reportRuns)
+          .where(
+            and(
+              inArray(schema.reportRuns.projectId, projectIds),
+              isNotNull(schema.reportRuns.workflowInstanceId),
+            ),
+          )
+          .orderBy(schema.reportRuns.workflowInstanceId);
 
   const projectCount = async (table: typeof schema.savedKeywords) =>
     projectIds.length === 0
@@ -306,6 +334,12 @@ async function buildInventory(db: Db, user: UserRow) {
     googleAccounts,
     activeAuditWorkflowIds: activeAuditWorkflows.map((row) => row.id),
     activeRankWorkflowIds: activeRankWorkflows.map((row) => row.id),
+    activeAiVisibilityWorkflowIds: activeAiVisibilityWorkflows.map(
+      (row) => row.id,
+    ),
+    activeReportWorkflowIds: activeReportWorkflows.flatMap((row) =>
+      row.id ? [row.id] : [],
+    ),
     databaseCounts,
   };
 }
@@ -451,6 +485,59 @@ async function eraseWorkerStorage(payload: GdprStorageErasurePayload) {
     .parse(JSON.parse(responseBody) as unknown).result;
 }
 
+async function disableRecurringWorkForErasure(db: Db, projectIds: string[]) {
+  if (projectIds.length === 0) {
+    return {
+      audits: 0,
+      ranks: 0,
+      geoGrids: 0,
+      aiVisibility: 0,
+      monthlyReports: 0,
+      deliveryProfiles: 0,
+    };
+  }
+  return db.transaction(async (tx) => {
+    const audits = await tx
+      .update(schema.auditSchedules)
+      .set({ isActive: false, nextRunAt: null })
+      .where(inArray(schema.auditSchedules.projectId, projectIds))
+      .returning({ id: schema.auditSchedules.id });
+    const ranks = await tx
+      .update(schema.rankTrackingConfigs)
+      .set({ isActive: false, nextCheckAt: null })
+      .where(inArray(schema.rankTrackingConfigs.projectId, projectIds))
+      .returning({ id: schema.rankTrackingConfigs.id });
+    const geoGrids = await tx
+      .update(schema.geoGridConfigs)
+      .set({ isActive: false, nextRunAt: null })
+      .where(inArray(schema.geoGridConfigs.projectId, projectIds))
+      .returning({ id: schema.geoGridConfigs.id });
+    const aiVisibility = await tx
+      .update(schema.aiVisibilityConfigs)
+      .set({ isActive: false, nextRunAt: null })
+      .where(inArray(schema.aiVisibilityConfigs.projectId, projectIds))
+      .returning({ id: schema.aiVisibilityConfigs.id });
+    const monthlyReports = await tx
+      .update(schema.reportSettings)
+      .set({ isEnabled: false, nextRunAt: null })
+      .where(inArray(schema.reportSettings.projectId, projectIds))
+      .returning({ id: schema.reportSettings.id });
+    const profiles = await tx
+      .update(schema.reportDeliveryProfiles)
+      .set({ isEnabled: false, nextRunAt: null })
+      .where(inArray(schema.reportDeliveryProfiles.projectId, projectIds))
+      .returning({ id: schema.reportDeliveryProfiles.id });
+    return {
+      audits: audits.length,
+      ranks: ranks.length,
+      geoGrids: geoGrids.length,
+      aiVisibility: aiVisibility.length,
+      monthlyReports: monthlyReports.length,
+      deliveryProfiles: profiles.length,
+    };
+  });
+}
+
 async function erasePostgres(db: Db, user: UserRow, organizationIds: string[]) {
   await db.transaction(async (tx) => {
     await tx
@@ -559,7 +646,7 @@ async function main() {
   const db = drizzle(client);
   try {
     const user = await findUser(db);
-    const inventory = await buildInventory(db, user);
+    let inventory = await buildInventory(db, user);
     const summary = {
       mode: execute ? "execute" : "dry-run",
       databaseHost,
@@ -573,6 +660,9 @@ async function main() {
         r2Objects: inventory.r2Keys.length,
         activeAuditWorkflows: inventory.activeAuditWorkflowIds.length,
         activeRankWorkflows: inventory.activeRankWorkflowIds.length,
+        activeAiVisibilityWorkflows:
+          inventory.activeAiVisibilityWorkflowIds.length,
+        activeReportWorkflows: inventory.activeReportWorkflowIds.length,
       },
       external: {
         googleAccounts: inventory.googleAccounts.length,
@@ -600,6 +690,15 @@ async function main() {
       );
     }
 
+    // Close every scheduler admission path before refreshing the workflow
+    // inventory. Without this first transaction, a five-minute cron tick could
+    // enqueue new provider or delivery work between inventory and deletion.
+    const recurringWorkDisabled = await disableRecurringWorkForErasure(
+      db,
+      inventory.projectIds,
+    );
+    inventory = await buildInventory(db, user);
+
     const organizationIds = inventory.organizations.map(
       (organization) => organization.id,
     );
@@ -615,6 +714,8 @@ async function main() {
       auditIds: inventory.auditIds,
       activeAuditWorkflowIds: inventory.activeAuditWorkflowIds,
       activeRankWorkflowIds: inventory.activeRankWorkflowIds,
+      activeAiVisibilityWorkflowIds: inventory.activeAiVisibilityWorkflowIds,
+      activeReportWorkflowIds: inventory.activeReportWorkflowIds,
       r2Keys: inventory.r2Keys,
       googleAccounts: inventory.googleAccounts,
     });
@@ -632,6 +733,7 @@ async function main() {
           userId: user.id,
           email: user.email,
           vendors: { loops, postHogPeopleQueued, autumn: autumnResult },
+          recurringWorkDisabled,
           storage,
           postgres: postgresVerification,
           retentionNotes: [

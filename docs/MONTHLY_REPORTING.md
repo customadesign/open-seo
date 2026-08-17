@@ -43,7 +43,7 @@ Two counting rules keep the figures honest:
 
 ## Publication workflow
 
-Each report run saves an immutable versioned JSON snapshot and its commentary. The scheduler claims a due monthly instant with a compare-and-set update, creates one run for that instant, and starts a Cloudflare Workflow. The scheduled key prevents duplicate publication.
+Each report run saves an immutable versioned JSON snapshot and its commentary. The scheduler claims a due monthly instant with a compare-and-set update, creates one run for that instant, and starts a Cloudflare Workflow. The scheduled key prevents duplicate publication. Hosted schedules can use credit-metered AI commentary. Docker self-hosted schedules fail closed to deterministic evidence commentary so enabling a monthly report cannot create recurring OpenRouter spend; an explicit manual report can still use the configured provider.
 
 The workflow reads each enabled source, validates the complete snapshot, creates evidence-bound commentary, then publishes the run. AI commentary uses only the saved evidence. If the AI provider is unavailable or returns invalid output, OpenSEO publishes a deterministic summary instead. Staff can edit commentary after publication without changing the underlying metrics.
 

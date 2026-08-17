@@ -125,12 +125,24 @@ async function startWorkflow(
 ) {
   const workflowInstanceId = `${input.runId}-${crypto.randomUUID()}`;
   try {
+    // Persist at enqueue time, before the workflow gets CPU, so GDPR erasure
+    // can terminate queued instances as well as ones that already started.
+    await ReportRepository.setRunWorkflowInstanceId({
+      ...input,
+      workflowInstanceId,
+    });
     await workflow.create({ id: workflowInstanceId, params: input });
   } catch (error) {
     await ReportRepository.failRun(
       input.runId,
       "Failed to start report workflow",
     );
+    try {
+      await (await workflow.get(workflowInstanceId)).terminate();
+    } catch {
+      // The create may have failed before an instance existed, or it may have
+      // already reached a terminal state.
+    }
     throw error;
   }
   return workflowInstanceId;

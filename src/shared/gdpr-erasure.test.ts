@@ -1,6 +1,9 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { signGdprErasureRequest } from "./gdpr-erasure";
+import {
+  gdprStorageErasurePayloadSchema,
+  signGdprErasureRequest,
+} from "./gdpr-erasure";
 
 describe("GDPR erasure request", () => {
   it("signs the timestamp and exact body with HMAC SHA-256", async () => {
@@ -13,6 +16,31 @@ describe("GDPR erasure request", () => {
 
     await expect(signGdprErasureRequest(secret, timestamp, body)).resolves.toBe(
       expected,
+    );
+  });
+
+  it("requires inventories for every workflow that can outlive database deletion", () => {
+    const payload = {
+      userId: "user_1",
+      email: "person@example.com",
+      organizationIds: [],
+      projectIds: [],
+      samSessionIds: [],
+      auditIds: [],
+      activeAuditWorkflowIds: [],
+      activeRankWorkflowIds: [],
+      activeAiVisibilityWorkflowIds: [],
+      activeReportWorkflowIds: [],
+      r2Keys: [],
+      googleAccounts: [],
+    };
+    const parsed = gdprStorageErasurePayloadSchema.parse(payload);
+
+    expect(parsed.activeAiVisibilityWorkflowIds).toEqual([]);
+    expect(parsed.activeReportWorkflowIds).toEqual([]);
+    const { activeReportWorkflowIds: _omitted, ...incomplete } = payload;
+    expect(gdprStorageErasurePayloadSchema.safeParse(incomplete).success).toBe(
+      false,
     );
   });
 });
