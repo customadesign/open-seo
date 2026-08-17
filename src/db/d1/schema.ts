@@ -14,3 +14,5 @@ export * from "../disavow.schema";
 export * from "../change-events.schema";
 export * from "../telemetry.schema";
 export * from "../local-seo.schema";
+export * from "../ai-visibility.schema";
+export * from "../rank-tracking.schema";
