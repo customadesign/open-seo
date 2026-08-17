@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- the Postgres schema catalog mirrors D1 in one file for Drizzle generation and parity review. */
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -319,6 +320,46 @@ export const rankTrackingKeywords = pgTable(
   ],
 );
 
+// Provenance for ranking history imported from an external tracker. See the
+// SQLite definition for the continuity contract.
+export const rankHistorySources = pgTable(
+  "rank_history_sources",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    configId: text("config_id")
+      .notNull()
+      .references(() => rankTrackingConfigs.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: ["semrush"] }).notNull(),
+    externalCampaignId: text("external_campaign_id").notNull(),
+    searchEngine: text("search_engine").notNull(),
+    sourceLocationCode: integer("source_location_code"),
+    sourceLocationName: text("source_location_name").notNull(),
+    sourceLocationType: text("source_location_type"),
+    languageCode: text("language_code").notNull(),
+    device: text("device", { enum: ["desktop", "mobile"] }).notNull(),
+    continuity: text("continuity", { enum: ["continuous", "legacy"] })
+      .notNull()
+      .default("legacy"),
+    firstObservedAt: timestampColumn("first_observed_at"),
+    lastObservedAt: timestampColumn("last_observed_at"),
+    importedAt: timestampColumn("imported_at").notNull().default(isoNow),
+  },
+  (table) => [
+    uniqueIndex("rank_history_sources_provider_campaign_idx").on(
+      table.provider,
+      table.externalCampaignId,
+    ),
+    index("rank_history_sources_config_idx").on(
+      table.configId,
+      table.importedAt,
+    ),
+    index("rank_history_sources_project_idx").on(table.projectId),
+  ],
+);
+
 // One row per check execution (manual or scheduled).
 // A partial unique index on `config_id WHERE status IN ('pending','running')`
 // enforces at most one in-flight run per config at the DB level, which is how
@@ -342,6 +383,14 @@ export const rankCheckRuns = pgTable(
     keywordsTotal: integer("keywords_total").notNull().default(0),
     keywordsChecked: integer("keywords_checked").notNull().default(0),
     isSubsetRun: boolean("is_subset_run").notNull().default(false),
+    historySourceId: text("history_source_id").references(
+      () => rankHistorySources.id,
+      { onDelete: "cascade" },
+    ),
+    targetLocationCode: integer("target_location_code"),
+    targetLocationName: text("target_location_name"),
+    targetLanguageCode: text("target_language_code"),
+    targetSerpDepth: integer("target_serp_depth"),
     errorMessage: text("error_message"),
     startedAt: timestampColumn("started_at").notNull().default(isoNow),
     completedAt: timestampColumn("completed_at"),
@@ -349,6 +398,10 @@ export const rankCheckRuns = pgTable(
   (table) => [
     index("rank_check_runs_config_idx").on(table.configId, table.startedAt),
     index("rank_check_runs_project_idx").on(table.projectId, table.startedAt),
+    uniqueIndex("rank_check_runs_import_source_date_idx").on(
+      table.historySourceId,
+      table.startedAt,
+    ),
     uniqueIndex("rank_check_runs_one_active_per_config_idx")
       .on(table.configId)
       .where(sql`${table.status} IN ('pending', 'running')`),

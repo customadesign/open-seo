@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- the D1 schema catalog stays in one file for Drizzle generation and SQLite/Postgres parity review. */
 import {
   sqliteTable,
   text,
@@ -325,6 +326,50 @@ export const rankTrackingKeywords = sqliteTable(
   ],
 );
 
+// Provenance for ranking history imported from an external tracker. A source
+// is attached to the live OpenSEO config that owns the keywords, while
+// `continuity` decides whether its runs are comparable with current Google
+// tracking or belong in the separately-labelled legacy view.
+export const rankHistorySources = sqliteTable(
+  "rank_history_sources",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    configId: text("config_id")
+      .notNull()
+      .references(() => rankTrackingConfigs.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: ["semrush"] }).notNull(),
+    externalCampaignId: text("external_campaign_id").notNull(),
+    searchEngine: text("search_engine").notNull(),
+    sourceLocationCode: integer("source_location_code"),
+    sourceLocationName: text("source_location_name").notNull(),
+    sourceLocationType: text("source_location_type"),
+    languageCode: text("language_code").notNull(),
+    device: text("device", { enum: ["desktop", "mobile"] }).notNull(),
+    continuity: text("continuity", { enum: ["continuous", "legacy"] })
+      .notNull()
+      .default("legacy"),
+    firstObservedAt: text("first_observed_at"),
+    lastObservedAt: text("last_observed_at"),
+    importedAt: text("imported_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("rank_history_sources_provider_campaign_idx").on(
+      table.provider,
+      table.externalCampaignId,
+    ),
+    index("rank_history_sources_config_idx").on(
+      table.configId,
+      table.importedAt,
+    ),
+    index("rank_history_sources_project_idx").on(table.projectId),
+  ],
+);
+
 // One row per check execution (manual or scheduled).
 // A partial unique index on `config_id WHERE status IN ('pending','running')`
 // enforces at most one in-flight run per config at the DB level, which is how
@@ -350,6 +395,16 @@ export const rankCheckRuns = sqliteTable(
     isSubsetRun: integer("is_subset_run", { mode: "boolean" })
       .notNull()
       .default(false),
+    historySourceId: text("history_source_id").references(
+      () => rankHistorySources.id,
+      { onDelete: "cascade" },
+    ),
+    // Immutable measurement context. Configs are editable, so reading these
+    // values from the current config would silently relabel older results.
+    targetLocationCode: integer("target_location_code"),
+    targetLocationName: text("target_location_name"),
+    targetLanguageCode: text("target_language_code"),
+    targetSerpDepth: integer("target_serp_depth"),
     errorMessage: text("error_message"),
     startedAt: text("started_at")
       .notNull()
@@ -359,6 +414,10 @@ export const rankCheckRuns = sqliteTable(
   (table) => [
     index("rank_check_runs_config_idx").on(table.configId, table.startedAt),
     index("rank_check_runs_project_idx").on(table.projectId, table.startedAt),
+    uniqueIndex("rank_check_runs_import_source_date_idx").on(
+      table.historySourceId,
+      table.startedAt,
+    ),
     uniqueIndex("rank_check_runs_one_active_per_config_idx")
       .on(table.configId)
       .where(sql`${table.status} IN ('pending', 'running')`),

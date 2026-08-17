@@ -157,6 +157,10 @@ export async function beginRankCheckRun(input: {
       projectId: input.projectId,
       keywordsTotal: input.keywordsTotal,
       isSubsetRun: (input.keywordIds?.length ?? 0) > 0,
+      targetLocationCode: input.config.locationCode,
+      targetLocationName: input.config.locationName,
+      targetLanguageCode: input.config.languageCode,
+      targetSerpDepth: input.config.serpDepth,
     });
 
     if (created) {

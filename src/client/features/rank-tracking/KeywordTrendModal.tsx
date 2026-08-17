@@ -48,7 +48,7 @@ export function KeywordTrendModal({
   serpDepth: number;
   onClose: () => void;
 }) {
-  const [sinceDays, setSinceDays] = useState(730);
+  const [sinceDays, setSinceDays] = useState<number | undefined>(undefined);
 
   const { data: history, isLoading } = useQuery({
     queryKey: [
@@ -70,6 +70,14 @@ export function KeywordTrendModal({
   });
 
   const points = useMemo(() => history ?? [], [history]);
+  const hasImportedHistory = points.some(
+    (point) => point.sourceProvider === "semrush",
+  );
+  const displayDepth = Math.max(
+    serpDepth,
+    ...points.map((point) => point.serpDepth ?? 0),
+    ...points.map((point) => point.position ?? 0),
+  );
   const devices = useMemo(() => deriveDevices(points), [points]);
 
   // A single run yields one point per device, so for a both-devices config
@@ -100,15 +108,18 @@ export function KeywordTrendModal({
   // Keys ("<ts>:<device>") whose plotted point sits in the bottom band because
   // the real position was null — so the tooltip can say "Not in top N"
   // unambiguously even when a genuine position equals serpDepth.
-  const bottomBandKeys = useMemo(() => {
-    const keys = new Set<string>();
+  const bottomBandDepths = useMemo(() => {
+    const keys = new Map<string, number>();
     for (const p of points) {
       if (p.position === null) {
-        keys.add(`${new Date(p.checkedAt).getTime()}:${p.device}`);
+        keys.set(
+          `${new Date(p.checkedAt).getTime()}:${p.device}`,
+          p.serpDepth ?? serpDepth,
+        );
       }
     }
     return keys;
-  }, [points]);
+  }, [points, serpDepth]);
 
   const historyRows = useMemo(() => buildHistoryRows(points), [points]);
 
@@ -118,17 +129,30 @@ export function KeywordTrendModal({
       DEVICE_STYLE[r.device].label,
       r.position ?? "",
       csvChange(r.position, r.previousPosition),
+      r.sourceProvider === "semrush" ? "SEMrush" : "OpenSEO",
     ]);
 
   const handleCopy = () => {
-    const headers = ["Date", "Device", "Position", "Change vs previous"];
+    const headers = [
+      "Date",
+      "Device",
+      "Position",
+      "Change vs previous",
+      "Source",
+    ];
     void navigator.clipboard.writeText(buildCsv(headers, exportRows()));
     toast.success("Copied to clipboard");
     captureClientEvent("rank_tracking:keyword_trend_copy");
   };
 
   const handleExport = () => {
-    const headers = ["Date", "Device", "Position", "Change vs previous"];
+    const headers = [
+      "Date",
+      "Device",
+      "Position",
+      "Change vs previous",
+      "Source",
+    ];
     downloadCsv(
       `rank-history-${slugify(target.keyword)}.csv`,
       buildCsv(headers, exportRows()),
@@ -158,6 +182,13 @@ export function KeywordTrendModal({
         <TrendRangeToggle value={sinceDays} onChange={setSinceDays} />
       </div>
 
+      {hasImportedHistory ? (
+        <div className="alert alert-info py-2 text-xs">
+          Historical points imported from SEMrush are labeled below. The
+          provider cutover remains visible in the timeline.
+        </div>
+      ) : null}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="size-5 animate-spin text-base-content/50" />
@@ -169,14 +200,15 @@ export function KeywordTrendModal({
           <RankTrendChart
             data={chartData}
             series={series}
-            serpDepth={serpDepth}
-            showBottomBand
+            serpDepth={displayDepth}
+            showBottomBand={points.every(
+              (point) => (point.serpDepth ?? serpDepth) === displayDepth,
+            )}
             renderTooltip={(label, entries) => (
               <ChartTooltip
                 label={label}
                 entries={entries}
-                serpDepth={serpDepth}
-                bottomBandKeys={bottomBandKeys}
+                bottomBandDepths={bottomBandDepths}
               />
             )}
           />
@@ -203,6 +235,7 @@ export function KeywordTrendModal({
                   {devices.length > 1 && <th>Device</th>}
                   <th>Position</th>
                   <th>Δ vs previous check</th>
+                  <th>Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,7 +259,7 @@ export function KeywordTrendModal({
                       <td>
                         {r.position === null ? (
                           <span className="text-base-content/40 text-xs">
-                            Not in top {serpDepth}
+                            Not in top {r.serpDepth ?? serpDepth}
                           </span>
                         ) : (
                           <span className="font-mono text-sm">
@@ -259,6 +292,13 @@ export function KeywordTrendModal({
                           />
                         )}
                       </td>
+                      <td>
+                        <span className="badge badge-ghost badge-sm">
+                          {r.sourceProvider === "semrush"
+                            ? `SEMrush${r.sourceEngine ? ` · ${r.sourceEngine}` : ""}`
+                            : "OpenSEO"}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}
@@ -290,13 +330,11 @@ function EmptyState({ count }: { count: number }) {
 function ChartTooltip({
   label,
   entries,
-  serpDepth,
-  bottomBandKeys,
+  bottomBandDepths,
 }: {
   label: number;
   entries: Array<{ dataKey?: string | number; value: number | null }>;
-  serpDepth: number;
-  bottomBandKeys: Set<string>;
+  bottomBandDepths: Map<string, number>;
 }) {
   return (
     <div className="rounded-md border border-base-300 bg-base-100 px-3 py-2 shadow-sm space-y-0.5">
@@ -312,13 +350,13 @@ function ChartTooltip({
           e.dataKey === "desktop" || e.dataKey === "mobile"
             ? DEVICE_STYLE[e.dataKey].label
             : String(e.dataKey ?? "");
-        const inBottomBand = bottomBandKeys.has(`${label}:${e.dataKey}`);
+        const notFoundDepth = bottomBandDepths.get(`${label}:${e.dataKey}`);
         return (
           <p key={String(e.dataKey)} className="text-sm font-medium">
             {device}:{" "}
-            {inBottomBand ? (
+            {notFoundDepth != null ? (
               <span className="text-base-content/60">
-                Not in top {serpDepth}
+                Not in top {notFoundDepth}
               </span>
             ) : (
               e.value
@@ -360,7 +398,8 @@ function buildChartData(
   for (const p of points) {
     const ts = new Date(p.checkedAt).getTime();
     const row = byTime.get(ts) ?? { checkedAt: ts };
-    row[p.device] = p.position === null ? serpDepth : p.position;
+    row[p.device] =
+      p.position === null ? (p.serpDepth ?? serpDepth) : p.position;
     byTime.set(ts, row);
   }
   return [...byTime.values()].toSorted((a, b) => a.checkedAt - b.checkedAt);
@@ -371,6 +410,9 @@ interface HistoryRow {
   checkedAt: string;
   position: number | null;
   previousPosition: number | null;
+  serpDepth: number | null;
+  sourceProvider: "semrush" | null;
+  sourceEngine: string | null;
 }
 
 /**
@@ -390,6 +432,9 @@ function buildHistoryRows(points: RankKeywordHistoryPoint[]): HistoryRow[] {
       previousPosition: hadPrevious
         ? (prevByDevice.get(p.device) ?? null)
         : null,
+      serpDepth: p.serpDepth,
+      sourceProvider: p.sourceProvider,
+      sourceEngine: p.sourceEngine,
     });
     prevByDevice.set(p.device, p.position);
   }

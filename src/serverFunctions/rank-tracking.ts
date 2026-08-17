@@ -23,12 +23,17 @@ import {
   getKeywordHistorySchema,
   getConfigTrendSchema,
   getPositionMatrixSchema,
+  getRankHistorySourcesSchema,
+  getRankHistorySourceMovementSchema,
 } from "@/types/schemas/rank-tracking";
 
 export interface RankKeywordHistoryPoint {
   device: "desktop" | "mobile";
   checkedAt: string;
   position: number | null;
+  serpDepth: number | null;
+  sourceProvider: "semrush" | null;
+  sourceEngine: string | null;
 }
 
 interface RankConfigTrendPoint {
@@ -38,6 +43,7 @@ interface RankConfigTrendPoint {
   top4to10: number;
   top11to20: number;
   notRanking: number;
+  sourceProvider: "semrush" | null;
 }
 
 export interface RankPositionMatrixCell {
@@ -45,6 +51,7 @@ export interface RankPositionMatrixCell {
   checkedAt: string;
   trackingKeywordId: string;
   position: number | null;
+  sourceProvider: "semrush" | null;
 }
 
 async function requireConfig(configId: string, projectId: string) {
@@ -308,8 +315,28 @@ export const getRankConfigTrend = createServerFn({ method: "POST" })
         top4to10,
         top11to20,
         notRanking: Math.max(0, total - top3 - top4to10 - top11to20),
+        sourceProvider: row.sourceProvider,
       };
     });
+  });
+
+export const getRankHistorySources = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankHistorySourcesSchema)
+  .handler(async ({ data, context }) => {
+    await requireConfig(data.configId, context.projectId);
+    return RankTrackingRepository.getHistorySourceSummaries(data.configId);
+  });
+
+export const getRankHistorySourceMovement = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankHistorySourceMovementSchema)
+  .handler(async ({ data, context }) => {
+    await requireConfig(data.configId, context.projectId);
+    return RankTrackingRepository.getHistorySourceMovement(
+      data.configId,
+      data.sourceId,
+    );
   });
 
 export const getRankPositionMatrix = createServerFn({ method: "POST" })

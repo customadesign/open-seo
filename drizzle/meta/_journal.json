@@ -316,6 +316,13 @@
       "when": 1786919405881,
       "tag": "0046_funny_wilson_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1786961495871,
+      "tag": "0047_regular_fenris",
+      "breakpoints": true
     }
   ]
 }

@@ -81,11 +81,49 @@ async function loadRankings(
       ),
     ]);
     if (current.length === 0) continue;
+    const [baseline, historySources] = await Promise.all([
+      RankTrackingRepository.getEarliestSnapshotsForKeywords(config.id, [
+        ...new Set(current.map((row) => row.trackingKeywordId)),
+      ]),
+      RankTrackingRepository.getHistorySourceSummaries(config.id),
+    ]);
+    const baselineByKey = new Map(
+      baseline.map((row) => [`${row.trackingKeywordId}:${row.device}`, row]),
+    );
+    const legacySources = await Promise.all(
+      historySources
+        .filter((source) => source.continuity === "legacy")
+        .map(async (source) => {
+          const movement =
+            await RankTrackingRepository.getHistorySourceMovement(
+              config.id,
+              source.id,
+            );
+          return {
+            sourceId: source.id,
+            searchEngine: source.searchEngine,
+            locationName: source.sourceLocationName,
+            device: source.device,
+            firstObservedAt: source.firstObservedAt,
+            lastObservedAt: source.lastObservedAt,
+            tracked: movement.length,
+            improved: movement.filter(
+              (row) => row.change != null && row.change > 0,
+            ).length,
+            declined: movement.filter(
+              (row) => row.change != null && row.change < 0,
+            ).length,
+          };
+        }),
+    );
     const previousByKey = new Map(
       previous.map((row) => [`${row.trackingKeywordId}:${row.device}`, row]),
     );
     const rows = current.map((row) => {
       const previousRow = previousByKey.get(
+        `${row.trackingKeywordId}:${row.device}`,
+      );
+      const baselineRow = baselineByKey.get(
         `${row.trackingKeywordId}:${row.device}`,
       );
       const change =
@@ -99,6 +137,16 @@ async function loadRankings(
         previousPosition: previousRow?.position ?? null,
         change,
         rankingUrl: row.url,
+        baselinePosition: baselineRow?.position ?? null,
+        baselineDate: baselineRow?.checkedAt ?? null,
+        lifetimeChange:
+          row.position != null && baselineRow?.position != null
+            ? baselineRow.position - row.position
+            : null,
+        baselineSource:
+          baselineRow?.sourceProvider === "semrush"
+            ? ("semrush" as const)
+            : ("openseo" as const),
       };
     });
     const positions = rows.map((row) => row.position);
@@ -152,6 +200,7 @@ async function loadRankings(
       summary,
       rows,
       trend,
+      legacySources,
     });
   }
   return configReports.length === 0

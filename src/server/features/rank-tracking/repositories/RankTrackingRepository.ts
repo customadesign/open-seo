@@ -1,15 +1,4 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNull,
-  lte,
-  max,
-  ne,
-} from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, lte, ne } from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -28,7 +17,13 @@ import {
   getKeywordHistory,
   getConfigTrend,
   getPositionMatrix,
+  getHistorySourceSummaries,
+  getHistorySourceMovement,
 } from "./snapshotQueries";
+import {
+  getLatestComparableRunForConfig,
+  getLatestComparableRunSummaries,
+} from "./comparableRunQueries";
 
 // ---------------------------------------------------------------------------
 // Config CRUD
@@ -216,6 +211,10 @@ async function tryCreateRun(data: {
   projectId: string;
   keywordsTotal: number;
   isSubsetRun?: boolean;
+  targetLocationCode: number;
+  targetLocationName: string | null;
+  targetLanguageCode: string;
+  targetSerpDepth: number;
 }) {
   const inserted = await db
     .insert(rankCheckRuns)
@@ -237,16 +236,6 @@ async function getRunById(runId: string) {
     .select()
     .from(rankCheckRuns)
     .where(eq(rankCheckRuns.id, runId))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-async function getLatestRunForConfig(configId: string) {
-  const rows = await db
-    .select()
-    .from(rankCheckRuns)
-    .where(eq(rankCheckRuns.configId, configId))
-    .orderBy(desc(rankCheckRuns.startedAt))
     .limit(1);
   return rows[0] ?? null;
 }
@@ -366,49 +355,9 @@ async function getConfigSummaries(projectId: string) {
   if (configs.length === 0) return [];
 
   const kwCountMap = await getKeywordCountsForConfigs(configs.map((c) => c.id));
-
-  // Subquery: latest startedAt per config
-  const latestStarted = db
-    .select({
-      configId: rankCheckRuns.configId,
-      maxStartedAt: max(rankCheckRuns.startedAt).as("maxStartedAt"),
-    })
-    .from(rankCheckRuns)
-    .where(
-      inArray(
-        rankCheckRuns.configId,
-        configs.map((c) => c.id),
-      ),
-    )
-    .groupBy(rankCheckRuns.configId)
-    .as("latestStarted");
-
-  // Join back to get status + completedAt for each config's latest run
-  const latestRuns = await db
-    .select({
-      configId: rankCheckRuns.configId,
-      status: rankCheckRuns.status,
-      completedAt: rankCheckRuns.completedAt,
-    })
-    .from(rankCheckRuns)
-    .innerJoin(
-      latestStarted,
-      and(
-        eq(rankCheckRuns.configId, latestStarted.configId),
-        eq(rankCheckRuns.startedAt, latestStarted.maxStartedAt),
-      ),
-    );
-
-  const latestRunMap = new Map<
-    string,
-    { status: string; completedAt: string | null }
-  >();
-  for (const run of latestRuns) {
-    latestRunMap.set(run.configId, {
-      status: run.status,
-      completedAt: run.completedAt,
-    });
-  }
+  const latestRunMap = await getLatestComparableRunSummaries(
+    configs.map((config) => config.id),
+  );
 
   return configs.map((config) => ({
     ...config,
@@ -475,7 +424,7 @@ export const RankTrackingRepository = {
   tryCreateRun,
   updateRun,
   getRunById,
-  getLatestRunForConfig,
+  getLatestRunForConfig: getLatestComparableRunForConfig,
   getActiveRunForConfig,
   insertSnapshots,
   getSnapshotsForRun,
@@ -492,4 +441,6 @@ export const RankTrackingRepository = {
   getKeywordHistory,
   getConfigTrend,
   getPositionMatrix,
+  getHistorySourceSummaries,
+  getHistorySourceMovement,
 };

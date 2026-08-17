@@ -87,6 +87,7 @@ export const {
   keywordMetrics,
   rankTrackingConfigs,
   rankTrackingKeywords,
+  rankHistorySources,
   rankCheckRuns,
   rankSnapshots,
   organizationActivationState,

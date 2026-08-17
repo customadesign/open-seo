@@ -662,7 +662,15 @@ function RankingsSection({
             ]}
           />
           <DataTable
-            headers={["Keyword", "Device", "Position", "Previous", "Change"]}
+            headers={[
+              "Keyword",
+              "Device",
+              "Position",
+              "Previous",
+              "Change",
+              "First tracked",
+              "Lifetime",
+            ]}
             rows={config.rows
               .slice(0, 50)
               .map((row) => [
@@ -675,8 +683,50 @@ function RankingsSection({
                   : row.change > 0
                     ? `+${row.change}`
                     : String(row.change),
+                row.baselinePosition == null
+                  ? "—"
+                  : `${row.baselinePosition}${
+                      row.baselineSource === "semrush" ? " (SEMrush)" : ""
+                    }`,
+                row.lifetimeChange == null
+                  ? "—"
+                  : row.lifetimeChange > 0
+                    ? `+${row.lifetimeChange}`
+                    : String(row.lifetimeChange),
               ])}
           />
+          {(config.legacySources?.length ?? 0) > 0 ? (
+            <div className="space-y-2">
+              <div>
+                <h4 className="text-sm font-semibold">
+                  Legacy SEMrush history
+                </h4>
+                <p className="text-xs text-base-content/55">
+                  These campaigns used a different location or search engine.
+                  Movement is measured only within the original campaign and is
+                  not compared with current local rankings.
+                </p>
+              </div>
+              <DataTable
+                headers={[
+                  "Engine",
+                  "Original target",
+                  "Device",
+                  "Tracked",
+                  "Improved",
+                  "Declined",
+                ]}
+                rows={(config.legacySources ?? []).map((source) => [
+                  source.searchEngine,
+                  source.locationName,
+                  source.device,
+                  source.tracked,
+                  source.improved,
+                  source.declined,
+                ])}
+              />
+            </div>
+          ) : null}
         </div>
       ))}
     </SectionShell>
