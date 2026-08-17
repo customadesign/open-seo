@@ -10,6 +10,7 @@ import {
   isValidTimeZone,
   nextMonthlyRun,
   previousFullCalendarMonth,
+  resolveDueMonthlyOccurrence,
 } from "./reportDates";
 import {
   DEFAULT_REPORT_SECTIONS,
@@ -230,17 +231,23 @@ type DueReportSetting = Awaited<
   ReturnType<typeof ReportRepository.listDueSettings>
 >[number];
 
+type DueSettingOutcome = "started" | "skipped_free" | "skipped_stale" | "none";
+
 async function processDueSetting(input: {
   workflow: Env["REPORT_WORKFLOW"];
   due: DueReportSetting;
   hosted: boolean;
+  now: Date;
   hasPaidPlan: (organizationId: string) => Promise<boolean>;
-}) {
+}): Promise<DueSettingOutcome> {
   const { settings, organizationId } = input.due;
-  if (!settings.nextRunAt) return false;
+  if (!settings.nextRunAt) return "none";
   const observedNextRunAt = settings.nextRunAt;
-  const nextRunAt = nextMonthlyRun({
-    after: new Date(observedNextRunAt),
+  // One claim covers every occurrence a stopped deployment missed, so an
+  // overdue schedule can't start a report per tick until it catches up.
+  const { occurrence, nextRunAt } = resolveDueMonthlyOccurrence({
+    scheduledFor: new Date(observedNextRunAt),
+    now: input.now,
     timeZone: settings.timeZone,
     runDay: settings.runDay,
     runHour: settings.runHour,
@@ -251,19 +258,29 @@ async function processDueSetting(input: {
       observedNextRunAt,
       nextRunAt,
     });
-    return false;
+    return "skipped_free";
   }
   const claimed = await ReportRepository.claimDueSettings({
     settingsId: settings.id,
     observedNextRunAt,
     nextRunAt,
   });
-  if (!claimed) return false;
+  if (!claimed) return "none";
   const range = previousFullCalendarMonth(
-    new Date(observedNextRunAt),
+    new Date(occurrence),
     settings.timeZone,
   );
-  const scheduledKey = `${settings.id}:${observedNextRunAt}`;
+  // No backfilling: a missed occurrence whose month is no longer the one a
+  // report generated today would cover is dropped, not queued. The schedule is
+  // already advanced above, so the next report is the next live period; older
+  // months stay available through manual generation.
+  if (
+    range.periodStart !==
+    previousFullCalendarMonth(input.now, settings.timeZone).periodStart
+  ) {
+    return "skipped_stale";
+  }
+  const scheduledKey = `${settings.id}:${occurrence}`;
   const run = await ReportRepository.createRun({
     id: crypto.randomUUID(),
     projectId: settings.projectId,
@@ -272,12 +289,12 @@ async function processDueSetting(input: {
     scheduledKey,
     ...range,
   });
-  if (!run || run.status !== "queued") return false;
+  if (!run || run.status !== "queued") return "none";
   await startWorkflow(input.workflow, {
     projectId: settings.projectId,
     runId: run.id,
   });
-  return true;
+  return "started";
 }
 
 async function processDueSchedules(
@@ -296,12 +313,21 @@ async function processDueSchedules(
     return check;
   };
   let started = 0;
+  let skippedFree = 0;
+  let skippedStale = 0;
   let errors = 0;
   for (const item of due) {
     try {
-      started += Number(
-        await processDueSetting({ workflow, due: item, hosted, hasPaidPlan }),
-      );
+      const outcome = await processDueSetting({
+        workflow,
+        due: item,
+        hosted,
+        now,
+        hasPaidPlan,
+      });
+      if (outcome === "started") started += 1;
+      if (outcome === "skipped_free") skippedFree += 1;
+      if (outcome === "skipped_stale") skippedStale += 1;
     } catch (error) {
       errors += 1;
       console.error(
@@ -310,7 +336,18 @@ async function processDueSchedules(
       );
     }
   }
-  return { started, errors };
+  // Object argument (not an interpolated string) so Workers Logs indexes the
+  // fields, matching the rank-tracking and geo-grid scheduler summaries.
+  const summary = {
+    event: "report_scheduler_summary",
+    candidates: due.length,
+    started,
+    skippedFree,
+    skippedStale,
+    errors,
+  };
+  (errors > 0 ? console.error : console.log)(summary);
+  return summary;
 }
 
 export const ReportService = {

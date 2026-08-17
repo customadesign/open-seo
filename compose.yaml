@@ -16,6 +16,10 @@ services:
       - PORT=${PORT:-3001}
       - ALLOWED_HOST=${ALLOWED_HOST:-}
       - AUTH_MODE=local_noauth
+      # Miniflare's local explorer (/cdn-cgi/explorer) has read/write access to
+      # D1, KV, and R2 with no authentication, and the Vite plugin enables it by
+      # default. Keep it off; self-hosts run with app auth disabled.
+      - X_LOCAL_EXPLORER=false
       - OPENSEO_TELEMETRY_DISABLED=${OPENSEO_TELEMETRY_DISABLED:-}
       - DO_NOT_TRACK=${DO_NOT_TRACK:-}
       - DATAFORSEO_API_KEY=${DATAFORSEO_API_KEY}
@@ -35,5 +39,25 @@ services:
       - "127.0.0.1:${PORT:-3001}:${PORT:-3001}"
     volumes:
       - open_seo_data:/app/.wrangler
+
+  # Cron driver. Cloudflare fires the wrangler.jsonc triggers itself; Miniflare
+  # (behind `vite preview`) does not, so without this sidecar scheduled rank
+  # checks, geo-grids, monthly reports, and the stale-audit watchdog never run
+  # in a Docker self-host. Details: docs/SELF_HOSTING_DOCKER.md#scheduled-work
+  open-seo-scheduler:
+    image: ${OPEN_SEO_IMAGE:-ghcr.io/every-app/open-seo:latest}
+    restart: unless-stopped
+    depends_on:
+      open-seo:
+        condition: service_healthy
+    # Share the app container's network namespace: the trigger endpoint is
+    # unauthenticated and starts metered provider work, so the sidecar must
+    # only be able to reach it on 127.0.0.1. This also means the sidecar
+    # publishes no ports of its own.
+    network_mode: "service:open-seo"
+    environment:
+      - PORT=${PORT:-3001}
+    # Replaces the app entrypoint: no migrations, no build — just the loop.
+    command: ["pnpm", "run", "selfhost:scheduler"]
 volumes:
   open_seo_data:

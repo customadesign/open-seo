@@ -47,6 +47,10 @@ function workflow() {
   return { binding, create };
 }
 
+// Pinned: whether a due occurrence still covers the current reporting period
+// is decided against this instant.
+const now = new Date("2026-08-04T01:02:00.000Z");
+
 const dueSettings = {
   id: "settings-1",
   projectId: "project-1",
@@ -93,12 +97,9 @@ describe("ReportService", () => {
     mocks.createRun.mockResolvedValue({ id: "run-1", status: "queued" });
     const { binding, create } = workflow();
 
-    const result = await ReportService.processDueSchedules(
-      binding,
-      new Date("2026-08-04T01:02:00.000Z"),
-    );
+    const result = await ReportService.processDueSchedules(binding, now);
 
-    expect(result).toEqual({ started: 1, errors: 0 });
+    expect(result).toMatchObject({ started: 1, errors: 0 });
     expect(mocks.claimDueSettings).toHaveBeenCalledWith({
       settingsId: "settings-1",
       observedNextRunAt: "2026-08-04T01:00:00.000Z",
@@ -117,6 +118,36 @@ describe("ReportService", () => {
     expect(create).toHaveBeenCalledOnce();
   });
 
+  it("advances past missed occurrences without backfilling their months", async () => {
+    mocks.listDueSettings.mockResolvedValue([
+      {
+        settings: { ...dueSettings, nextRunAt: "2026-05-04T01:00:00.000Z" },
+        organizationId: "org-1",
+      },
+    ]);
+    mocks.claimDueSettings.mockResolvedValue(true);
+    const { binding, create } = workflow();
+
+    // The May occurrence would report April, but a report generated now covers
+    // May — so April is dropped rather than backfilled.
+    const result = await ReportService.processDueSchedules(
+      binding,
+      new Date("2026-06-01T00:00:00.000Z"),
+    );
+
+    expect(result).toMatchObject({ started: 0, skippedStale: 1, errors: 0 });
+    // One claim advances the schedule, so the tick five minutes later is not
+    // due again and cannot start the same backfill.
+    expect(mocks.claimDueSettings).toHaveBeenCalledTimes(1);
+    expect(mocks.claimDueSettings).toHaveBeenCalledWith({
+      settingsId: "settings-1",
+      observedNextRunAt: "2026-05-04T01:00:00.000Z",
+      nextRunAt: "2026-06-04T01:00:00.000Z",
+    });
+    expect(mocks.createRun).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("does not start a duplicate when another cron tick won the claim", async () => {
     mocks.listDueSettings.mockResolvedValue([
       { settings: dueSettings, organizationId: "org-1" },
@@ -124,9 +155,9 @@ describe("ReportService", () => {
     mocks.claimDueSettings.mockResolvedValue(false);
     const { binding, create } = workflow();
 
-    const result = await ReportService.processDueSchedules(binding);
+    const result = await ReportService.processDueSchedules(binding, now);
 
-    expect(result).toEqual({ started: 0, errors: 0 });
+    expect(result).toMatchObject({ started: 0, errors: 0 });
     expect(mocks.createRun).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
   });
@@ -139,12 +170,9 @@ describe("ReportService", () => {
     mocks.claimDueSettings.mockResolvedValue(true);
     const { binding, create } = workflow();
 
-    const result = await ReportService.processDueSchedules(
-      binding,
-      new Date("2026-08-04T01:02:00.000Z"),
-    );
+    const result = await ReportService.processDueSchedules(binding, now);
 
-    expect(result).toEqual({ started: 0, errors: 0 });
+    expect(result).toMatchObject({ started: 0, skippedFree: 1, errors: 0 });
     expect(mocks.customerHasPaidPlan).toHaveBeenCalledWith("org-1", {
       retryDenied: true,
     });
@@ -162,9 +190,9 @@ describe("ReportService", () => {
     mocks.createRun.mockResolvedValue({ id: "run-1", status: "queued" });
     const { binding, create } = workflow();
 
-    const result = await ReportService.processDueSchedules(binding);
+    const result = await ReportService.processDueSchedules(binding, now);
 
-    expect(result).toEqual({ started: 1, errors: 0 });
+    expect(result).toMatchObject({ started: 1, errors: 0 });
     expect(mocks.customerHasPaidPlan).not.toHaveBeenCalled();
     expect(create).toHaveBeenCalledOnce();
   });
@@ -190,9 +218,9 @@ describe("ReportService", () => {
     mocks.createRun.mockResolvedValue({ id: "run-2", status: "queued" });
     const { binding, create } = workflow();
 
-    const result = await ReportService.processDueSchedules(binding);
+    const result = await ReportService.processDueSchedules(binding, now);
 
-    expect(result).toEqual({ started: 1, errors: 1 });
+    expect(result).toMatchObject({ started: 1, errors: 1 });
     expect(create).toHaveBeenCalledOnce();
   });
 

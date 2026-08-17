@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   customerHasPaidPlan: vi.fn(),
   isHostedServerAuthMode: vi.fn(),
   runGrid: vi.fn(),
-  computeNextGeoGridRun: vi.fn(),
+  nextFutureGeoGridRun: vi.fn(),
 }));
 
 vi.mock("@/server/billing/subscription", () => ({
@@ -20,7 +20,7 @@ vi.mock("@/server/features/local-seo/repositories/LocalSeoRepository", () => ({
   },
 }));
 vi.mock("@/server/features/local-seo/services/GeoGridService", () => ({
-  computeNextGeoGridRun: mocks.computeNextGeoGridRun,
+  nextFutureGeoGridRun: mocks.nextFutureGeoGridRun,
   GeoGridService: { runGrid: mocks.runGrid },
 }));
 vi.mock("@/server/lib/runtime-env", () => ({
@@ -46,7 +46,7 @@ describe("runScheduledGeoGridChecks", () => {
     mocks.claimDueGeoGridConfig.mockResolvedValue(true);
     mocks.customerHasPaidPlan.mockResolvedValue(true);
     mocks.isHostedServerAuthMode.mockResolvedValue(true);
-    mocks.computeNextGeoGridRun.mockReturnValue("2026-08-20T04:30:00.000Z");
+    mocks.nextFutureGeoGridRun.mockReturnValue("2026-08-20T04:30:00.000Z");
     mocks.runGrid.mockResolvedValue({ started: true, run: { id: "run-1" } });
   });
 

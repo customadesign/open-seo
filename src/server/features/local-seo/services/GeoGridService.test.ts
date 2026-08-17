@@ -4,6 +4,7 @@ import {
   computeNextGeoGridRun,
   GeoGridService,
   matchLocalBusinessResult,
+  nextFutureGeoGridRun,
   planGeoGrid,
 } from "./GeoGridService";
 
@@ -104,6 +105,19 @@ describe("computeNextGeoGridRun", () => {
     expect(computeNextGeoGridRun("monthly", "2027-01-31T04:30:00.000Z")).toBe(
       "2027-02-28T04:30:00.000Z",
     );
+  });
+
+  it("skips the occurrences a stopped deployment missed", () => {
+    // A week of missed daily runs must land in the future in one step —
+    // advancing a single day would leave the config due on every tick, and
+    // each tick starts another metered grid.
+    expect(
+      nextFutureGeoGridRun(
+        "daily",
+        "2026-08-06T04:30:00.000Z",
+        new Date("2026-08-13T10:00:00.000Z"),
+      ),
+    ).toBe("2026-08-14T04:30:00.000Z");
   });
 });
 

@@ -3,6 +3,7 @@ import {
   comparisonPeriod,
   nextMonthlyRun,
   previousFullCalendarMonth,
+  resolveDueMonthlyOccurrence,
 } from "./reportDates";
 
 describe("report dates", () => {
@@ -36,5 +37,20 @@ describe("report dates", () => {
         runHour: 9,
       }),
     ).toBe("2026-08-04T01:00:00.000Z");
+  });
+
+  it("collapses the occurrences a stopped deployment missed into one claim", () => {
+    expect(
+      resolveDueMonthlyOccurrence({
+        scheduledFor: new Date("2026-05-04T01:00:00.000Z"),
+        now: new Date("2026-08-17T01:00:00.000Z"),
+        timeZone: "Asia/Manila",
+        runDay: 4,
+        runHour: 9,
+      }),
+    ).toEqual({
+      occurrence: "2026-08-04T01:00:00.000Z",
+      nextRunAt: "2026-09-04T01:00:00.000Z",
+    });
   });
 });

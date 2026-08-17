@@ -1,8 +1,8 @@
 import { customerHasPaidPlan } from "@/server/billing/subscription";
 import { LocalSeoRepository } from "@/server/features/local-seo/repositories/LocalSeoRepository";
 import {
-  computeNextGeoGridRun,
   GeoGridService,
+  nextFutureGeoGridRun,
 } from "@/server/features/local-seo/services/GeoGridService";
 import { AppError } from "@/server/lib/errors";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -43,7 +43,8 @@ async function retryExactScheduledRun(input: {
  * scheduled occurrence. Manual runs use the same active-run database guard.
  */
 export async function runScheduledGeoGridChecks() {
-  const nowIso = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
   const due = await LocalSeoRepository.getDueGeoGridConfigs(nowIso);
   const hosted = await isHostedServerAuthMode();
   const planChecks = new Map<string, Promise<boolean>>();
@@ -68,9 +69,10 @@ export async function runScheduledGeoGridChecks() {
     try {
       if (!config.nextRunAt || config.scheduleInterval === "manual") continue;
       if (hosted && !(await hasPaidPlan(organizationId))) {
-        const nextRunAt = computeNextGeoGridRun(
+        const nextRunAt = nextFutureGeoGridRun(
           config.scheduleInterval,
           config.nextRunAt,
+          now,
         );
         if (
           await LocalSeoRepository.claimDueGeoGridConfig({
@@ -88,9 +90,10 @@ export async function runScheduledGeoGridChecks() {
       }
 
       const observedNextRunAt = config.nextRunAt;
-      const nextRunAt = computeNextGeoGridRun(
+      const nextRunAt = nextFutureGeoGridRun(
         config.scheduleInterval,
         observedNextRunAt,
+        now,
       );
       const claimed = await LocalSeoRepository.claimDueGeoGridConfig({
         configId: config.id,

@@ -125,6 +125,40 @@ export function comparisonPeriod(periodStart: string, periodEnd: string) {
   };
 }
 
+/**
+ * Collapse every occurrence a stopped deployment missed into one claim: the
+ * latest occurrence that has already passed, plus the first one still ahead.
+ *
+ * Advancing a single month per tick would make an overdue schedule due again
+ * immediately, so each cron tick would start another report until the schedule
+ * caught up. Reporting on the newest missed occurrence only — the caller still
+ * decides whether its period is current — keeps that to one report.
+ */
+export function resolveDueMonthlyOccurrence(input: {
+  scheduledFor: Date;
+  now: Date;
+  timeZone: string;
+  runDay: number;
+  runHour: number;
+}): { occurrence: string; nextRunAt: string } {
+  let occurrence = input.scheduledFor;
+  // Bounded so a corrupt anchor can't spin; 20 years of monthly occurrences.
+  for (let step = 0; step < 240; step += 1) {
+    const next = new Date(nextMonthlyRun({ ...input, after: occurrence }));
+    if (next > input.now) {
+      return {
+        occurrence: occurrence.toISOString(),
+        nextRunAt: next.toISOString(),
+      };
+    }
+    occurrence = next;
+  }
+  return {
+    occurrence: occurrence.toISOString(),
+    nextRunAt: nextMonthlyRun({ ...input, after: input.now }),
+  };
+}
+
 export function nextMonthlyRun(input: {
   after: Date;
   timeZone: string;

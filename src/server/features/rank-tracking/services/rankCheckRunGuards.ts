@@ -55,6 +55,27 @@ const ACTIVE_WORKFLOW_STATUSES = new Set<RankCheckWorkflowStatus["status"]>([
 
 const RANK_CHECK_STARTUP_GRACE_MS = 60 * 1000;
 
+/**
+ * Hard ceiling on an active run. Past this the run is stale even while its
+ * workflow instance still calls itself active: a run holds this config's only
+ * slot (partial unique index), so a wedged instance — a workflow paused behind
+ * a dead subrequest, a self-host container that lost its runtime mid-run —
+ * would otherwise block every scheduled check for that config forever. The
+ * longest legitimate run polls DataForSEO for ~15 minutes.
+ */
+const RANK_CHECK_MAX_ACTIVE_MS = 60 * 60 * 1000;
+
+/**
+ * D1-default timestamps ("YYYY-MM-DD HH:MM:SS") lack the T/Z; normalize so
+ * they parse as UTC rather than local time, matching the PG ISO format.
+ */
+function runAgeMs(startedAt: string): number {
+  const parsed = Date.parse(
+    startedAt.includes("T") ? startedAt : `${startedAt.replace(" ", "T")}Z`,
+  );
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : Date.now() - parsed;
+}
+
 async function getRankCheckWorkflowStatus(
   runId: string,
 ): Promise<RankCheckWorkflowStatus | null> {
@@ -96,7 +117,8 @@ async function getStaleRankCheckRunReason(input: {
   const workflowStatus = await getRankCheckWorkflowStatus(input.runId);
 
   if (workflowStatus && ACTIVE_WORKFLOW_STATUSES.has(workflowStatus.status)) {
-    return null;
+    if (input.ageMs < RANK_CHECK_MAX_ACTIVE_MS) return null;
+    return `Run exceeded the ${RANK_CHECK_MAX_ACTIVE_MS / 60_000} minute maximum runtime (workflow ${workflowStatus.status})`;
   }
 
   const startupWindow =
@@ -209,7 +231,7 @@ export async function beginRankCheckRun(input: {
       const staleReason = await getStaleRankCheckRunReason({
         run: blocker,
         runId: blocker.id,
-        ageMs: Date.now() - new Date(blocker.startedAt).getTime(),
+        ageMs: runAgeMs(blocker.startedAt),
       });
       if (staleReason) {
         await failRunIfActive(blocker.id, staleReason, blocker);
@@ -239,7 +261,7 @@ export async function reconcileActiveRankCheckRun(run: NonNullable<RunRow>) {
   const staleReason = await getStaleRankCheckRunReason({
     runId: run.id,
     run,
-    ageMs: Date.now() - new Date(run.startedAt).getTime(),
+    ageMs: runAgeMs(run.startedAt),
   });
   if (!staleReason) return null;
 

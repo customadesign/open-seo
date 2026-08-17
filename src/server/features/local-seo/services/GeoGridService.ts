@@ -49,6 +49,28 @@ export function computeNextGeoGridRun(
   return next.toISOString();
 }
 
+/**
+ * The first occurrence strictly after `now`, skipping any the deployment
+ * missed. Advancing one interval at a time would leave a config that was due
+ * while the app was down still due on the next tick, so every tick would start
+ * another metered grid until the schedule caught up — a self-host offline for
+ * a week bills a week of daily grids in under an hour. Missed occurrences are
+ * dropped, not queued: a geo-grid measures rankings now.
+ */
+export function nextFutureGeoGridRun(
+  interval: Exclude<GeoGridScheduleInterval, "manual">,
+  anchor: string | Date,
+  now: Date = new Date(),
+) {
+  let next = computeNextGeoGridRun(interval, anchor);
+  // Bounded so a corrupt anchor can't spin: daily × 4000 covers ~10 years,
+  // beyond which the schedule is re-anchored to now.
+  for (let step = 0; step < 4_000 && new Date(next) <= now; step += 1) {
+    next = computeNextGeoGridRun(interval, next);
+  }
+  return new Date(next) <= now ? computeNextGeoGridRun(interval, now) : next;
+}
+
 interface PlannedGeoGridCell {
   rowIndex: number;
   columnIndex: number;
