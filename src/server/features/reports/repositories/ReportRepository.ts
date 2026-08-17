@@ -23,6 +23,11 @@ export const DEFAULT_REPORT_SECTIONS: Array<{
   { key: "google_ads", enabled: true },
   { key: "audit", enabled: true },
   { key: "backlinks", enabled: true },
+  // Stored-data sections: a project with no AI visibility or geo-grid config
+  // simply reports them as not connected, so defaulting them on costs nothing
+  // and never triggers a provider call.
+  { key: "ai_visibility", enabled: true },
+  { key: "local_geo_grid", enabled: true },
 ];
 
 async function getSettings(projectId: string) {

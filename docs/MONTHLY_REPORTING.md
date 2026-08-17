@@ -23,8 +23,23 @@ The section order is:
 5. Google Ads
 6. Site audit
 7. Backlinks
+8. AI visibility
+9. Local map rankings
 
 The executive summary is always present. Other sections can be disabled or reordered. A source that is not connected is omitted. A connected source that returns no activity shows zero activity where the API supports it. If a configured source fails, the new run fails and the previous published report remains available.
+
+A profile or project saved before a section shipped has no stored row for it. The missing section comes back disabled, so a report already going to a client never gains a section without an operator enabling it.
+
+### Stored-data sections
+
+AI visibility and local map rankings are built only from observations and runs the project already collected and paid for. Generating, delivering or sharing a report never calls a provider, never starts a run and never arms a paused schedule.
+
+Each of these sections reports the newest completed run at or before the period end, which can be older than the period itself. That is stated rather than hidden: every entry carries its capture date, and data that finished before the period began is labelled as predating the report in the web view, the PDF and the emailed summary. A tracked brand or grid with no usable completed run is listed under "no data for this period" with the reason, instead of being reported as zero.
+
+Two counting rules keep the figures honest:
+
+- A prompt no provider answered is `unavailable`. It is reported next to the answered share, never inside its denominator, because a provider outage is not evidence the brand went unmentioned. There is deliberately no composite AI visibility score.
+- A grid point that returned no result stays unranked. It is never folded in as position zero, so average rank and coverage describe only the points that actually returned the business.
 
 ## Publication workflow
 

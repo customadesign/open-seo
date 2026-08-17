@@ -6,6 +6,7 @@ import {
   REPORT_DELIVERY_FREQUENCIES,
 } from "@/shared/report-delivery";
 import { reportSectionKeySchema } from "./reports";
+import { REPORT_SECTION_KEYS } from "@/shared/report-sections";
 
 const idField = z.string().min(1).max(160);
 
@@ -48,7 +49,7 @@ const reportBrandingSchema = z.object({
 const sectionSelectionSchema = z
   .array(z.object({ key: reportSectionKeySchema, enabled: z.boolean() }))
   .min(1)
-  .max(6)
+  .max(REPORT_SECTION_KEYS.length)
   .refine(
     (sections) =>
       new Set(sections.map((section) => section.key)).size === sections.length,

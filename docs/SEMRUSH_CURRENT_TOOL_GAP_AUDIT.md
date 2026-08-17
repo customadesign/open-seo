@@ -39,8 +39,17 @@ another research screen:
 3. Expose the GSC-plus-GA4 search-opportunity score. Delivered in Search
    Performance; using it to prioritize audit findings and cannibalization work
    remains open.
-4. Add AI visibility and local geo-grid sections to scheduled reports. Both are
-   collected, but neither is currently an available report section.
+4. Add AI visibility and local geo-grid sections to scheduled reports.
+   Delivered: both are selectable report sections. They read only observations
+   and runs the project already stored, so generating or delivering a report
+   never calls a provider, never starts a run, and never arms a paused
+   schedule. Each section reports the newest completed run at or before the
+   period end and labels data that predates the period as stale instead of
+   presenting it as current. Prompts no provider answered stay out of the
+   answered-share denominator and are counted separately, and grid points that
+   returned no result stay unranked rather than becoming a zero. Sections
+   missing from a profile saved before this shipped come back disabled, so an
+   existing client report does not silently gain a section.
 
 Delivered since this audit was written: the GSC-plus-GA4 search-opportunity
 score is now a product surface. Search Performance has an **Opportunities** tab

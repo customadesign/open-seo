@@ -1,4 +1,5 @@
 import { AppError } from "@/server/lib/errors";
+import { mergeReportSections } from "@/shared/report-sections";
 import { customerHasPaidPlan } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import {
@@ -60,11 +61,17 @@ async function getDashboard(input: {
       runHour: settings?.runHour ?? 9,
       isEnabled: settings?.isEnabled ?? false,
       nextRunAt: settings?.nextRunAt ?? null,
+      // Settings saved before a section shipped hold no row for it, and
+      // `updateReportSettingsSchema` requires the full catalogue — so the read
+      // path fills the gaps (disabled) rather than handing the form a payload
+      // it cannot submit.
       sections: settings
-        ? sections.map((section) => ({
-            key: section.sectionKey,
-            enabled: section.isEnabled,
-          }))
+        ? mergeReportSections(
+            sections.map((section) => ({
+              key: section.sectionKey,
+              enabled: section.isEnabled,
+            })),
+          )
         : DEFAULT_REPORT_SECTIONS,
     },
     runs: runs.map((run) => ({

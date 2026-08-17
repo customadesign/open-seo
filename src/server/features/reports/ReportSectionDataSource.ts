@@ -18,21 +18,15 @@ import {
 } from "@/server/features/gsc/searchPerformanceReport";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import type { ReportSectionKey, ReportSnapshot } from "@/types/schemas/reports";
+import {
+  isoEndTimestamp,
+  loadAiVisibility,
+  loadLocalGeoGrid,
+  type DateRange,
+  type SectionLoadResult,
+} from "./storedReportSections";
 
 type Section = ReportSnapshot["sections"][number];
-type DateRange = {
-  periodStart: string;
-  periodEnd: string;
-  compareStart: string;
-  compareEnd: string;
-};
-
-type SectionLoadResult =
-  | { status: "loaded"; section: Section }
-  | {
-      status: "omitted";
-      reason: "not_configured" | "no_data";
-    };
 
 function comparison(current: number | null, previous: number | null) {
   const change =
@@ -52,10 +46,6 @@ function rankEndTimestamp(date: string) {
   return getDatabaseProvider() === "postgres"
     ? `${date}T23:59:59.999Z`
     : `${date} 23:59:59`;
-}
-
-function isoEndTimestamp(date: string) {
-  return `${date}T23:59:59.999Z`;
 }
 
 async function loadRankings(
@@ -419,5 +409,9 @@ export function loadReportSection(
   if (key === "ga4") return loadGa4(projectId, range);
   if (key === "google_ads") return loadGoogleAds(projectId, range);
   if (key === "audit") return loadAudit(projectId, range);
-  return loadBacklinks(projectId, range);
+  if (key === "backlinks") return loadBacklinks(projectId, range);
+  // Stored-only sources: these read rows the project already paid for and
+  // never call a provider. See storedReportSections.ts.
+  if (key === "ai_visibility") return loadAiVisibility(projectId, range);
+  return loadLocalGeoGrid(projectId, range);
 }

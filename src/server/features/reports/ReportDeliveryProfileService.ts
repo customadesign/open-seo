@@ -2,6 +2,7 @@ import { customerHasPaidPlan } from "@/server/billing/subscription";
 import { AppError } from "@/server/lib/errors";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { MAX_SHARE_LINK_TTL_DAYS } from "@/shared/report-delivery";
+import { mergeReportSections } from "@/shared/report-sections";
 import type {
   CreateReportDeliveryProfileInput,
   UpdateReportDeliveryProfileInput,
@@ -101,10 +102,15 @@ async function listProfiles(projectId: string) {
         primaryColor: profile.primaryColor,
         accentColor: profile.accentColor,
       },
-      sections: sections.map((section) => ({
-        key: section.sectionKey,
-        enabled: section.isEnabled,
-      })),
+      // A profile stored before a section shipped keeps sending exactly what
+      // it sent yesterday: the missing key comes back disabled, so a client's
+      // report never gains a section without an operator turning it on.
+      sections: mergeReportSections(
+        sections.map((section) => ({
+          key: section.sectionKey,
+          enabled: section.isEnabled,
+        })),
+      ),
       recipients: recipients.map((recipient) => ({
         email: recipient.email,
         name: recipient.name,

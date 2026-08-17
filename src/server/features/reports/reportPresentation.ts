@@ -1,6 +1,6 @@
+import { REPORT_SECTION_LABELS } from "@/shared/report-sections";
 import type {
   ReportCommentaryKind,
-  ReportSectionKey,
   ReportSnapshot,
 } from "@/types/schemas/reports";
 
@@ -37,14 +37,7 @@ export function resolveReportBranding(
   };
 }
 
-const SECTION_LABELS: Record<ReportSectionKey, string> = {
-  rankings: "Search rankings",
-  gsc: "Google Search Console",
-  ga4: "Google Analytics",
-  google_ads: "Google Ads",
-  audit: "Site health",
-  backlinks: "Backlinks",
-};
+const SECTION_LABELS = REPORT_SECTION_LABELS;
 
 const OMISSION_LABELS = {
   disabled: "turned off for this report",
@@ -178,6 +171,32 @@ function formatDate(value: string): string {
       }).format(date);
 }
 
+/**
+ * The stored-data sections report the newest completed run on or before the
+ * period end, which can predate the period. The document says so above the
+ * tables rather than leaving a reader to spot it in a capture-date cell.
+ */
+function storedSectionNote(
+  section: ReportSnapshot["sections"][number],
+): string {
+  if (section.key !== "ai_visibility" && section.key !== "local_geo_grid") {
+    return "";
+  }
+  const noun = section.key === "ai_visibility" ? "brands" : "grids";
+  const stale = section.data.configs.filter(
+    (config) => config.freshness.isStale,
+  ).length;
+  const notes = [
+    stale > 0 &&
+      `${stale} of ${section.data.configs.length} tracked ${noun} last completed before this period began, so those figures predate the report.`,
+    section.data.unavailable.length > 0 &&
+      `${section.data.unavailable.length} tracked ${noun} had no usable stored run for this period.`,
+  ].filter((note): note is string => note !== false);
+  return notes.length > 0
+    ? `<p class="note">${escapeReportHtml(notes.join(" "))}</p>`
+    : "";
+}
+
 export type ReportCommentaryLine = {
   kind: ReportCommentaryKind;
   text: string;
@@ -224,7 +243,7 @@ export function renderReportHtml(input: RenderReportInput): string {
   const sections = snapshot.sections
     .map(
       (section) =>
-        `<section><h2>${escapeReportHtml(SECTION_LABELS[section.key])}</h2>${renderData(section.data)}</section>`,
+        `<section><h2>${escapeReportHtml(SECTION_LABELS[section.key])}</h2>${storedSectionNote(section)}${renderData(section.data)}</section>`,
     )
     .join("");
   const omissions = snapshot.omissions

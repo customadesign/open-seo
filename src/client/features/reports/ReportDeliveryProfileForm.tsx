@@ -1,24 +1,12 @@
 import * as React from "react";
 import { type ReportDeliveryFrequency } from "@/types/schemas/report-delivery";
-import { type ReportSectionKey } from "@/types/schemas/reports";
+import {
+  REPORT_SECTION_KEYS,
+  REPORT_SECTION_LABELS as SECTION_LABELS,
+  type ReportSectionKey,
+} from "@/shared/report-sections";
 
-const SECTION_KEYS: ReportSectionKey[] = [
-  "rankings",
-  "gsc",
-  "ga4",
-  "google_ads",
-  "audit",
-  "backlinks",
-];
-
-const SECTION_LABELS: Record<ReportSectionKey, string> = {
-  rankings: "Rankings",
-  gsc: "Google Search Console",
-  ga4: "Google Analytics",
-  google_ads: "Google Ads",
-  audit: "Site audit",
-  backlinks: "Backlinks",
-};
+const SECTION_KEYS: readonly ReportSectionKey[] = REPORT_SECTION_KEYS;
 
 const FREQUENCIES: ReportDeliveryFrequency[] = ["daily", "weekly", "monthly"];
 

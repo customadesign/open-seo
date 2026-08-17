@@ -13,6 +13,7 @@ import {
   REPORT_DELIVERY_FREQUENCIES,
   REPORT_DELIVERY_STATUSES,
 } from "@/shared/report-delivery";
+import { REPORT_SECTION_KEYS } from "@/shared/report-sections";
 
 export const reportSettings = sqliteTable(
   "monthly_report_settings",
@@ -56,7 +57,7 @@ export const reportSections = sqliteTable(
       .notNull()
       .references(() => reportSettings.id, { onDelete: "cascade" }),
     sectionKey: text("section_key", {
-      enum: ["rankings", "gsc", "ga4", "google_ads", "audit", "backlinks"],
+      enum: REPORT_SECTION_KEYS,
     }).notNull(),
     sortOrder: integer("sort_order").notNull(),
     isEnabled: integer("is_enabled", { mode: "boolean" })
@@ -237,7 +238,7 @@ export const reportDeliveryProfileSections = sqliteTable(
       .notNull()
       .references(() => reportDeliveryProfiles.id, { onDelete: "cascade" }),
     sectionKey: text("section_key", {
-      enum: ["rankings", "gsc", "ga4", "google_ads", "audit", "backlinks"],
+      enum: REPORT_SECTION_KEYS,
     }).notNull(),
     sortOrder: integer("sort_order").notNull(),
     isEnabled: integer("is_enabled", { mode: "boolean" })

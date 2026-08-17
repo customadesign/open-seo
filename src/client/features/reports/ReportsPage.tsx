@@ -19,21 +19,16 @@ import {
   saveReportCommentary,
   saveReportSettings,
 } from "@/serverFunctions/reports";
-import {
-  type ReportSectionKey,
-  type ReportSnapshot,
-} from "@/types/schemas/reports";
+import { REPORT_SECTION_LABELS as SECTION_LABELS } from "@/shared/report-sections";
+import { type ReportSnapshot } from "@/types/schemas/reports";
 import { ReportDeliveryProfilesPanel } from "./ReportDeliveryProfilesPanel";
 import { ReportRunDeliveryCard } from "./ReportRunDeliveryCard";
-
-const SECTION_LABELS: Record<ReportSectionKey, string> = {
-  rankings: "Rankings",
-  gsc: "Google Search Console",
-  ga4: "Google Analytics",
-  google_ads: "Google Ads",
-  audit: "Site audit",
-  backlinks: "Backlinks",
-};
+import {
+  aiAnswerShareLabel,
+  coverageChange,
+  freshnessLabel,
+  sectionUnavailableLabel,
+} from "./reportSectionUi";
 
 export function ReportsPage({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -596,7 +591,180 @@ function ReportSection({ section }: { section: SnapshotSection }) {
   if (section.key === "google_ads")
     return <GoogleAdsSection data={section.data} />;
   if (section.key === "audit") return <AuditSection data={section.data} />;
-  return <BacklinksSection data={section.data} />;
+  if (section.key === "backlinks")
+    return <BacklinksSection data={section.data} />;
+  if (section.key === "ai_visibility")
+    return <AiVisibilitySection data={section.data} />;
+  return <LocalGeoGridSection data={section.data} />;
+}
+
+function UnavailableList({
+  items,
+}: {
+  items: Array<{ configId: string; label: string; reason: string }>;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-warning/40 bg-warning/10 p-4">
+      <p className="text-xs font-semibold uppercase text-base-content/60">
+        No data for this period
+      </p>
+      <ul className="mt-2 space-y-1 text-sm">
+        {items.map((item) => (
+          <li key={item.configId}>
+            <span className="font-medium">{item.label}</span> —{" "}
+            {sectionUnavailableLabel(item.reason)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AiVisibilitySection({
+  data,
+}: {
+  data: Extract<SnapshotSection, { key: "ai_visibility" }>["data"];
+}) {
+  return (
+    <SectionShell title="AI visibility">
+      {data.configs.map((config) => (
+        <div key={config.configId} className="space-y-4">
+          <div>
+            <p className="font-medium">{config.brandName}</p>
+            <p className="text-xs text-base-content/50">
+              {config.domain} · {freshnessLabel(config.freshness)}
+            </p>
+          </div>
+          <MetricGrid
+            metrics={[
+              {
+                label: "Answers mentioning brand",
+                current: config.summary.brandMentioned,
+                change: coverageChange(
+                  config.summary.brandMentioned,
+                  config.previous?.brandMentioned,
+                ),
+              },
+              {
+                label: "Answers citing domain",
+                current: config.summary.domainCited,
+                change: coverageChange(
+                  config.summary.domainCited,
+                  config.previous?.domainCited,
+                ),
+              },
+              { label: "Total mentions", current: config.summary.mentionTotal },
+              {
+                label: "Prompts unavailable",
+                current: config.summary.unavailable,
+              },
+            ]}
+          />
+          <p className="text-sm text-base-content/70">
+            {aiAnswerShareLabel(config.summary)}
+          </p>
+          <DataTable
+            headers={[
+              "Provider",
+              "Mentioned",
+              "Absent",
+              "Unavailable",
+              "Cited domain",
+              "Share of answers",
+            ]}
+            rows={config.providers.map((provider) => [
+              humanize(provider.provider),
+              provider.brandMentioned,
+              provider.brandAbsent,
+              provider.unavailable,
+              provider.domainCited,
+              aiAnswerShareLabel(provider),
+            ])}
+          />
+        </div>
+      ))}
+      <UnavailableList
+        items={data.unavailable.map((item) => ({
+          configId: item.configId,
+          label: item.brandName,
+          reason: item.reason,
+        }))}
+      />
+    </SectionShell>
+  );
+}
+
+function LocalGeoGridSection({
+  data,
+}: {
+  data: Extract<SnapshotSection, { key: "local_geo_grid" }>["data"];
+}) {
+  return (
+    <SectionShell title="Local map rankings">
+      {data.configs.map((config) => (
+        <div key={config.configId} className="space-y-4">
+          <div>
+            <p className="font-medium">
+              {config.keyword} · {config.businessName}
+            </p>
+            <p className="text-xs text-base-content/50">
+              {config.gridSize}×{config.gridSize} grid ·{" "}
+              {Math.round(config.radiusMeters / 1000)} km · {config.device} ·{" "}
+              {freshnessLabel(config.freshness)}
+            </p>
+          </div>
+          <MetricGrid
+            metrics={[
+              {
+                label: "Average rank",
+                current: config.summary.averageRank,
+                // Lower is better, so an improvement reads as a negative
+                // change here; the coverage tiles carry the plain direction.
+                change: coverageChange(
+                  config.summary.averageRank,
+                  config.previous?.averageRank,
+                ),
+              },
+              {
+                label: "Top 3 coverage",
+                current: config.summary.topThreeCoverage,
+                change: coverageChange(
+                  config.summary.topThreeCoverage,
+                  config.previous?.topThreeCoverage,
+                ),
+                format: "percent",
+              },
+              {
+                label: "Top 10 coverage",
+                current: config.summary.topTenCoverage,
+                change: coverageChange(
+                  config.summary.topTenCoverage,
+                  config.previous?.topTenCoverage,
+                ),
+                format: "percent",
+              },
+              {
+                label: "Grid points ranked",
+                current: config.summary.rankedCells,
+              },
+            ]}
+          />
+          <p className="text-sm text-base-content/70">
+            {config.summary.rankedCells} of {config.summary.cellsCompleted}{" "}
+            scanned grid points returned this business.
+          </p>
+        </div>
+      ))}
+      <UnavailableList
+        items={data.unavailable.map((item) => ({
+          configId: item.configId,
+          label: item.keyword,
+          reason: item.reason,
+        }))}
+      />
+    </SectionShell>
+  );
 }
 
 function SectionShell({

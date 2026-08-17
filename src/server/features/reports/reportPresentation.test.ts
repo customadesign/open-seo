@@ -42,6 +42,56 @@ describe("report presentation", () => {
     ).toContain("cdn.example.com");
   });
 
+  it("flags stale and unavailable stored data above the section tables", () => {
+    const html = renderReportHtml({
+      snapshot: {
+        ...snapshot,
+        sections: [
+          {
+            key: "ai_visibility",
+            data: {
+              configs: [
+                {
+                  configId: "config-1",
+                  brandName: "Acme",
+                  domain: "acme.test",
+                  runId: "run-1",
+                  freshness: {
+                    capturedAt: "2026-05-10T00:00:00.000Z",
+                    ageDays: 82,
+                    isStale: true,
+                  },
+                  summary: {
+                    answered: 2,
+                    unavailable: 1,
+                    brandMentioned: 1,
+                    brandAbsent: 1,
+                    mentionTotal: 3,
+                    domainCited: 1,
+                    answerShare: 0.5,
+                  },
+                  previous: null,
+                  providers: [],
+                },
+              ],
+              unavailable: [
+                {
+                  configId: "config-2",
+                  brandName: "Beta",
+                  reason: "no_completed_run",
+                },
+              ],
+            },
+          },
+        ],
+      },
+      branding,
+    });
+
+    expect(html).toContain("1 of 1 tracked brands last completed before");
+    expect(html).toContain("1 tracked brands had no usable stored run");
+  });
+
   it("falls back to product branding for unset profile fields", () => {
     expect(resolveReportBranding({ brandName: "Acme SEO" })).toEqual({
       ...DEFAULT_REPORT_BRANDING,

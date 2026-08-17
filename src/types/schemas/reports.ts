@@ -1,13 +1,5 @@
 import { z } from "zod";
-
-const REPORT_SECTION_KEYS = [
-  "rankings",
-  "gsc",
-  "ga4",
-  "google_ads",
-  "audit",
-  "backlinks",
-] as const;
+import { REPORT_SECTION_KEYS } from "@/shared/report-sections";
 
 export const reportSectionKeySchema = z.enum(REPORT_SECTION_KEYS);
 export const reportCommentaryKindSchema = z.enum([
@@ -246,6 +238,102 @@ const backlinksSectionSchema = z.object({
   capturedAt: z.string(),
 });
 
+/**
+ * Both stored-data sections report the newest completed run on or before the
+ * period end, which can be older than the period itself. Rather than silently
+ * presenting last quarter's numbers as this month's, every such section carries
+ * when the data was captured and whether it predates the period.
+ */
+const sectionFreshnessSchema = z.object({
+  capturedAt: z.string(),
+  /** Whole days between capture and the end of the reporting period. */
+  ageDays: z.number().int(),
+  /** True when the newest stored run finished before the period even started. */
+  isStale: z.boolean(),
+});
+
+/**
+ * Counts only. There is deliberately no composite "AI visibility score": the
+ * providers expose no ranking signal, and `ai_visibility_observations` keeps
+ * `status` (did we get an answer) separate from `outcome` (what it said) for
+ * exactly that reason. `answerShare` therefore divides by `answered`, never by
+ * `answered + unavailable` — a provider outage must not read as brand absence.
+ */
+const aiVisibilityCountsSchema = z.object({
+  answered: z.number().int(),
+  unavailable: z.number().int(),
+  brandMentioned: z.number().int(),
+  brandAbsent: z.number().int(),
+  mentionTotal: z.number().int(),
+  domainCited: z.number().int(),
+  /** brandMentioned / answered, or null when nothing was answered. Never 0. */
+  answerShare: z.number().nullable(),
+});
+
+const aiVisibilitySectionSchema = z.object({
+  configs: z.array(
+    z.object({
+      configId: z.string(),
+      brandName: z.string(),
+      domain: z.string(),
+      runId: z.string(),
+      freshness: sectionFreshnessSchema,
+      summary: aiVisibilityCountsSchema,
+      previous: aiVisibilityCountsSchema
+        .extend({ capturedAt: z.string() })
+        .nullable(),
+      providers: z.array(
+        aiVisibilityCountsSchema.extend({ provider: z.string() }),
+      ),
+    }),
+  ),
+  /** Tracked configs the period has nothing to say about, and why. */
+  unavailable: z.array(
+    z.object({
+      configId: z.string(),
+      brandName: z.string(),
+      reason: z.enum(["no_completed_run", "no_observations"]),
+    }),
+  ),
+});
+
+const geoGridMetricsSchema = z.object({
+  cellsTotal: z.number().int(),
+  cellsCompleted: z.number().int(),
+  /** Cells where the profile actually appeared. The rest are not zeroes. */
+  rankedCells: z.number().int(),
+  averageRank: z.number().nullable(),
+  topThreeCoverage: z.number().nullable(),
+  topTenCoverage: z.number().nullable(),
+  topTwentyCoverage: z.number().nullable(),
+});
+
+const localGeoGridSectionSchema = z.object({
+  configs: z.array(
+    z.object({
+      configId: z.string(),
+      keyword: z.string(),
+      businessName: z.string(),
+      device: z.enum(["desktop", "mobile"]),
+      gridSize: z.number().int(),
+      radiusMeters: z.number().int(),
+      runId: z.string(),
+      freshness: sectionFreshnessSchema,
+      summary: geoGridMetricsSchema,
+      previous: geoGridMetricsSchema
+        .extend({ capturedAt: z.string() })
+        .nullable(),
+    }),
+  ),
+  unavailable: z.array(
+    z.object({
+      configId: z.string(),
+      keyword: z.string(),
+      reason: z.enum(["no_completed_run", "no_cells"]),
+    }),
+  ),
+});
+
 export const reportSnapshotSchema = z.object({
   version: z.literal(1),
   generatedAt: isoDateTimeField,
@@ -264,6 +352,14 @@ export const reportSnapshotSchema = z.object({
       z.object({ key: z.literal("google_ads"), data: googleAdsSectionSchema }),
       z.object({ key: z.literal("audit"), data: auditSectionSchema }),
       z.object({ key: z.literal("backlinks"), data: backlinksSectionSchema }),
+      z.object({
+        key: z.literal("ai_visibility"),
+        data: aiVisibilitySectionSchema,
+      }),
+      z.object({
+        key: z.literal("local_geo_grid"),
+        data: localGeoGridSectionSchema,
+      }),
     ]),
   ),
   omissions: z.array(

@@ -14,6 +14,7 @@ import {
   REPORT_DELIVERY_FREQUENCIES,
   REPORT_DELIVERY_STATUSES,
 } from "@/shared/report-delivery";
+import { REPORT_SECTION_KEYS } from "@/shared/report-sections";
 
 const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
@@ -53,7 +54,7 @@ export const reportSections = pgTable(
       .notNull()
       .references(() => reportSettings.id, { onDelete: "cascade" }),
     sectionKey: text("section_key", {
-      enum: ["rankings", "gsc", "ga4", "google_ads", "audit", "backlinks"],
+      enum: REPORT_SECTION_KEYS,
     }).notNull(),
     sortOrder: integer("sort_order").notNull(),
     isEnabled: boolean("is_enabled").notNull().default(true),
@@ -212,7 +213,7 @@ export const reportDeliveryProfileSections = pgTable(
       .notNull()
       .references(() => reportDeliveryProfiles.id, { onDelete: "cascade" }),
     sectionKey: text("section_key", {
-      enum: ["rankings", "gsc", "ga4", "google_ads", "audit", "backlinks"],
+      enum: REPORT_SECTION_KEYS,
     }).notNull(),
     sortOrder: integer("sort_order").notNull(),
     isEnabled: boolean("is_enabled").notNull().default(true),

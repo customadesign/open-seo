@@ -8,6 +8,10 @@ function formatNumber(value: number) {
   );
 }
 
+function sumBy<T>(items: readonly T[], pick: (item: T) => number) {
+  return items.reduce((running, item) => running + pick(item), 0);
+}
+
 function direction(value: number | null, inverse = false) {
   if (value == null || value === 0) return "neutral" as const;
   const positive = inverse ? value < 0 : value > 0;
@@ -94,6 +98,59 @@ function buildEvidence(
         label: "Pages with critical audit issues",
         value: formatNumber(critical),
         direction: critical === 0 ? "positive" : "negative",
+      });
+    }
+    if (section.key === "ai_visibility") {
+      const answered = sumBy(section.data.configs, (c) => c.summary.answered);
+      const mentioned = sumBy(
+        section.data.configs,
+        (c) => c.summary.brandMentioned,
+      );
+      const unavailable = sumBy(
+        section.data.configs,
+        (c) => c.summary.unavailable,
+      );
+      // Share of *answered* prompts. Prompts no provider answered are reported
+      // beside it, never folded in as if the brand had been absent.
+      evidence.push({
+        key: "ai_visibility.brand_mentions",
+        label: "AI answers mentioning the brand",
+        value:
+          answered === 0
+            ? "No answers returned"
+            : `${formatNumber(mentioned)} of ${formatNumber(answered)}${
+                unavailable > 0
+                  ? ` (${formatNumber(unavailable)} unavailable)`
+                  : ""
+              }`,
+        direction:
+          answered === 0 ? "neutral" : mentioned > 0 ? "positive" : "negative",
+      });
+    }
+    if (section.key === "local_geo_grid") {
+      const withRank = section.data.configs.filter(
+        (config) => config.summary.averageRank != null,
+      );
+      const change = section.data.configs.reduce((total, config) => {
+        const current = config.summary.topThreeCoverage;
+        const previous = config.previous?.topThreeCoverage;
+        return current != null && previous != null
+          ? total + (current - previous)
+          : total;
+      }, 0);
+      evidence.push({
+        key: "local_geo_grid.average_rank",
+        label: "Average map pack rank",
+        value:
+          withRank.length === 0
+            ? "Not ranked in the stored grid"
+            : formatNumber(
+                sumBy(withRank, (config) => config.summary.averageRank ?? 0) /
+                  withRank.length,
+              ),
+        // A lower average map rank is an improvement, so the top-three
+        // coverage delta carries the direction instead.
+        direction: withRank.length === 0 ? "neutral" : direction(change),
       });
     }
   }
