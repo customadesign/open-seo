@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildStrikingDistanceRows,
+  groupTopQueriesByPage,
   previousPeriod,
   sumSearchTotals,
   toDimensionRows,
@@ -136,5 +137,51 @@ describe("previousPeriod", () => {
       startDate: "2026-06-09",
       endDate: "2026-06-09",
     });
+  });
+});
+
+const pageQueryRow = (page: string, query: string, impressions: number) => ({
+  keys: [page, query],
+  clicks: 1,
+  impressions,
+  ctr: 0.01,
+  position: 7,
+});
+
+describe("groupTopQueriesByPage", () => {
+  it("keeps each page's highest-impression queries up to the limit", () => {
+    const byPage = groupTopQueriesByPage(
+      [
+        pageQueryRow("https://x.com/a", "low", 10),
+        pageQueryRow("https://x.com/a", "high", 900),
+        pageQueryRow("https://x.com/a", "mid", 400),
+        pageQueryRow("https://x.com/b", "other", 50),
+      ],
+      2,
+    );
+    expect(byPage.get("https://x.com/a")?.map((entry) => entry.query)).toEqual([
+      "high",
+      "mid",
+    ]);
+    expect(byPage.get("https://x.com/b")?.map((entry) => entry.query)).toEqual([
+      "other",
+    ]);
+  });
+
+  it("skips rows missing either dimension key", () => {
+    const byPage = groupTopQueriesByPage(
+      [
+        {
+          keys: ["https://x.com/a"],
+          clicks: 1,
+          impressions: 5,
+          ctr: 0,
+          position: 7,
+        },
+        { clicks: 1, impressions: 5, ctr: 0, position: 7 },
+      ],
+      3,
+    );
+    expect(byPage.size).toBe(0);
   });
 });

@@ -24,7 +24,7 @@ should keep those findings explainable rather than copy SEMrush's opaque score.
 The replacement work covers the core product surfaces: Google and Bing rank
 tracking, technical and AI-oriented site audits, first-party GSC and GA4 data,
 geo-grid tracking, stateful AI prompt observations, reviewed disavow records,
-and scheduled branded reports. Four controls still matter more than adding
+and scheduled branded reports. These four controls matter more than adding
 another research screen:
 
 1. Bound scheduled rank spend. Delivered: product-created configurations now
@@ -36,10 +36,21 @@ another research screen:
    collection finds an audit completed inside the reporting period. It is
    paused with a manual cadence until an operator arms it, and it refuses to
    start while that project already has an audit running.
-3. Put the existing GSC-plus-GA4 search-opportunity score in the product UI and
-   use it to prioritize audit findings and cannibalization work.
+3. Expose the GSC-plus-GA4 search-opportunity score. Delivered in Search
+   Performance; using it to prioritize audit findings and cannibalization work
+   remains open.
 4. Add AI visibility and local geo-grid sections to scheduled reports. Both are
    collected, but neither is currently an available report section.
+
+Delivered since this audit was written: the GSC-plus-GA4 search-opportunity
+score is now a product surface. Search Performance has an **Opportunities** tab
+showing each page in positions 4 to 20 with the queries it ranks for,
+impressions, clicks, CTR, position, GA4 sessions, engagement and key events,
+the score with its demand, business-value, and reachability components, and one
+next action per row. It reads `SearchOpportunityService`, so the screen and the
+`get_search_opportunities` MCP tool cannot disagree, and it spends no OpenSEO
+credits. Using it to prioritize audit findings and cannibalization work is
+still open.
 
 After those controls, the most useful additions are a prompt-level AI
 competitor/source gap over stored observations; a combined keyword and backlink
@@ -81,8 +92,8 @@ not an OpenSEO engineering gap.
 | Sensor                                 | No search-volatility index                                                                                                                                                  | Do not build; use observed project rankings and GSC changes                                                                 |
 | SEOquake                               | No browser extension                                                                                                                                                        | Do not build for cancellation                                                                                               |
 | Semrush Rank                           | No proprietary cross-domain rank                                                                                                                                            | Do not build                                                                                                                |
-| On Page SEO Checker                    | Audits and content skills exist; no keyword-to-page recommendation queue                                                                                                    | Fold useful parts into GSC impact and cannibalization work                                                                  |
-| Organic Traffic Insights               | A service and MCP tool already join GSC pages to GA4 landing pages and score opportunities; there is no product UI                                                          | Expose the existing queue as the first-party impact view                                                                    |
+| On Page SEO Checker                    | Audits and content skills exist; the Opportunities tab now recommends one next action per ranking page, but audit findings are not yet ranked by it                         | Fold the remaining parts into audit prioritization and cannibalization work                                                 |
+| Organic Traffic Insights               | The GSC-to-GA4 join and score is a service, an MCP tool, and the Search Performance **Opportunities** tab                                                                   | Covered                                                                                                                     |
 | Link Building                          | Link prospecting exists through search, backlink evidence, and agents; no outreach mailbox                                                                                  | Keep outreach in the agency CRM                                                                                             |
 | Log File Analyzer                      | No raw server-log analysis module                                                                                                                                           | Build only if verified client access and a recurring diagnostic need exist                                                  |
 

@@ -61,3 +61,11 @@ export const searchPerformanceTableExportInputSchema = z.object({
   ...searchPerformanceFilterShape,
   dimension: z.enum(SEARCH_PERFORMANCE_TABLE_DIMENSIONS),
 });
+
+/** The opportunity queue joins GSC pages to GA4 organic landing pages, which
+ *  GSC's device/country dimension filters cannot express — only the date range
+ *  is shared with the rest of the page. */
+export const searchOpportunitiesInputSchema = z.object({
+  projectId: z.string().min(1),
+  dateRange: z.enum(SEARCH_PERFORMANCE_RANGES).default("last_28_days"),
+});

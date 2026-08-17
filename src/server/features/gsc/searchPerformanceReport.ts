@@ -31,6 +31,13 @@ type StrikingDistanceRow = {
   position: number;
 };
 
+export type PageRankingQuery = {
+  query: string;
+  clicks: number;
+  impressions: number;
+  position: number;
+};
+
 // "Striking distance" = already ranking, not yet in the top spots: the queries
 // where a content improvement most plausibly moves real traffic.
 const STRIKING_DISTANCE_MIN_POSITION = 5;
@@ -119,6 +126,41 @@ export function buildStrikingDistanceRows(
     )
     .toSorted((a, b) => b.impressions - a.impressions)
     .slice(0, limit);
+}
+
+/** Reduce `["page","query"]` rows to the queries each page ranks for, highest
+ *  impressions first and capped per page. The inverse fan-out of
+ *  buildStrikingDistanceRows: there, a query keeps its best page; here, a page
+ *  keeps the queries that put it in front of searchers. */
+export function groupTopQueriesByPage(
+  rows: GscSearchAnalyticsRow[],
+  limit: number,
+): Map<string, PageRankingQuery[]> {
+  const byPage = new Map<string, PageRankingQuery[]>();
+  for (const row of rows) {
+    const page = row.keys?.[0];
+    const query = row.keys?.[1];
+    if (!page || !query) continue;
+    const entry = {
+      query,
+      clicks: row.clicks,
+      impressions: row.impressions,
+      position: row.position,
+    };
+    const queries = byPage.get(page);
+    if (queries) {
+      queries.push(entry);
+    } else {
+      byPage.set(page, [entry]);
+    }
+  }
+  for (const [page, queries] of byPage) {
+    byPage.set(
+      page,
+      queries.toSorted((a, b) => b.impressions - a.impressions).slice(0, limit),
+    );
+  }
+  return byPage;
 }
 
 /** The same-length period immediately before [startDate, endDate], for the
