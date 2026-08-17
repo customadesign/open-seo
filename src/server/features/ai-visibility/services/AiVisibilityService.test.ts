@@ -201,6 +201,25 @@ describe("AiVisibilityService", () => {
     expect(mocks.createConfig).not.toHaveBeenCalled();
   });
 
+  // A zero ceiling activates the cron and then skips every run with
+  // `cost_ceiling`, which reads as a broken tracker rather than an approval.
+  it("refuses recurring activation with a non-positive ceiling", async () => {
+    mocks.getConfigsForProject.mockResolvedValue([]);
+
+    await expect(
+      AiVisibilityService.createConfig({
+        projectId: "project_1",
+        projectMarket: { locationCode: 2840, languageCode: "en" },
+        brandName: "OpenSEO",
+        domain: "openseo.so",
+        scheduleInterval: "weekly",
+        isActive: true,
+        maxCostCredits: 0,
+      }),
+    ).rejects.toThrow(/credit ceiling above zero/i);
+    expect(mocks.createConfig).not.toHaveBeenCalled();
+  });
+
   it("refuses to clear the ceiling while a recurring config is active", async () => {
     mocks.getConfigById.mockResolvedValue({
       ...config,

@@ -58,7 +58,9 @@ subscription. Those actions remain separate approvals.
 - Configure R2 and Resend, leaving `REPORT_DELIVERY_TEST_MODE` enabled (unset is
   also safe) and `REPORT_TEST_RECIPIENTS` limited to internal test addresses.
 - Confirm the PDF renderer, object checksum, expiring share link, and email
-  delivery independently before adding a client recipient.
+  delivery independently before adding a client recipient. Confirm email
+  delivery twice: once through the manual requester test, and once through a
+  scheduled profile whose recipient is on the allowlist.
 
 ## 4. Run a parallel observation cycle
 
@@ -87,8 +89,11 @@ Do not proceed to cancellation until every statement below is true:
 - One full parallel cycle has been reviewed and material differences have an
   accepted explanation or fix.
 - Provider costs have been measured and recurring ceilings approved.
-- An internal allowlisted report has completed successfully; client delivery has
-  separate approval.
+- A scheduled profile delivery to an address in `REPORT_TEST_RECIPIENTS` has
+  completed successfully. A manual "send me a copy" test does not satisfy this
+  gate: it is allowed to the requester's own verified address regardless of the
+  allowlist, so it exercises a different path. Client delivery has separate
+  approval.
 - Any SEMrush Local dependency for listings, duplicate suppression, reviews, GBP
   publishing, or user suggestions has an explicit GoHighLevel/Yext/GBP owner.
 - Paid media, Traffic & Market, social, and content-suite dependencies have been

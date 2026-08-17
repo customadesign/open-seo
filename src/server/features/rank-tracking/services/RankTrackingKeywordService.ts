@@ -6,6 +6,7 @@ import {
   estimateScheduledRankCheckCredits,
   isScheduledRankTrackingInterval,
   MAX_KEYWORDS_PER_CONFIG,
+  rankCheckMethod,
 } from "@/shared/rank-tracking";
 
 async function addKeywords(
@@ -132,11 +133,14 @@ async function estimateCost(
       existingKeywordCount + additionalKeywordCount,
     ),
   );
+  // An explicit run on a Bing config is queued, not live, so quoting live
+  // pricing here would ask the user to approve a ceiling the run never needs.
+  const method = rankCheckMethod({ trigger: "manual", engine: config.engine });
   const { costUsd, costCredits } = estimateRankCheckCredits(
     keywordCount,
     config.devices,
     config.serpDepth,
-    "live",
+    method,
   );
   const scheduleInterval = isScheduledRankTrackingInterval(
     config.scheduleInterval,
@@ -149,7 +153,8 @@ async function estimateCost(
     keywordCount,
     devicesCount: devicesCount(config.devices),
     totalChecks: keywordCount * devicesCount(config.devices),
-    method: "live" as const,
+    method,
+    engine: config.engine,
     existingKeywordCount,
     additionalKeywordCount: keywordCount - existingKeywordCount,
     scheduledEstimate: scheduleInterval

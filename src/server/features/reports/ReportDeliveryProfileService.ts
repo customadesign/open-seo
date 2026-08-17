@@ -12,6 +12,10 @@ import {
   isValidTimeZone,
   nextDeliveryRun,
 } from "./reportDates";
+import {
+  isScheduledRecipientAllowed,
+  loadReportDeliveryGuard,
+} from "./reportTestRecipients";
 import { ReportRepository } from "./repositories/ReportRepository";
 import {
   ReportDeliveryProfileRepository,
@@ -59,11 +63,22 @@ function profileFields(data: ProfileInput, now: Date): ProfileWritableFields {
 
 async function listProfiles(projectId: string) {
   const rows = await ReportDeliveryProfileRepository.listProfiles(projectId);
-  const providers = await getReportProviders();
+  const [providers, guard] = await Promise.all([
+    getReportProviders(),
+    loadReportDeliveryGuard(),
+  ]);
   return {
     providers: {
       pdf: providers.pdfRenderer.configured ? "configured" : "unconfigured",
       email: providers.emailProvider.configured ? "configured" : "unconfigured",
+    },
+    // Delivery is fail-closed, so a profile can look healthy while every
+    // scheduled send is silently recorded as skipped. Surface the guard state
+    // with the profiles rather than leaving it to the operator's memory of an
+    // environment variable.
+    delivery: {
+      testMode: guard.testMode,
+      allowlistSize: guard.allowlist.size,
     },
     profiles: rows.map(({ profile, sections, recipients }) => ({
       id: profile.id,
@@ -92,6 +107,8 @@ async function listProfiles(projectId: string) {
       recipients: recipients.map((recipient) => ({
         email: recipient.email,
         name: recipient.name,
+        // False means a scheduled run records this address as `skipped`.
+        isAllowed: isScheduledRecipientAllowed(recipient.email, guard),
       })),
     })),
   };

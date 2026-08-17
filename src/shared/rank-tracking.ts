@@ -22,10 +22,15 @@ const QUEUED_BASE_PAGE_COST_USD = 0.0006;
 const QUEUED_EXTRA_PAGE_COST_USD = 0.00045;
 
 /**
- * How a rank check reaches DataForSEO: "live" is the instant endpoint used for
- * manual checks; "queued" is the cheaper task queue used for scheduled checks.
+ * How a rank check reaches DataForSEO: "live" is the instant endpoint; "queued"
+ * is the cheaper task queue. Use `rankCheckMethod` rather than deciding per
+ * call site — an estimate priced at the wrong method asks for the wrong
+ * approval.
  */
 type RankCheckMethod = "live" | "queued";
+
+/** What started a rank check. */
+type RankCheckTrigger = "manual" | "scheduled";
 
 /**
  * Search engine a config tracks. Immutable per config — see the `engine`
@@ -44,6 +49,21 @@ export type RankTrackingEngine = "google" | "bing";
 
 export function engineLabel(engine: RankTrackingEngine): string {
   return engine === "bing" ? "Bing" : "Google";
+}
+
+/**
+ * Single source of truth for which DataForSEO endpoint a check will use, and
+ * therefore which price an estimate or approval ceiling must be based on.
+ * Scheduled checks and every Bing check go through the task queue; only a
+ * manual Google check is live.
+ */
+export function rankCheckMethod(input: {
+  trigger: RankCheckTrigger;
+  engine: RankTrackingEngine;
+}): RankCheckMethod {
+  return input.trigger === "scheduled" || input.engine === "bing"
+    ? "queued"
+    : "live";
 }
 
 /** How many keywords are checked per batch */

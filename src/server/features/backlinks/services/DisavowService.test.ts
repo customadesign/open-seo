@@ -67,6 +67,39 @@ describe("disavow imports", () => {
     ]);
   });
 
+  // Substring matching read "Do not disavow" as a disavow decision, which put
+  // deliberately kept domains into the Google file. Only "disavowed" and
+  // "exported" reach that export, so every negated status must land elsewhere.
+  it("never turns a negated SEMrush status into an exportable decision", () => {
+    const rows = parseSemrushDisavowCsv(
+      [
+        "Referring Domain,Status",
+        "keep-me.example,Do not disavow",
+        "pending.example,Not exported",
+        "partner.example,Whitelist - do not disavow",
+        "later.example,Not yet exported",
+        "safe.example,Never disavow",
+        "unclear.example,",
+        "spam.example,Disavowed",
+        "sent.example,Exported",
+        "outreach.example,Removal requested",
+      ].join("\n"),
+    );
+    expect(
+      Object.fromEntries(rows.map((row) => [row.value, row.status])),
+    ).toEqual({
+      "keep-me.example": "kept",
+      "pending.example": "pending",
+      "partner.example": "kept",
+      "later.example": "pending",
+      "safe.example": "kept",
+      "unclear.example": "pending",
+      "spam.example": "disavowed",
+      "sent.example": "exported",
+      "outreach.example": "removal_requested",
+    });
+  });
+
   it("imports Google comments and treats the current file as exported", () => {
     const rows = parseGoogleDisavowTxt(
       "# prior analyst note\ndomain:bad.example\nhttps://links.example/spam#fragment\n",

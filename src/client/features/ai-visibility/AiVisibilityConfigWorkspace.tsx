@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import {
@@ -15,7 +15,10 @@ import {
   MAX_PROMPTS_PER_CONFIG,
   type AiVisibilityProvider,
 } from "@/shared/ai-visibility";
-import { AI_VISIBILITY_PROVIDER_LABELS } from "./aiVisibilityUi";
+import {
+  AI_VISIBILITY_PROVIDER_LABELS,
+  aiVisibilitySkipReasonLabel,
+} from "./aiVisibilityUi";
 import {
   AiVisibilityRunPanel,
   type AiVisibilityRunEstimate,
@@ -127,6 +130,7 @@ function TrackerSettings({
   const [ceiling, setCeiling] = useState(
     detail.config.maxCostCredits?.toString() ?? "",
   );
+  const skipReason = aiVisibilitySkipReasonLabel(detail.config.lastSkipReason);
   const saveMutation = useMutation({
     mutationFn: () =>
       updateAiVisibilityConfig({
@@ -174,6 +178,15 @@ function TrackerSettings({
           <h2 className="text-lg font-semibold">{detail.config.brandName}</h2>
           <p className="text-sm text-base-content/60">{detail.config.domain}</p>
         </div>
+        {skipReason ? (
+          <div className="alert alert-warning py-2 text-sm">
+            <AlertTriangle className="size-4" />
+            <span>
+              The last scheduled run was skipped — {skipReason}. The schedule
+              still advances; fix the cause to resume collection.
+            </span>
+          </div>
+        ) : null}
         <fieldset disabled={readOnly} className="space-y-4">
           <div>
             <p className="mb-2 text-sm font-medium">Providers</p>

@@ -334,10 +334,13 @@ function assertRecurringSpendApproval(input: {
       "Choose a recurring schedule before activating AI visibility.",
     );
   }
-  if (input.maxCostCredits == null) {
+  // A ceiling of 0 (or a negative one) is not an approval: it activates the
+  // schedule and then skips every run with `cost_ceiling`, which looks like a
+  // broken tracker rather than a deliberate setting.
+  if (input.maxCostCredits == null || input.maxCostCredits <= 0) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "Set an approved per-run credit ceiling before activating AI visibility.",
+      "Set an approved per-run credit ceiling above zero before activating AI visibility.",
     );
   }
 }

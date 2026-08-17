@@ -58,8 +58,11 @@ being called unauthenticated — only a loopback renderer may run tokenless.
   configures Resend without deciding about client delivery mails nobody: only
   addresses in `REPORT_TEST_RECIPIENTS` go out, and every other recipient is
   recorded as `skipped` with the reason. An empty allowlist in test mode sends
-  to nobody at all. A manual "send me a copy" is always limited to the
-  requester's own verified address or the allowlist, in every environment.
+  to nobody at all. The manual "send me a copy" test is a **separate** path with
+  its own rule: it is limited to the requester's own verified address or the
+  allowlist, in every environment, and it is not affected by test mode. A
+  successful manual test therefore does not prove a scheduled profile will
+  deliver — see "Verifying a deployment".
 - **PDF validation.** The renderer response must start with `%PDF-` and stay at
   or under 25 MB, checked before storage and again before attaching.
 - **Stable storage keys.** Each run's PDF lives at `reports/<run-id>/report.pdf`,
@@ -112,10 +115,27 @@ constraints to them.
 
 ## Verifying a deployment
 
+Two different paths reach an inbox, and they have different rules. Do not use
+one to prove the other works.
+
 1. Open a project's Reports page and generate a report.
-2. Create a delivery profile with your own address as the only recipient.
+2. **Manual "send test" (requester path).** Send a test copy of the run to
+   yourself. This is allowed for your own verified account address in every
+   environment, whether or not that address is in `REPORT_TEST_RECIPIENTS`. It
+   proves the renderer, Resend credentials and template work. It proves nothing
+   about the scheduled path.
 3. Confirm the PDF and share link appear on the run, and open the share URL in a
    private window.
-4. Only after that, add client addresses. Never point the first provider test at
-   a client inbox — and note that the unit tests mock the network and never send
-   mail.
+4. **Scheduled smoke test (allowlist path).** A profile's own delivery ignores
+   who asked for it: while test mode is on, only addresses listed in
+   `REPORT_TEST_RECIPIENTS` are mailed, and every other recipient is recorded as
+   `skipped`. So to smoke-test a profile end to end, add your address to
+   `REPORT_TEST_RECIPIENTS` **and** to the profile's recipients, then let the
+   schedule fire (or claim it manually). A profile whose only recipient is an
+   un-allowlisted address — including your own — mails nobody and reports
+   `skipped`, which is the fail-closed design working, not a bug. The Reports
+   page shows a persistent warning with the test-mode state and how many profile
+   recipients are held back.
+5. Only after both paths are green, set `REPORT_DELIVERY_TEST_MODE=false` and
+   add client addresses. Never point the first provider test at a client
+   inbox — and note that the unit tests mock the network and never send mail.

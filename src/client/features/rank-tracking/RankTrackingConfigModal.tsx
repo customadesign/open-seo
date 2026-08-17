@@ -8,6 +8,7 @@ import {
   depthToPages,
   pagesToDepth,
   estimateRankCheckCredits,
+  rankCheckMethod,
 } from "@/shared/rank-tracking";
 import { getLanguageCode } from "@/client/features/keywords/locations";
 import {
@@ -354,13 +355,16 @@ function RankTrackingConfigModalContent({
         </div>
 
         {(() => {
-          // Scheduled checks run through the cheaper task queue; manual
-          // configs only ever pay the live price.
+          // Scheduled checks run through the cheaper task queue, and so does
+          // every Bing check — only a manual Google config pays live prices.
           const { costUsd: costPerKeyword } = estimateRankCheckCredits(
             1,
             devices,
             serpDepth,
-            schedule === "manual" ? "live" : "queued",
+            rankCheckMethod({
+              trigger: schedule === "manual" ? "manual" : "scheduled",
+              engine,
+            }),
           );
           const checksPerMonth =
             schedule === "daily" ? 30 : schedule === "weekly" ? 4 : 1;

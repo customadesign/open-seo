@@ -123,7 +123,7 @@ export function AiVisibilityRunPanel({
         {estimate ? (
           <div className="alert text-sm">
             <span>
-              {estimate.promptCount} prompts × {estimate.providers.length}
+              {estimate.promptCount} prompts × {estimate.providers.length}{" "}
               providers = {estimate.observations} observations, capped at{" "}
               <strong>{estimate.costCredits} credits</strong> (estimated raw
               provider cost ${estimate.costUsd.toFixed(4)}).
@@ -134,7 +134,7 @@ export function AiVisibilityRunPanel({
         {latestRun ? (
           <p className="text-sm">
             Latest run: <strong>{latestRun.status}</strong> ·{" "}
-            {latestRun.observationsCompleted}/{latestRun.observationsTotal}
+            {latestRun.observationsCompleted}/{latestRun.observationsTotal}{" "}
             observations · ${latestRun.costUsd.toFixed(4)} actual provider cost
           </p>
         ) : (

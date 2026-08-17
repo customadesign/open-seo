@@ -5,6 +5,7 @@ import {
   estimateRankCheckCredits,
   devicesCount,
   KEYWORDS_PER_BATCH,
+  rankCheckMethod,
   SECONDS_PER_BATCH,
 } from "@/shared/rank-tracking";
 
@@ -29,7 +30,7 @@ export function CheckConfirmModal({
     keywordCount,
     devices,
     serpDepth,
-    engine === "bing" ? "queued" : "live",
+    rankCheckMethod({ trigger: "manual", engine }),
   );
   const dc = devicesCount(devices);
   const totalChecks = keywordCount * dc;

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   startWorkflow: vi.fn(),
   getProfileById: vi.fn(),
   getProfileRecipients: vi.fn(),
+  listProfiles: vi.fn(),
   insertDeliveries: vi.fn(),
   listSendableDeliveries: vi.fn(),
   recordDeliveryResult: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock("./repositories/ReportDeliveryProfileRepository", () => ({
   ReportDeliveryProfileRepository: {
     getProfileById: mocks.getProfileById,
     getProfileRecipients: mocks.getProfileRecipients,
+    listProfiles: mocks.listProfiles,
     listDueProfiles: mocks.listDueProfiles,
     claimProfile: mocks.claimProfile,
   },
@@ -253,6 +255,33 @@ describe("deliverRun", () => {
     expect(mocks.recordSafely).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "reports.delivery_failed" }),
     );
+  });
+});
+
+describe("listProfiles", () => {
+  // Without this the Reports page cannot tell a working profile from one whose
+  // every scheduled send is silently recorded as skipped.
+  it("reports the fail-closed guard state and which recipients it holds back", async () => {
+    delete process.env.REPORT_DELIVERY_TEST_MODE;
+    process.env.REPORT_TEST_RECIPIENTS = "qa@agency.test";
+    mocks.listProfiles.mockResolvedValue([
+      {
+        profile,
+        sections: [],
+        recipients: [
+          { email: "qa@agency.test", name: null },
+          { email: "client@acme.test", name: "Client" },
+        ],
+      },
+    ]);
+
+    const result = await ReportDeliveryProfileService.listProfiles("project-1");
+
+    expect(result.delivery).toEqual({ testMode: true, allowlistSize: 1 });
+    expect(result.profiles[0].recipients).toEqual([
+      { email: "qa@agency.test", name: null, isAllowed: true },
+      { email: "client@acme.test", name: "Client", isAllowed: false },
+    ]);
   });
 });
 

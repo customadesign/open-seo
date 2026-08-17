@@ -9,6 +9,7 @@ import {
   getAiVisibilityConfigs,
 } from "@/serverFunctions/ai-visibility";
 import { AiVisibilityConfigWorkspace } from "./AiVisibilityConfigWorkspace";
+import { aiVisibilitySkipReasonLabel } from "./aiVisibilityUi";
 
 type ConfigRow = Awaited<ReturnType<typeof getAiVisibilityConfigs>>[number];
 
@@ -178,6 +179,7 @@ function ConfigButton({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const skipReason = aiVisibilitySkipReasonLabel(config.lastSkipReason);
   return (
     <button
       type="button"
@@ -193,6 +195,12 @@ function ConfigButton({
       <span className="mt-1 block text-[11px] uppercase tracking-wide opacity-55">
         {config.isActive ? config.scheduleInterval : "Manual / inactive"}
       </span>
+      {skipReason ? (
+        <span className="mt-1 flex items-center gap-1 text-[11px] text-warning">
+          <AlertTriangle className="size-3 shrink-0" />
+          Last scheduled run skipped — {skipReason}
+        </span>
+      ) : null}
     </button>
   );
 }

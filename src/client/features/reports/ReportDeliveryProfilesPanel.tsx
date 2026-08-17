@@ -105,7 +105,10 @@ export function ReportDeliveryProfilesPanel({
   });
 
   const providers = profilesQuery.data?.providers;
+  const delivery = profilesQuery.data?.delivery;
   const profiles = profilesQuery.data?.profiles ?? [];
+  const allRecipients = profiles.flatMap((profile) => profile.recipients);
+  const heldBack = allRecipients.filter((one) => !one.isAllowed).length;
 
   return (
     <section className="rounded-xl border border-base-300 bg-base-100 shadow-sm">
@@ -133,6 +136,17 @@ export function ReportDeliveryProfilesPanel({
         </button>
       </div>
 
+      {delivery?.testMode ? (
+        <p className="mx-4 mb-4 rounded-lg bg-warning/10 p-3 text-xs text-base-content/70 sm:mx-5">
+          <span className="font-medium">Delivery test mode is on.</span>{" "}
+          {delivery.allowlistSize === 0
+            ? "REPORT_TEST_RECIPIENTS is empty, so scheduled reports mail nobody — every recipient is recorded as skipped."
+            : `Scheduled reports only reach the ${delivery.allowlistSize} address(es) in REPORT_TEST_RECIPIENTS; ${heldBack} of ${allRecipients.length} profile recipients are recorded as skipped.`}{" "}
+          Set <code>REPORT_DELIVERY_TEST_MODE=false</code> to allow client
+          delivery. See docs/REPORT_DELIVERY.md.
+        </p>
+      ) : null}
+
       {providers && providers.email !== "configured" ? (
         <p className="mx-4 mb-4 rounded-lg bg-warning/10 p-3 text-xs text-base-content/70 sm:mx-5">
           Email delivery is not configured for this deployment. Profiles can be
@@ -158,6 +172,12 @@ export function ReportDeliveryProfilesPanel({
                     ? `next ${profile.nextRunAt ?? "unscheduled"}`
                     : "paused"}
                 </p>
+                {profile.recipients.some((one) => !one.isAllowed) ? (
+                  <p className="text-xs text-warning">
+                    {profile.recipients.filter((one) => !one.isAllowed).length}{" "}
+                    recipient(s) held back by delivery test mode
+                  </p>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <button

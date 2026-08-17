@@ -25,6 +25,7 @@ import {
 import {
   estimateRankCheckCredits,
   rankCheckCostApprovalError,
+  rankCheckMethod,
   type RankTrackingEngine,
 } from "@/shared/rank-tracking";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -92,9 +93,12 @@ export async function prepareRankCheckKeywords(input: {
     trackingKeywords.length,
     input.devices,
     input.serpDepth,
-    input.trigger === "scheduled" || input.engine === "bing"
-      ? "queued"
-      : "live",
+    // `engine` is optional here for run params enqueued before the column
+    // existed; those are all Google, which is also the only live engine.
+    rankCheckMethod({
+      trigger: input.trigger,
+      engine: input.engine ?? "google",
+    }),
   );
   if (input.maxCostCredits != null && costCredits > input.maxCostCredits) {
     throw new AppError(
@@ -361,7 +365,7 @@ export class RankCheckWorkflow extends WorkflowEntrypoint<
         // Scheduled checks use DataForSEO's task queue (~30% of live cost).
         // Bing always uses the queue because its full-depth task path is the
         // reviewed collection contract; only manual Google is instant/live.
-        if (trigger === "scheduled" || engine === "bing") {
+        if (rankCheckMethod({ trigger, engine }) === "queued") {
           queueStats = await runQueuedCheck(step, checkContext);
         } else {
           await runLiveCheck(step, checkContext);

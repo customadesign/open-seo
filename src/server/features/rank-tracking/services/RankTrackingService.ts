@@ -25,6 +25,7 @@ import {
   isScheduledRankTrackingInterval,
   MAX_CONFIGS_PER_PROJECT,
   rankCheckCostApprovalError,
+  rankCheckMethod,
   type RankTrackingEngine,
 } from "@/shared/rank-tracking";
 import {
@@ -203,11 +204,14 @@ async function triggerCheck(input: {
   }
 
   if (input.maxCostCredits != null) {
+    // Price the approval the same way the workflow will: a Bing check is
+    // queued even when triggered by hand, so charging it at live rates would
+    // reject a run the user correctly approved at the queued estimate.
     const { costCredits } = estimateRankCheckCredits(
       keywords.length,
       config.devices,
       config.serpDepth,
-      "live",
+      rankCheckMethod({ trigger: "manual", engine: config.engine }),
     );
     if (costCredits > input.maxCostCredits) {
       throw new AppError(

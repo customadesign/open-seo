@@ -221,10 +221,16 @@ export function ReportDeliveryProfileForm({
       <label className="form-control">
         <span className="label-text text-xs">
           Recipients (comma or line separated)
+          {draft.isEnabled ? (
+            <span className="text-error"> — required to send on schedule</span>
+          ) : null}
         </span>
         <textarea
           className="textarea textarea-sm textarea-bordered"
           rows={2}
+          // The server rejects an enabled profile with no recipients; mirror it
+          // here so the toggle below explains itself before a failed save.
+          required={draft.isEnabled}
           value={draft.recipients}
           onChange={(event) => set("recipients", event.target.value)}
           placeholder="client@example.com, seo@example.com"

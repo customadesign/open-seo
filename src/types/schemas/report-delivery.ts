@@ -97,12 +97,17 @@ const profileFields = {
 };
 
 /** Monthly needs a day of month and weekly a day of week; daily needs neither.
- * Enforcing it here keeps the scheduler free of "which field is set" branches. */
-function validateSchedule(
+ * Enforcing it here keeps the scheduler free of "which field is set" branches.
+ * An enabled profile also needs somewhere to send: without recipients the cron
+ * would claim the schedule, build a PDF and mail nobody, which reads as a
+ * silent delivery failure rather than the misconfiguration it is. */
+function validateProfile(
   data: {
     frequency: ReportDeliveryFrequency;
     runDay: number | null;
     runWeekday: number | null;
+    isEnabled: boolean;
+    recipients: Array<{ email: string }>;
   },
   ctx: z.RefinementCtx,
 ) {
@@ -120,6 +125,13 @@ function validateSchedule(
       message: "Weekly schedules need a day of the week.",
     });
   }
+  if (data.isEnabled && data.recipients.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["recipients"],
+      message: "Add at least one recipient before sending on a schedule.",
+    });
+  }
 }
 
 export const listReportDeliveryProfilesSchema = z.object({
@@ -128,11 +140,11 @@ export const listReportDeliveryProfilesSchema = z.object({
 
 export const createReportDeliveryProfileSchema = z
   .object({ projectId: idField, ...profileFields })
-  .superRefine(validateSchedule);
+  .superRefine(validateProfile);
 
 export const updateReportDeliveryProfileSchema = z
   .object({ projectId: idField, profileId: idField, ...profileFields })
-  .superRefine(validateSchedule);
+  .superRefine(validateProfile);
 
 export const deleteReportDeliveryProfileSchema = z.object({
   projectId: idField,

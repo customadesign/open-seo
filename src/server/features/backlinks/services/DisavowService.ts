@@ -79,16 +79,88 @@ export function normalizeDisavowValue(
   return entryType === "domain" ? normalizeDomain(value) : normalizeUrl(value);
 }
 
+/** Words that mark the decision as an explicit "leave this link alone". */
+const KEEP_WORDS = new Set([
+  "keep",
+  "keeps",
+  "keeping",
+  "kept",
+  "whitelist",
+  "whitelisted",
+  "whitelisting",
+]);
+
+/** Words that invert the verb that follows them. */
+const NEGATION_WORDS = new Set([
+  "not",
+  "no",
+  "never",
+  "dont",
+  "doesnt",
+  "didnt",
+  "wont",
+  "cannot",
+  "cant",
+  "exclude",
+  "excluded",
+  "excluding",
+  "without",
+]);
+
+/** Exact words that carry a decision, mapped to the decision they carry. */
+const DECISION_WORDS = new Map<string, "export" | "disavow" | "remove">([
+  ["export", "export"],
+  ["exported", "export"],
+  ["exports", "export"],
+  ["exporting", "export"],
+  ["disavow", "disavow"],
+  ["disavowed", "disavow"],
+  ["disavows", "disavow"],
+  ["disavowing", "disavow"],
+  ["remove", "remove"],
+  ["removed", "remove"],
+  ["removes", "remove"],
+  ["removal", "remove"],
+]);
+
+/** How many preceding words a negation can reach ("not yet exported"). */
+const NEGATION_REACH = 3;
+
+/**
+ * SEMrush status/action columns are free text and routinely negated: "Do not
+ * disavow", "Not exported", "Whitelist - do not disavow". Substring matching
+ * read every one of those as a positive decision, which is how a deliberately
+ * kept domain ended up in the Google disavow file. Match whole words instead
+ * and resolve a negated verb to a decision that cannot be exported: a negated
+ * disavow is a considered "kept", anything else falls back to "pending".
+ */
 function statusFromSemrush(value: string | undefined): DisavowStatus {
-  const status =
-    value
-      ?.trim()
-      .toLowerCase()
-      .replace(/[\s-]+/g, "_") ?? "";
-  if (status.includes("export")) return "exported";
-  if (status.includes("disavow")) return "disavowed";
-  if (status.includes("remove")) return "removal_requested";
-  if (status.includes("keep") || status.includes("white")) return "kept";
+  const words = (value ?? "")
+    .toLowerCase()
+    .replaceAll(/['’]/gu, "")
+    .split(/[^a-z]+/u)
+    .filter(Boolean);
+  if (words.some((word) => KEEP_WORDS.has(word))) return "kept";
+
+  const decisions = words.flatMap((word, index) => {
+    const decision = DECISION_WORDS.get(word);
+    if (!decision) return [];
+    const negated = words
+      .slice(Math.max(0, index - NEGATION_REACH), index)
+      .some((earlier) => NEGATION_WORDS.has(earlier));
+    return [{ decision, negated }];
+  });
+  const asserts = (decision: "export" | "disavow" | "remove") =>
+    decisions.some((entry) => entry.decision === decision && !entry.negated);
+
+  if (
+    decisions.some((entry) => entry.decision === "disavow" && entry.negated)
+  ) {
+    return "kept";
+  }
+  if (asserts("export")) return "exported";
+  if (asserts("disavow")) return "disavowed";
+  if (asserts("remove")) return "removal_requested";
   return "pending";
 }
 

@@ -273,6 +273,29 @@ describe("RankTrackingService management invariants", () => {
     expect(mocks.beginRankCheckRun).not.toHaveBeenCalled();
   });
 
+  // A manual Bing run is posted to the task queue by RankCheckWorkflow, so the
+  // approval gate and the estimate the user approved must both be queued-priced
+  // — live pricing here rejected runs the workflow would have charged less for.
+  it("prices a manual Bing check at queued rates in the estimate and the ceiling", async () => {
+    mocks.getConfigById.mockResolvedValue({ ...config, engine: "bing" });
+    mocks.getKeywordCountForConfig.mockResolvedValue(2);
+    mocks.beginRankCheckRun.mockResolvedValue({ ok: true, runId: "run_1" });
+
+    await expect(
+      RankTrackingService.estimateCost("config_1", "project_1"),
+    ).resolves.toMatchObject({ method: "queued", engine: "bing" });
+
+    // 11 credits is below the live estimate that rejects a Google config above.
+    await expect(
+      RankTrackingService.triggerCheck({
+        configId: "config_1",
+        projectId: "project_1",
+        billingCustomer,
+        maxCostCredits: 11,
+      }),
+    ).resolves.toEqual({ ok: true, runId: "run_1" });
+  });
+
   it("starts a run at or below its approved credit ceiling", async () => {
     mocks.beginRankCheckRun.mockResolvedValue({
       ok: true,
