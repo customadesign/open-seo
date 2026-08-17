@@ -29,7 +29,11 @@ FINGERPRINT="$(env | grep -E '^(VITE_|AUTH_MODE|BYPASS_EMAIL_VERIFICATION|POSTHO
 # silently disable rebuilds — fail loudly instead.
 test -n "$FINGERPRINT"
 
-if [ -f "$FP_FILE" ] && [ "$(cat "$FP_FILE")" = "$FINGERPRINT" ]; then
+# Vite preview also needs the Wrangler deployment pointer. It lives on the
+# persistent .wrangler volume, not in dist, so a fresh volume paired with a
+# prebuilt image can have a matching fingerprint but still be unstartable.
+# Rebuild in that case; Vite recreates the missing metadata alongside dist.
+if [ -f "$FP_FILE" ] && [ -f .wrangler/deploy/config.json ] && [ "$(cat "$FP_FILE")" = "$FINGERPRINT" ]; then
   echo "Reusing existing build (build-relevant env unchanged)."
 else
   echo "Building client + server (first start, changed build env, or new image)..."
