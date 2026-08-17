@@ -21,25 +21,30 @@ should keep those findings explainable rather than copy SEMrush's opaque score.
 
 ## Decision
 
-The completed replacement work covers the agency's cancellation-critical
-operations: Google and Bing rank tracking, technical and AI-oriented site
-audits, first-party GSC and GA4 reporting, geo-grid tracking, stateful AI prompt
-observations, reviewed disavow records, and scheduled branded reports.
+The replacement work covers the core product surfaces: Google and Bing rank
+tracking, technical and AI-oriented site audits, first-party GSC and GA4 data,
+geo-grid tracking, stateful AI prompt observations, reviewed disavow records,
+and scheduled branded reports. Four controls still matter more than adding
+another research screen:
 
-Four additions would add real value after the cutover gates pass:
+1. Require an approved per-run ceiling for scheduled rank checks. Manual checks
+   have an estimate and confirmation, but rank configurations currently default
+   active on a weekly schedule and scheduled runs do not pass a cost ceiling.
+2. Schedule site audits. The scheduler reconciles stale audit runs but does not
+   start a new crawl, so a report can silently omit its audit section when no
+   audit completed inside the reporting period.
+3. Put the existing GSC-plus-GA4 search-opportunity score in the product UI and
+   use it to prioritize audit findings and cannibalization work.
+4. Add AI visibility and local geo-grid sections to scheduled reports. Both are
+   collected, but neither is currently an available report section.
 
-1. A native competitor gap workspace that combines keyword intersections,
-   missing ranking topics, backlink intersections, and exportable page actions.
-2. An AI competitor gap view over OpenSEO's stored prompt runs, showing prompts
-   and cited sources where a competitor appears and the tracked brand does not.
-3. An own-site AI referral report from GA4, with ChatGPT, Perplexity, Gemini,
-   Copilot, and other referrers mapped to landing pages and conversions.
-4. First-party impact overlays for audit findings and cannibalization, using GSC
-   query-page data and GA4 outcomes to sort fixes by observed business impact.
-
-None of these four requires keeping SEMrush active while it is built. The first
-two reuse DataForSEO and observations OpenSEO already stores. The last two use
-the site's own Google data.
+After those controls, the most useful additions are a prompt-level AI
+competitor/source gap over stored observations; a combined keyword and backlink
+gap workspace; an own-site AI referral and conversion report from GA4; and,
+only after recurring cost is bounded, aligned competitor position tracking.
+Keyword and backlink intersections require new DataForSEO endpoint wrappers or
+multi-domain fan-out, metering, and cost approval. They are not a zero-cost
+reuse of the current domain and backlink screens.
 
 Traffic & Market is different. Its competitor traffic estimates, demographics,
 audience overlap, channel estimates, and market benchmarks rely on SEMrush's
@@ -50,48 +55,48 @@ not an OpenSEO engineering gap.
 
 ## SEO catalog
 
-| Current SEMrush tool                   | OpenSEO coverage                                                                                                  | Decision before cancellation                                               |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Dashboard                              | Project dashboard exists                                                                                          | Covered                                                                    |
-| Site Audit, including AI Search Health | Technical, schema, performance, internal-link, crawler-access, answer, trust, and citation-readiness checks exist | Covered for cutover; add impact overlays and crawl comparisons next        |
-| Position Tracking                      | Scheduled Google and Bing tracking with device, depth, history, cost approval, and inactive defaults              | Covered after one parallel validation cycle                                |
-| Domain Overview                        | Domain metrics, ranked keywords, pages, history, and filters exist                                                | Covered                                                                    |
-| Organic Rankings                       | Ranked-keyword tables and filters exist                                                                           | Covered                                                                    |
-| Top Pages                              | Domain pages and backlink top pages exist                                                                         | Covered                                                                    |
-| Compare Domains                        | Agent-assisted competitor analysis exists; no persistent multi-domain comparison screen                           | Useful as part of the competitor gap workspace                             |
-| Keyword Gap                            | Underlying domain-keyword data exists; no native intersection and missing-keyword screen                          | Highest-value remaining native SEO view                                    |
-| Backlink Gap                           | Backlink and referring-domain data exists; no multi-domain intersection screen                                    | Build with Keyword Gap as one competitor workspace                         |
-| Keyword Overview                       | Search volume, difficulty, intent, SERP and related data exist                                                    | Covered                                                                    |
-| Keyword Magic Tool                     | Keyword discovery, related terms, questions, filters, saved terms, and clustering exist                           | Covered                                                                    |
-| Keyword Strategy Builder               | Saved keywords and agent clustering exist                                                                         | Covered for agency workflows; native visual clusters are optional          |
-| SEO Writing Assistant                  | SEO and AI content skills can review drafts                                                                       | Do not build a separate editor unless a client workflow requires it        |
-| Topic Research                         | Keyword, competitor, prompt, and content-strategy workflows exist                                                 | Covered through research and agents                                        |
-| SEO Content Template                   | Agent workflows can create page briefs from keywords and SERPs                                                    | Covered through agents                                                     |
-| Backlinks                              | Backlink tables, filters, exports, history, pages, and domain ratings exist                                       | Covered                                                                    |
-| Referring Domains                      | Referring-domain analysis exists                                                                                  | Covered                                                                    |
-| Backlink Audit                         | Reviewed registry, SEMrush CSV import, Google TXT import/export, notes, status, and history exist                 | Covered without invented toxicity scoring or Google submission             |
-| Sensor                                 | No search-volatility index                                                                                        | Do not build; use observed project rankings and GSC changes                |
-| SEOquake                               | No browser extension                                                                                              | Do not build for cancellation                                              |
-| Semrush Rank                           | No proprietary cross-domain rank                                                                                  | Do not build                                                               |
-| On Page SEO Checker                    | Audits and content skills exist; no keyword-to-page recommendation queue                                          | Fold useful parts into GSC impact and cannibalization work                 |
-| Organic Traffic Insights               | GSC and GA4 data exist, but no single combined opportunity queue                                                  | Fold into the first-party impact view                                      |
-| Link Building                          | Link prospecting exists through search, backlink evidence, and agents; no outreach mailbox                        | Keep outreach in the agency CRM                                            |
-| Log File Analyzer                      | No raw server-log analysis module                                                                                 | Build only if verified client access and a recurring diagnostic need exist |
+| Current SEMrush tool                   | OpenSEO coverage                                                                                                                                                            | Decision before cancellation                                                                                                |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard                              | Project dashboard exists                                                                                                                                                    | Covered                                                                                                                     |
+| Site Audit, including AI Search Health | Technical, schema, performance, internal-link, crawler-access, answer, trust, citation-readiness, and crawl-comparison checks exist                                         | Add recurring audit starts and impact overlays before relying on report automation                                          |
+| Position Tracking                      | Google and Bing tracking with device, depth, and snapshot history; manual runs have estimate approval, but configs default active weekly and scheduled runs have no ceiling | Add a fail-closed recurring cost ceiling before starting the production scheduler; competitor alignment remains a later gap |
+| Domain Overview                        | Point-in-time domain metrics, ranked keywords, pages, recent searches, and filters exist; backlink totals and metric history are not part of the overview                   | Covered for current research, with those limits made explicit                                                               |
+| Organic Rankings                       | Ranked-keyword tables and filters exist                                                                                                                                     | Covered                                                                                                                     |
+| Top Pages                              | Domain pages and backlink top pages exist                                                                                                                                   | Covered                                                                                                                     |
+| Compare Domains                        | Agent-assisted competitor analysis exists; no persistent multi-domain comparison screen                                                                                     | Useful as part of the competitor gap workspace                                                                              |
+| Keyword Gap                            | Underlying domain-keyword data exists; no native intersection and missing-keyword screen                                                                                    | Highest-value remaining native SEO view                                                                                     |
+| Backlink Gap                           | Backlink and referring-domain data exists; no multi-domain intersection screen                                                                                              | Build with Keyword Gap as one competitor workspace                                                                          |
+| Keyword Overview                       | Search volume, difficulty, intent, SERP and related data exist                                                                                                              | Covered                                                                                                                     |
+| Keyword Magic Tool                     | Keyword discovery, related terms, filters, and saved terms exist; there is no native questions view or clustering screen                                                    | Covered for basic research; use the keyword-clustering agent workflow                                                       |
+| Keyword Strategy Builder               | Saved keywords and agent clustering exist                                                                                                                                   | Covered for agency workflows; native visual clusters are optional                                                           |
+| SEO Writing Assistant                  | SEO and AI content skills can review drafts                                                                                                                                 | Do not build a separate editor unless a client workflow requires it                                                         |
+| Topic Research                         | Keyword, competitor, prompt, and content-strategy workflows exist                                                                                                           | Covered through research and agents                                                                                         |
+| SEO Content Template                   | Agent workflows can create page briefs from keywords and SERPs                                                                                                              | Covered through agents                                                                                                      |
+| Backlinks                              | Backlink tables, filters, exports, history, pages, and domain ratings exist                                                                                                 | Covered                                                                                                                     |
+| Referring Domains                      | Referring-domain analysis exists                                                                                                                                            | Covered                                                                                                                     |
+| Backlink Audit                         | Reviewed registry, SEMrush CSV import, Google TXT import/export, comments, status, and export timestamps exist; there is no per-entry event history                         | Covered without invented toxicity scoring or Google submission                                                              |
+| Sensor                                 | No search-volatility index                                                                                                                                                  | Do not build; use observed project rankings and GSC changes                                                                 |
+| SEOquake                               | No browser extension                                                                                                                                                        | Do not build for cancellation                                                                                               |
+| Semrush Rank                           | No proprietary cross-domain rank                                                                                                                                            | Do not build                                                                                                                |
+| On Page SEO Checker                    | Audits and content skills exist; no keyword-to-page recommendation queue                                                                                                    | Fold useful parts into GSC impact and cannibalization work                                                                  |
+| Organic Traffic Insights               | A service and MCP tool already join GSC pages to GA4 landing pages and score opportunities; there is no product UI                                                          | Expose the existing queue as the first-party impact view                                                                    |
+| Link Building                          | Link prospecting exists through search, backlink evidence, and agents; no outreach mailbox                                                                                  | Keep outreach in the agency CRM                                                                                             |
+| Log File Analyzer                      | No raw server-log analysis module                                                                                                                                           | Build only if verified client access and a recurring diagnostic need exist                                                  |
 
 ## AI SEO catalog
 
-| Current SEMrush tool | OpenSEO coverage                                                                                          | Decision before cancellation                                                                    |
-| -------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Visibility Overview  | Provider-specific prompts, runs, mentions, citations, outcomes, models, raw evidence, and cost are stored | Covered without claiming SEMrush score parity                                                   |
-| Competitor Research  | Observations can record competing domains, but there is no aggregate competitor-gap view                  | Build after representative prompt costs are approved                                            |
-| Prompt Research      | Prompt Explorer and research agents exist; OpenSEO does not own SEMrush's trending prompt corpus          | Keep external discovery optional; do not invent volume                                          |
-| Brand Performance    | Mention and citation history exists by tracked prompt and provider                                        | Covered at the evidence level                                                                   |
-| Perception           | No aggregate sentiment score                                                                              | Optional later analysis over stored evidence; require visible source excerpts and cost approval |
-| Narrative Drivers    | Raw answers and citations are preserved, but no theme aggregation exists                                  | Optional later analysis over stored evidence                                                    |
-| Questions            | Prompts are first-class records with a 50-prompt configuration limit                                      | Covered for selected prompt sets                                                                |
-| AI Site Audit        | Enhanced audit checks crawler access, answer structure, schema, entity and trust signals                  | Covered with explicit rules                                                                     |
-| Prompt Tracking      | Scheduled ChatGPT Search, Gemini, and Google AI Mode runs exist and default inactive                      | Covered after cost profiling and parallel validation                                            |
-| Content Creation     | Content skills exist; OpenSEO has no general-purpose AI writing product                                   | Do not build for cancellation                                                                   |
+| Current SEMrush tool | OpenSEO coverage                                                                                                                                   | Decision before cancellation                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Visibility Overview  | Provider-specific prompts, runs, mentions, citations, outcomes, models, raw evidence, and cost are stored                                          | Covered without claiming SEMrush score parity                                                   |
+| Competitor Research  | Brand Lookup already shows aggregate share of voice and cited sources; stored prompt observations do not yet expose a target-versus-competitor gap | Add the narrower evidence-level gap after representative prompt costs are approved              |
+| Prompt Research      | Prompt Explorer and research agents exist; OpenSEO does not own SEMrush's trending prompt corpus                                                   | Keep external discovery optional; do not invent volume                                          |
+| Brand Performance    | Mention and citation history exists by tracked prompt and provider                                                                                 | Covered at the evidence level                                                                   |
+| Perception           | No aggregate sentiment score                                                                                                                       | Optional later analysis over stored evidence; require visible source excerpts and cost approval |
+| Narrative Drivers    | Raw answers and citations are preserved, but no theme aggregation exists                                                                           | Optional later analysis over stored evidence                                                    |
+| Questions            | Prompts are first-class records with a 50-prompt configuration limit                                                                               | Covered for selected prompt sets                                                                |
+| AI Site Audit        | Enhanced audit checks crawler access, answer structure, schema, entity and trust signals                                                           | Covered with explicit rules                                                                     |
+| Prompt Tracking      | Scheduled ChatGPT Search, Gemini, and Google AI Mode runs exist and default inactive                                                               | Covered after cost profiling and parallel validation                                            |
+| Content Creation     | Content skills exist; OpenSEO has no general-purpose AI writing product                                                                            | Do not build for cancellation                                                                   |
 
 SEMrush's proprietary prompt corpus, visibility score, estimated AI search
 volume, and cross-customer benchmarks cannot be reconstructed from the evidence
@@ -126,8 +131,10 @@ agency workflows:
   archive does not preserve.
 - Complete one parallel cycle for ranks, audits, AI evidence, geo-grids, and
   reporting.
-- Measure DataForSEO costs and approve recurring ceilings before enabling any
-  imported Bing or AI schedule.
+- Keep every recurring rank and AI schedule stopped until its provider costs
+  are measured and an enforceable per-run ceiling is approved.
+- Verify that a fresh scheduled audit feeds the audit section and that AI/local
+  evidence reaches the intended report before relying on unattended delivery.
 - Confirm whether anyone currently sells Traffic & Market estimates,
   demographics, or audience overlap. Assign that dependency to a separate tool
   owner if the answer is yes.
