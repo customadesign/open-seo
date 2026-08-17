@@ -255,7 +255,7 @@ DROP INDEX `rank_tracking_configs_local_idx`;--> statement-breakpoint
 ALTER TABLE `rank_tracking_configs` ADD `engine` text DEFAULT 'google' NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX `rank_tracking_configs_national_idx` ON `rank_tracking_configs` (`project_id`,`domain`,`engine`,`location_code`) WHERE "rank_tracking_configs"."location_name" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX `rank_tracking_configs_local_idx` ON `rank_tracking_configs` (`project_id`,`domain`,`engine`,`location_code`,`location_name`) WHERE "rank_tracking_configs"."location_name" IS NOT NULL;--> statement-breakpoint
-ALTER TABLE `monthly_report_runs` ADD `profile_id` text REFERENCES monthly_report_delivery_profiles(id);
+ALTER TABLE `monthly_report_runs` ADD `profile_id` text REFERENCES monthly_report_delivery_profiles(id) ON DELETE set null;
 --> statement-breakpoint
 WITH target_project AS (
   SELECT id
@@ -314,8 +314,10 @@ INSERT INTO backlink_disavow_entries (
   status,
   comments,
   source,
-  link_count,
-  exported_at
+	link_count,
+	exported_at,
+	created_at,
+	updated_at
 )
 SELECT
   target_project.id || ':disavow:domain:' || imported_domains.value,
@@ -324,9 +326,11 @@ SELECT
   imported_domains.value,
   'exported',
   'SEMrush Backlink Audit export (2026-03-23); Google upload not independently confirmed.',
-  'semrush_csv',
-  0,
-  '2026-03-23T00:00:00.000Z'
+	'semrush_csv',
+	0,
+	'2026-03-23T00:00:00.000Z',
+	'2026-03-23T00:00:00.000Z',
+	'2026-03-23T00:00:00.000Z'
 FROM target_project
 CROSS JOIN imported_domains
 WHERE true

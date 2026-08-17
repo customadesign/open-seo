@@ -315,8 +315,10 @@ INSERT INTO backlink_disavow_entries (
   status,
   comments,
   source,
-  link_count,
-  exported_at
+	link_count,
+	exported_at,
+	created_at,
+	updated_at
 )
 SELECT
   target_project.id || ':disavow:domain:' || imported_domains.value,
@@ -325,9 +327,11 @@ SELECT
   imported_domains.value,
   'exported',
   'SEMrush Backlink Audit export (2026-03-23); Google upload not independently confirmed.',
-  'semrush_csv',
-  0,
-  '2026-03-23T00:00:00.000Z'
+	'semrush_csv',
+	0,
+	'2026-03-23T00:00:00.000Z',
+	'2026-03-23T00:00:00.000Z',
+	'2026-03-23T00:00:00.000Z'
 FROM target_project
 CROSS JOIN imported_domains
 WHERE true

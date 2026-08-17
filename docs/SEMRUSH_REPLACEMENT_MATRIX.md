@@ -2,6 +2,8 @@
 
 Updated 2026-08-18. This matrix separates the SEO workflows the agency needs from the broader set of products sold under SEMrush. It is a cancellation checklist, not a claim of complete product parity.
 
+For the signed-in, current product catalog and a tool-by-tool build decision, see [the 2026-08-18 current tool gap audit](./SEMRUSH_CURRENT_TOOL_GAP_AUDIT.md).
+
 SEMrush's current SEO Toolkit combines keyword and competitor research, backlink tools, rank tracking, on-page analysis, and technical auditing. Its separate Local, AI Visibility, Content, reporting, advertising, traffic, and social products add workflows that should not automatically become OpenSEO requirements. See the official [SEO Toolkit overview](https://www.semrush.com/kb/806-seo-toolkit), [Local Listing Management guide](https://www.semrush.com/kb/847-listing-management), [Map Rank Tracker guide](https://www.semrush.com/kb/1399-map-rank-tracker), [My Reports guide](https://www.semrush.com/kb/34-my-reports), and [AI Visibility overview](https://www.semrush.com/kb/1626-ai-visibility-features).
 
 | SEMrush workflow                                                               | OpenSEO state                                                                                                                                                                                                                                                                                                                                 | Cancellation decision                                                                                                                                                          |

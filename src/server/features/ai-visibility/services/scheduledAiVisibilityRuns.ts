@@ -23,9 +23,11 @@ import {
 // windows overlap.
 const SCHEDULED_OBSERVATION_BUDGET = 500;
 
-// Wall-clock guard: sub-hourly crons are killed at 15 minutes and a
-// skip-heavy tick pays serial plan checks per distinct org.
-const TICK_DEADLINE_MS = 3 * 60_000;
+// Share the self-host sidecar's 270-second request budget with every other
+// scheduled subsystem. Unprocessed configs remain due, so a one-minute
+// admission window prevents reports and retention from being starved without
+// losing work.
+const TICK_DEADLINE_MS = 60_000;
 
 export async function runScheduledAiVisibilityRuns() {
   const nowIso = new Date().toISOString();

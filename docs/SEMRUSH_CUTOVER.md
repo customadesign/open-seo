@@ -34,6 +34,12 @@ subscription. Those actions remain separate approvals.
   guess at cleanup on a live database.
 - Review the generated SQLite/D1 and Postgres migrations together and confirm
   they create equivalent constraints, indexes, and defaults.
+- D1 applies migration statements individually. Keep the backup until both
+  `rank_tracking_configs_national_idx` and `rank_tracking_configs_local_idx`
+  are present after the engine-column migration.
+- Verify the Uptown project received exactly three `semrush_csv` disavow rows:
+  `house-rent.info`, `desingtrend.vercel.app`, and `p.eurekster.com`. A migration
+  that cannot identify the project safely leaves the seed empty.
 - Confirm self-host traffic cannot reach `/cdn-cgi/`, Local Explorer is off, and
   the scheduler sidecar can only call the OpenSEO service over its shared
   loopback network.

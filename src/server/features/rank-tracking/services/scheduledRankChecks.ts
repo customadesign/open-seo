@@ -23,11 +23,12 @@ import {
 // during backlog catch-up.
 const SCHEDULED_TASK_UNIT_BUDGET = 1000;
 
-// Wall-clock guard for the per-config loop: sub-hourly crons are killed at 15
-// minutes, and a skip-heavy tick pays serial Autumn round-trips per distinct
-// org (worst case minutes, more when Autumn is degraded). Stopping early is
-// safe — unprocessed configs stay due and the next tick resumes oldest-first.
-const TICK_DEADLINE_MS = 3 * 60_000;
+// Keep this subsystem below one quarter of the self-host sidecar's 270-second
+// request budget. Rank checks share a scheduled invocation with geo-grids, AI
+// visibility, reports, delivery, and retention. A longer private deadline could
+// repeatedly starve the work later in that list. Stopping early is safe because
+// unprocessed configs stay due and the next tick resumes oldest-first.
+const TICK_DEADLINE_MS = 60_000;
 
 // Cap on the per-tick list of configs blocked by an active run. Blocked
 // configs leave no durable trace on their row, so the summary names them.

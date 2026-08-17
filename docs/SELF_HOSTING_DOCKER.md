@@ -47,9 +47,9 @@ You can also persist it in `.env`.
 
 Cloudflare deployments run the cron triggers in `wrangler.jsonc` themselves. Docker self-hosts serve the same Worker through `vite preview` -> Miniflare, which never fires those triggers, so `compose.yaml` ships an `open-seo-scheduler` sidecar that drives them.
 
-The sidecar waits for the app's health check, then every five minutes sends one `POST` to Miniflare's scheduled-handler endpoint on `127.0.0.1`. Each tick runs the stale-audit watchdog, scheduled rank checks, scheduled geo-grids, and due monthly reports. Ticks are serialized and abort after 270 seconds; a failed tick is not retried before the next tick, because every handler re-reads whatever the failed tick left due.
+The sidecar waits for the app's health check, then every five minutes sends one `POST` to Miniflare's scheduled-handler endpoint on `127.0.0.1`. Each tick runs the stale-audit watchdog, scheduled rank checks, scheduled geo-grids, AI visibility, due monthly reports, report delivery, and report retention. Rank and AI admission loops stop after one minute each so work later in the tick cannot be starved. The sidecar waits for one request at a time and aborts its request after 270 seconds. A server handler may still finish after the client aborts, so every scheduler uses compare-and-set claims and can tolerate overlap. A failed tick is not retried before the next slot.
 
-Without it, nothing scheduled ever runs — rank checks, geo-grids, and monthly reports stay due forever. Confirm it is up:
+Without it, nothing scheduled ever runs, including rank checks, geo-grids, AI visibility, monthly reports, delivery, and retention. Confirm it is up:
 
 ```bash
 docker compose ps open-seo-scheduler
