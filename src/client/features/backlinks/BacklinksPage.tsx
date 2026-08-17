@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import type { SortingState, Updater } from "@tanstack/react-table";
 import { BacklinksSearchCard } from "./BacklinksSearchCard";
 import { BacklinksBody } from "./BacklinksPageContent";
+import { DisavowRegistryPanel } from "./DisavowRegistryPanel";
 import type { BacklinksPageProps } from "./backlinksPageTypes";
 import type { BacklinksSearchState } from "./backlinksPageTypes";
 import {
@@ -199,6 +200,8 @@ export function BacklinksPage({
             addSearch({ target: values.target, scope: values.scope });
           }}
         />
+
+        <DisavowRegistryPanel projectId={projectId} />
 
         <BacklinksBody
           projectId={projectId}

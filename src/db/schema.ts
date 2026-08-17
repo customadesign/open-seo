@@ -10,6 +10,7 @@ import * as sqliteTelemetry from "./telemetry.schema";
 import * as sqliteLocalSeo from "./local-seo.schema";
 import * as sqliteGoogleAds from "./google-ads.schema";
 import * as sqliteReports from "./report.schema";
+import * as sqliteDisavow from "./disavow.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -21,6 +22,7 @@ import * as pgTelemetry from "./pg/telemetry.schema";
 import * as pgLocalSeo from "./pg/local-seo.schema";
 import * as pgGoogleAds from "./pg/google-ads.schema";
 import * as pgReports from "./pg/report.schema";
+import * as pgDisavow from "./pg/disavow.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -42,7 +44,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteTelemetry &
   typeof sqliteLocalSeo &
   typeof sqliteGoogleAds &
-  typeof sqliteReports;
+  typeof sqliteReports &
+  typeof sqliteDisavow;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -58,6 +61,7 @@ const runtimeSchema =
         ...pgLocalSeo,
         ...pgGoogleAds,
         ...pgReports,
+        ...pgDisavow,
       }
     : {
         ...sqliteApp,
@@ -71,6 +75,7 @@ const runtimeSchema =
         ...sqliteLocalSeo,
         ...sqliteGoogleAds,
         ...sqliteReports,
+        ...sqliteDisavow,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -114,6 +119,7 @@ export const {
   reportSections,
   reportRuns,
   reportCommentaryItems,
+  backlinkDisavowEntries,
   telemetryState,
   localBusinessProfiles,
   localListingConnections,

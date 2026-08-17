@@ -18,6 +18,7 @@ import * as sqliteTelemetry from "./telemetry.schema";
 import * as sqliteLocalSeo from "./local-seo.schema";
 import * as sqliteGoogleAds from "./google-ads.schema";
 import * as sqliteReports from "./report.schema";
+import * as sqliteDisavow from "./disavow.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -29,6 +30,7 @@ import * as pgTelemetry from "./pg/telemetry.schema";
 import * as pgLocalSeo from "./pg/local-seo.schema";
 import * as pgGoogleAds from "./pg/google-ads.schema";
 import * as pgReports from "./pg/report.schema";
+import * as pgDisavow from "./pg/disavow.schema";
 
 // Guards the ONE structural artifact `db:generate` does not regenerate: the
 // hand-written Postgres schema. The provider-aware `db`/`@/db/schema` barrel
@@ -161,6 +163,7 @@ const sqliteAppTables = tablesFrom(
   sqliteLocalSeo,
   sqliteGoogleAds,
   sqliteReports,
+  sqliteDisavow,
 );
 const pgAppTables = tablesFrom(
   pgApp,
@@ -173,6 +176,7 @@ const pgAppTables = tablesFrom(
   pgLocalSeo,
   pgGoogleAds,
   pgReports,
+  pgDisavow,
 );
 const sqliteAuthTables = tablesFrom(sqliteAuth);
 const pgAuthTables = tablesFrom(pgAuth);
