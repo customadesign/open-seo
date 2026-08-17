@@ -43,6 +43,13 @@ export const rankTrackingConfigs = sqliteTable(
       .default("weekly"),
     locationName: text("location_name"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    /**
+     * Approval ceiling in credits for a single scheduled check. NULL means no
+     * approval exists: the scheduler skips the config with `cost_ceiling`
+     * rather than spending an unbounded amount, which is what keeps rows
+     * migrated from before this column from billing silently.
+     */
+    maxCostCredits: integer("max_cost_credits"),
     lastCheckedAt: text("last_checked_at"),
     nextCheckAt: text("next_check_at"),
     lastSkipReason: text("last_skip_reason"),

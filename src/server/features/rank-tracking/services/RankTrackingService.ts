@@ -26,6 +26,7 @@ import {
   MAX_CONFIGS_PER_PROJECT,
   rankCheckCostApprovalError,
   rankCheckMethod,
+  rankCheckRecurringCeilingError,
   type RankTrackingEngine,
 } from "@/shared/rank-tracking";
 import {
@@ -51,6 +52,7 @@ async function createConfig(input: {
   devices?: RankTrackingConfig["devices"];
   serpDepth: number;
   scheduleInterval?: RankTrackingConfig["scheduleInterval"];
+  maxCostCredits?: number | null;
 }) {
   const normalizedDomain = normalizeDomain(input.domain);
   const engine = input.engine ?? "google";
@@ -59,7 +61,18 @@ async function createConfig(input: {
     input,
     input.projectMarket,
   );
-  const scheduleInterval = input.scheduleInterval ?? "weekly";
+  // Recurring spend is opt-in. A tracker created without an explicit cadence
+  // never bills on its own, so a fresh deployment starts at zero scheduled
+  // spend. (`isActive` is the archive flag here, not the schedule switch — a
+  // new row must stay active to be listed at all.)
+  const scheduleInterval = input.scheduleInterval ?? "manual";
+  const maxCostCredits = input.maxCostCredits ?? null;
+  // Both the new-row and reactivation paths below write isActive: true.
+  assertRecurringSpendApproval({
+    scheduleInterval,
+    isActive: true,
+    maxCostCredits,
+  });
   const nextCheckAt = isScheduledRankTrackingInterval(scheduleInterval)
     ? computeNextCheckAt(scheduleInterval)
     : null;
@@ -106,6 +119,7 @@ async function createConfig(input: {
       devices: input.devices ?? "both",
       serpDepth: input.serpDepth,
       scheduleInterval,
+      maxCostCredits,
       nextCheckAt,
       // Drop any stale skip reason from before it was archived so the
       // re-added domain doesn't surface an outdated warning.
@@ -128,6 +142,7 @@ async function createConfig(input: {
     devices: input.devices ?? "both",
     serpDepth: input.serpDepth,
     scheduleInterval,
+    maxCostCredits,
     nextCheckAt,
     isActive: true,
     lastCheckedAt: null,
@@ -152,8 +167,10 @@ async function updateConfig(
     serpDepth?: number;
     scheduleInterval?: RankTrackingConfig["scheduleInterval"];
     isActive?: boolean;
+    maxCostCredits?: number | null;
   },
 ) {
+  const existing = await getValidatedConfig(configId, projectId);
   const updates: typeof input & { nextCheckAt?: string | null } = {};
 
   if (input.domain !== undefined)
@@ -167,6 +184,20 @@ async function updateConfig(
   if (input.devices !== undefined) updates.devices = input.devices;
   if (input.serpDepth !== undefined) updates.serpDepth = input.serpDepth;
   if (input.isActive !== undefined) updates.isActive = input.isActive;
+  if (input.maxCostCredits !== undefined)
+    updates.maxCostCredits = input.maxCostCredits;
+
+  // Approval is judged on the config as it will be *after* this edit, so
+  // turning on a schedule and setting the ceiling in one request is allowed
+  // while enabling a schedule on a legacy row with no ceiling is not.
+  assertRecurringSpendApproval({
+    scheduleInterval: input.scheduleInterval ?? existing.scheduleInterval,
+    isActive: input.isActive ?? existing.isActive,
+    maxCostCredits:
+      input.maxCostCredits === undefined
+        ? existing.maxCostCredits
+        : input.maxCostCredits,
+  });
 
   if (input.scheduleInterval !== undefined) {
     updates.scheduleInterval = input.scheduleInterval;
@@ -178,6 +209,23 @@ async function updateConfig(
   }
 
   await RankTrackingRepository.updateConfig(configId, projectId, updates);
+}
+
+/**
+ * A recurring, non-archived tracker must carry an explicit positive credit
+ * ceiling. NULL is the migrated-row state and 0 is not an approval — both would
+ * otherwise present as an active schedule that silently never runs.
+ */
+function assertRecurringSpendApproval(input: {
+  scheduleInterval: RankTrackingConfig["scheduleInterval"];
+  isActive: boolean;
+  maxCostCredits: number | null;
+}) {
+  if (!input.isActive) return;
+  if (!isScheduledRankTrackingInterval(input.scheduleInterval)) return;
+  if (input.maxCostCredits == null || input.maxCostCredits <= 0) {
+    throw new AppError("VALIDATION_ERROR", rankCheckRecurringCeilingError);
+  }
 }
 
 // ---------------------------------------------------------------------------

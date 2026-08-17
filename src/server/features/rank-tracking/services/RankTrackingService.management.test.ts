@@ -49,6 +49,8 @@ const config = {
   devices: "both" as const,
   serpDepth: 10,
   scheduleInterval: "weekly" as const,
+  isActive: true,
+  maxCostCredits: 500,
 };
 
 const billingCustomer = {

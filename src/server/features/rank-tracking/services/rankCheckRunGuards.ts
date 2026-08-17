@@ -167,7 +167,9 @@ export async function beginRankCheckRun(input: {
   billingCustomer: BillingCustomerContext;
   keywordsTotal: number;
   keywordIds?: string[];
-  maxCostCredits?: number;
+  // Nullable so a scheduled caller can forward a config's stored ceiling
+  // straight through; null never reaches the workflow params.
+  maxCostCredits?: number | null;
   trigger: "manual" | "scheduled";
   workflowStartErrorMessage: string;
 }): Promise<RankCheckTriggerResult> {
@@ -200,7 +202,7 @@ export async function beginRankCheckRun(input: {
             serpDepth: input.config.serpDepth,
             trigger: input.trigger,
             keywordIds: input.keywordIds,
-            maxCostCredits: input.maxCostCredits,
+            maxCostCredits: input.maxCostCredits ?? undefined,
           },
         });
       } catch (error) {

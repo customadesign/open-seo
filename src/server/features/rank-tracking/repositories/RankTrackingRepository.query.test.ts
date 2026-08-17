@@ -53,6 +53,7 @@ beforeAll(async () => {
       schedule_interval TEXT NOT NULL DEFAULT 'weekly',
       location_name TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
+      max_cost_credits INTEGER,
       last_checked_at TEXT,
       next_check_at TEXT,
       last_skip_reason TEXT,

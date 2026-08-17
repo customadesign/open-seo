@@ -21,6 +21,7 @@ import {
   scheduleLabel,
 } from "@/shared/rank-tracking";
 import { formatLocationLabel } from "@/shared/keyword-locations";
+import { rankTrackingSkipReasonLabel } from "./rankTrackingUi";
 import { Modal } from "@/client/components/Modal";
 import {
   applyDomainListFilters,
@@ -240,16 +241,11 @@ function DomainRow({
             </>
           )}
         </p>
-        {summary.lastSkipReason === "insufficient_credits" && (
+        {rankTrackingSkipReasonLabel(summary.lastSkipReason) && (
           <p className="flex items-center gap-1 text-xs text-warning">
             <AlertTriangle className="size-3" />
-            Scheduled check skipped — insufficient credits
-          </p>
-        )}
-        {summary.lastSkipReason === "plan_required" && (
-          <p className="flex items-center gap-1 text-xs text-warning">
-            <AlertTriangle className="size-3" />
-            Scheduled check skipped — paid plan required
+            Scheduled check skipped —{" "}
+            {rankTrackingSkipReasonLabel(summary.lastSkipReason)}
           </p>
         )}
       </div>

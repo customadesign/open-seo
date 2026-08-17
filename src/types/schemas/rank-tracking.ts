@@ -57,6 +57,10 @@ const languageCodeField = z
   .string()
   .max(10)
   .refine(isSupportedLanguageCode, "Unsupported language code");
+// Approved credits for one scheduled check. Positive-only: a zero or negative
+// ceiling would activate a schedule that then skips every run, which reads as a
+// broken tracker rather than a deliberate setting.
+const maxCostCreditsField = z.number().int().positive().max(1_000_000);
 
 export const getConfigsSchema = z.object({
   projectId: z.string().uuid(),
@@ -74,6 +78,7 @@ export const createConfigSchema = z.object({
   devices: devicesEnum.optional(),
   serpDepth: z.number().int().min(10).max(100).multipleOf(10),
   scheduleInterval: scheduleEnum.optional(),
+  maxCostCredits: maxCostCreditsField.optional(),
 });
 
 export const updateConfigSchema = z.object({
@@ -87,6 +92,8 @@ export const updateConfigSchema = z.object({
   serpDepth: z.number().int().min(10).max(100).multipleOf(10).optional(),
   scheduleInterval: scheduleEnum.optional(),
   isActive: z.boolean().optional(),
+  // Nullable so a tracker moving back to "manual" can clear its approval.
+  maxCostCredits: maxCostCreditsField.nullable().optional(),
 });
 
 export const triggerCheckSchema = z.object({

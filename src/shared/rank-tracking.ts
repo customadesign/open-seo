@@ -84,6 +84,9 @@ export const MAX_CONFIGS_PER_PROJECT = 500;
 /** Maximum queued rank-check tasks DataForSEO accepts in one task_post. */
 export const MAX_TASKS_PER_POST = 100;
 
+export const rankCheckRecurringCeilingError =
+  "Set an approved per-check credit ceiling above zero before saving a recurring rank tracking schedule.";
+
 export const rankCheckCostApprovalError = (
   costCredits: number,
   maxCostCredits: number,
@@ -155,7 +158,8 @@ type ScheduledRankTrackingInterval = Exclude<
 export type RankTrackingSkipReason =
   | "plan_required"
   | "no_keywords"
-  | "insufficient_credits";
+  | "insufficient_credits"
+  | "cost_ceiling";
 
 export function estimateScheduledRankCheckCredits(
   keywordCount: number,

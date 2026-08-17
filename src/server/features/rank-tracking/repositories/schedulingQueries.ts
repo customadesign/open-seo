@@ -26,6 +26,7 @@ export async function getDueConfigsWithOrganization(nowIso: string) {
         devices: rankTrackingConfigs.devices,
         serpDepth: rankTrackingConfigs.serpDepth,
         scheduleInterval: rankTrackingConfigs.scheduleInterval,
+        maxCostCredits: rankTrackingConfigs.maxCostCredits,
         nextCheckAt: rankTrackingConfigs.nextCheckAt,
         organizationId: projects.organizationId,
       })

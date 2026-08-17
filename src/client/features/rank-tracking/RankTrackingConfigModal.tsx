@@ -22,6 +22,7 @@ import { SearchTargetingField } from "./SearchTargetingField";
 import { KeywordSuggestionStep } from "./KeywordSuggestionStep";
 import { useSaveConfigMutations } from "./useSaveConfigMutations";
 import { RankTrackingEngineField } from "./RankTrackingEngineField";
+import { RankTrackingScheduleField } from "./RankTrackingScheduleField";
 
 type Props = {
   projectId: string;
@@ -93,9 +94,14 @@ function RankTrackingConfigModalContent({
     existingConfig?.languageCode ?? initialMarket.languageCode,
   );
   const [serpDepth, setSerpDepth] = useState(existingConfig?.serpDepth ?? 40);
+  // Recurring spend is opt-in: a new tracker starts on "Manual only" so adding
+  // a domain can never schedule credit spend the user didn't ask for.
   const [schedule, setSchedule] = useState<
     RankTrackingConfig["scheduleInterval"]
-  >(existingConfig?.scheduleInterval ?? "weekly");
+  >(existingConfig?.scheduleInterval ?? "manual");
+  const [ceiling, setCeiling] = useState(
+    existingConfig?.maxCostCredits?.toString() ?? "",
+  );
   const [targetingMode, setTargetingMode] = useState<"national" | "local">(
     existingConfig?.locationName ? "local" : "national",
   );
@@ -109,6 +115,9 @@ function RankTrackingConfigModalContent({
     [locationCode],
   );
 
+  const parsedCeiling = Number.parseInt(ceiling, 10);
+  const approvedCeiling = Number.isFinite(parsedCeiling) ? parsedCeiling : null;
+
   const { createMutation, updateMutation } = useSaveConfigMutations({
     projectId,
     existingConfig,
@@ -121,6 +130,7 @@ function RankTrackingConfigModalContent({
       targetingMode,
       locationName,
       schedule,
+      maxCostCredits: approvedCeiling,
     },
     onCreated: (configId) => {
       setCreatedConfigId(configId);
@@ -144,6 +154,15 @@ function RankTrackingConfigModalContent({
     const parsedDomain = domainField.safeParse(domain);
     if (!parsedDomain.success) {
       toast.error("Please enter a valid domain");
+      return;
+    }
+    if (
+      schedule !== "manual" &&
+      (approvedCeiling === null || approvedCeiling <= 0)
+    ) {
+      toast.error(
+        "Enter a per-check credit ceiling above zero to approve recurring checks",
+      );
       return;
     }
     setDomain(parsedDomain.data);
@@ -301,37 +320,12 @@ function RankTrackingConfigModalContent({
           )}
         </div>
 
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text font-medium">Schedule</span>
-          </label>
-          <select
-            className="select select-bordered w-full"
-            value={schedule}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (
-                value === "daily" ||
-                value === "weekly" ||
-                value === "monthly" ||
-                value === "manual"
-              ) {
-                setSchedule(value);
-              }
-            }}
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly (end of month)</option>
-            <option value="manual">Manual only</option>
-          </select>
-          {schedule === "daily" && (
-            <div className="mt-1.5 flex items-start gap-1.5 text-xs text-warning">
-              <Info className="size-3.5 shrink-0 mt-0.5" />
-              <span>Daily checks use 7x more credits than weekly</span>
-            </div>
-          )}
-        </div>
+        <RankTrackingScheduleField
+          schedule={schedule}
+          onScheduleChange={setSchedule}
+          ceiling={ceiling}
+          onCeilingChange={setCeiling}
+        />
 
         <div className="form-control">
           <label className="label">

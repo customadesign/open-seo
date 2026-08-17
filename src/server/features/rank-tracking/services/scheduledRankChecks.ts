@@ -5,7 +5,9 @@ import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import {
   computeNextCheckAt,
   devicesCount,
+  estimateRankCheckCredits,
   isScheduledRankTrackingInterval,
+  rankCheckMethod,
 } from "@/shared/rank-tracking";
 
 // Work admitted per tick, in task units (keywords × devices). Admission
@@ -66,6 +68,7 @@ export async function runScheduledRankChecks(env: Env) {
   let stoppedByDeadline = false;
   let skippedFree = 0;
   let skippedNoKeywords = 0;
+  let skippedCostCeiling = 0;
   let concurrentChangeSkips = 0;
   let alreadyRunning = 0;
   const alreadyRunningConfigIds: string[] = [];
@@ -115,6 +118,34 @@ export async function runScheduledRankChecks(env: Env) {
           lastSkipReason: "no_keywords",
         });
         if (claimed) skippedNoKeywords++;
+        else concurrentChangeSkips++;
+        continue;
+      }
+
+      // Fail closed on recurring spend. A NULL ceiling is a config migrated
+      // from before the column existed — it carries no approval, so it must
+      // never post provider work. A ceiling below this check's own estimate is
+      // a standing refusal rather than permission to spend up to it. Either way
+      // the schedule still advances, so the row stops being scanned every tick
+      // and the reason is visible on the config.
+      const { costCredits } = estimateRankCheckCredits(
+        kwCount,
+        config.devices,
+        config.serpDepth,
+        rankCheckMethod({ trigger: "scheduled", engine: config.engine }),
+      );
+      if (
+        config.maxCostCredits == null ||
+        costCredits > config.maxCostCredits
+      ) {
+        const claimed = await RankTrackingRepository.claimDueConfig({
+          configId: config.id,
+          projectId: config.projectId,
+          observedNextCheckAt,
+          nextCheckAt,
+          lastSkipReason: "cost_ceiling",
+        });
+        if (claimed) skippedCostCeiling++;
         else concurrentChangeSkips++;
         continue;
       }
@@ -179,6 +210,10 @@ export async function runScheduledRankChecks(env: Env) {
             projectId: config.projectId,
           },
           keywordsTotal: kwCount,
+          // Carried into the workflow so it re-checks the ceiling against the
+          // keyword set it actually reads — the second, in-flight fail-closed
+          // gate before any paid DataForSEO post.
+          maxCostCredits: config.maxCostCredits,
           trigger: "scheduled",
           workflowStartErrorMessage: "Failed to start scheduled workflow",
         });
@@ -244,6 +279,7 @@ export async function runScheduledRankChecks(env: Env) {
     stoppedByDeadline,
     skippedFree,
     skippedNoKeywords,
+    skippedCostCeiling,
     concurrentChangeSkips,
     alreadyRunning,
     alreadyRunningConfigIds,

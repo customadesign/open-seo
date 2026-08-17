@@ -50,7 +50,12 @@ subscription. Those actions remain separate approvals.
   visibility configurations inactive.
 - Measure the real cost of one representative Bing run and one prompt for each
   enabled AI provider. Record both the estimate and settled provider cost.
-- Set a reviewed standing ceiling before enabling an AI visibility schedule.
+- Set a reviewed standing ceiling before enabling an AI visibility schedule or a
+  recurring rank tracking schedule. Both refuse to save a non-manual cadence
+  without a per-run credit ceiling above zero, and a scheduled run whose
+  estimate exceeds the ceiling is skipped with a `cost_ceiling` reason on the
+  config rather than posted to the provider. Rank tracking configs migrated in
+  with no ceiling are therefore skipped until one is set.
   Do not activate the archived eight Bing keywords or 65 AI prompts as a bulk
   test.
 - Configure Gotenberg behind an authenticated HTTPS proxy. Non-loopback renderers

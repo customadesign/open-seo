@@ -87,6 +87,7 @@ export const createRankTrackingConfig = createServerFn({ method: "POST" })
       devices: data.devices,
       serpDepth: data.serpDepth,
       scheduleInterval: data.scheduleInterval,
+      maxCostCredits: data.maxCostCredits,
     });
 
     waitUntil(
@@ -120,6 +121,7 @@ export const updateRankTrackingConfig = createServerFn({ method: "POST" })
       serpDepth: data.serpDepth,
       scheduleInterval: data.scheduleInterval,
       isActive: data.isActive,
+      maxCostCredits: data.maxCostCredits,
     });
     return { success: true };
   });

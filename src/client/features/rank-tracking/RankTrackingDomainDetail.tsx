@@ -29,6 +29,7 @@ import type {
   ComparePeriod,
 } from "@/types/schemas/rank-tracking";
 import { AddKeywordsPanel } from "./AddKeywordsPanel";
+import { rankTrackingSkipReasonLabel } from "./rankTrackingUi";
 import {
   FilterPanel,
   applyFilters,
@@ -199,12 +200,13 @@ export function RankTrackingDomainDetail({
         Back to domains
       </button>
 
-      {config.lastSkipReason === "insufficient_credits" && (
+      {rankTrackingSkipReasonLabel(config.lastSkipReason) && (
         <div className="alert alert-warning text-sm py-2">
           <AlertTriangle className="size-4" />
           <span>
-            Last scheduled check was skipped due to insufficient credits. Top up
-            your balance to resume automatic tracking.
+            The last scheduled check was skipped —{" "}
+            {rankTrackingSkipReasonLabel(config.lastSkipReason)}. The schedule
+            still advances; fix the cause to resume automatic tracking.
           </span>
         </div>
       )}
