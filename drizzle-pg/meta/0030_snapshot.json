@@ -1,5 +1,5 @@
 {
-  "id": "7f89adb2-cade-4bdb-8b7c-bfb2cf05045b",
+  "id": "4ec1bc0a-5489-4b36-ab26-d43d8538b58d",
   "prevId": "e0e43aa6-54a0-4e87-ba2f-e12c115f1e0f",
   "version": "7",
   "dialect": "postgresql",
@@ -8326,8 +8326,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.keyword_magic_clusters": {
-      "name": "keyword_magic_clusters",
+    "public.log_file_bot_summaries": {
+      "name": "log_file_bot_summaries",
       "schema": "",
       "columns": {
         "id": {
@@ -8336,27 +8336,41 @@
           "primaryKey": true,
           "notNull": true
         },
-        "run_id": {
-          "name": "run_id",
+        "upload_id": {
+          "name": "upload_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
+        "bot_id": {
+          "name": "bot_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "keyword_count": {
-          "name": "keyword_count",
+        "requests": {
+          "name": "requests",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "default": 0
         },
-        "sort_order": {
-          "name": "sort_order",
+        "verified_requests": {
+          "name": "verified_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "unverified_requests": {
+          "name": "unverified_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "unique_ips_claimed": {
+          "name": "unique_ips_claimed",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -8364,17 +8378,17 @@
         }
       },
       "indexes": {
-        "keyword_magic_clusters_run_name_idx": {
-          "name": "keyword_magic_clusters_run_name_idx",
+        "log_file_bot_summaries_upload_bot_idx": {
+          "name": "log_file_bot_summaries_upload_bot_idx",
           "columns": [
             {
-              "expression": "run_id",
+              "expression": "upload_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "name",
+              "expression": "bot_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -8384,36 +8398,15 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "keyword_magic_clusters_run_sort_idx": {
-          "name": "keyword_magic_clusters_run_sort_idx",
-          "columns": [
-            {
-              "expression": "run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sort_order",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
-        "keyword_magic_clusters_run_id_keyword_magic_runs_id_fk": {
-          "name": "keyword_magic_clusters_run_id_keyword_magic_runs_id_fk",
-          "tableFrom": "keyword_magic_clusters",
-          "tableTo": "keyword_magic_runs",
+        "log_file_bot_summaries_upload_id_log_file_uploads_id_fk": {
+          "name": "log_file_bot_summaries_upload_id_log_file_uploads_id_fk",
+          "tableFrom": "log_file_bot_summaries",
+          "tableTo": "log_file_uploads",
           "columnsFrom": [
-            "run_id"
+            "upload_id"
           ],
           "columnsTo": [
             "id"
@@ -8428,233 +8421,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.keyword_magic_keywords": {
-      "name": "keyword_magic_keywords",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cluster_id": {
-          "name": "cluster_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "keyword": {
-          "name": "keyword",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "search_volume": {
-          "name": "search_volume",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cpc": {
-          "name": "cpc",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "competition": {
-          "name": "competition",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "keyword_difficulty": {
-          "name": "keyword_difficulty",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent": {
-          "name": "intent",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "word_count": {
-          "name": "word_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_broad": {
-          "name": "is_broad",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "is_phrase": {
-          "name": "is_phrase",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "is_exact": {
-          "name": "is_exact",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "is_question": {
-          "name": "is_question",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "metrics_updated_at": {
-          "name": "metrics_updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "keyword_magic_keywords_run_keyword_idx": {
-          "name": "keyword_magic_keywords_run_keyword_idx",
-          "columns": [
-            {
-              "expression": "run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "keyword",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "keyword_magic_keywords_run_cluster_idx": {
-          "name": "keyword_magic_keywords_run_cluster_idx",
-          "columns": [
-            {
-              "expression": "run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "cluster_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "keyword_magic_keywords_run_volume_idx": {
-          "name": "keyword_magic_keywords_run_volume_idx",
-          "columns": [
-            {
-              "expression": "run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "search_volume",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "keyword_magic_keywords_run_word_count_idx": {
-          "name": "keyword_magic_keywords_run_word_count_idx",
-          "columns": [
-            {
-              "expression": "run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "word_count",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "keyword_magic_keywords_run_id_keyword_magic_runs_id_fk": {
-          "name": "keyword_magic_keywords_run_id_keyword_magic_runs_id_fk",
-          "tableFrom": "keyword_magic_keywords",
-          "tableTo": "keyword_magic_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "keyword_magic_keywords_cluster_id_keyword_magic_clusters_id_fk": {
-          "name": "keyword_magic_keywords_cluster_id_keyword_magic_clusters_id_fk",
-          "tableFrom": "keyword_magic_keywords",
-          "tableTo": "keyword_magic_clusters",
-          "columnsFrom": [
-            "cluster_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.keyword_magic_runs": {
-      "name": "keyword_magic_runs",
+    "public.log_file_uploads": {
+      "name": "log_file_uploads",
       "schema": "",
       "columns": {
         "id": {
@@ -8669,69 +8437,80 @@
           "primaryKey": false,
           "notNull": true
         },
-        "seed": {
-          "name": "seed",
+        "uploaded_by_user_id": {
+          "name": "uploaded_by_user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "location_code": {
-          "name": "location_code",
+        "original_filename": {
+          "name": "original_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
-        "language_code": {
-          "name": "language_code",
+        "r2_key": {
+          "name": "r2_key",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "clickstream": {
-          "name": "clickstream",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "max_keywords": {
-          "name": "max_keywords",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fingerprint": {
-          "name": "fingerprint",
+        "format": {
+          "name": "format",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'ready'"
+          "default": "'processing'"
         },
-        "provider": {
-          "name": "provider",
+        "lines_parsed": {
+          "name": "lines_parsed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "lines_skipped": {
+          "name": "lines_skipped",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "date_from": {
+          "name": "date_from",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_to": {
+          "name": "date_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "keyword_count": {
-          "name": "keyword_count",
-          "type": "integer",
+        "error_detail": {
+          "name": "error_detail",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "estimated_cost_credits": {
-          "name": "estimated_cost_credits",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -8740,37 +8519,31 @@
           "notNull": true,
           "default": "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')"
         },
-        "expires_at": {
-          "name": "expires_at",
+        "completed_at": {
+          "name": "completed_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         }
       },
       "indexes": {
-        "keyword_magic_runs_project_fingerprint_idx": {
-          "name": "keyword_magic_runs_project_fingerprint_idx",
+        "log_file_uploads_project_id_idx": {
+          "name": "log_file_uploads_project_id_idx",
           "columns": [
             {
               "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            },
-            {
-              "expression": "fingerprint",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
             }
           ],
-          "isUnique": true,
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "keyword_magic_runs_project_created_idx": {
-          "name": "keyword_magic_runs_project_created_idx",
+        "log_file_uploads_project_created_idx": {
+          "name": "log_file_uploads_project_created_idx",
           "columns": [
             {
               "expression": "project_id",
@@ -8792,12 +8565,25 @@
         }
       },
       "foreignKeys": {
-        "keyword_magic_runs_project_id_projects_id_fk": {
-          "name": "keyword_magic_runs_project_id_projects_id_fk",
-          "tableFrom": "keyword_magic_runs",
+        "log_file_uploads_project_id_projects_id_fk": {
+          "name": "log_file_uploads_project_id_projects_id_fk",
+          "tableFrom": "log_file_uploads",
           "tableTo": "projects",
           "columnsFrom": [
             "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "log_file_uploads_uploaded_by_user_id_user_id_fk": {
+          "name": "log_file_uploads_uploaded_by_user_id_user_id_fk",
+          "tableFrom": "log_file_uploads",
+          "tableTo": "user",
+          "columnsFrom": [
+            "uploaded_by_user_id"
           ],
           "columnsTo": [
             "id"
@@ -8812,29 +8598,176 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.keyword_magic_serp_features": {
-      "name": "keyword_magic_serp_features",
+    "public.log_path_daily": {
+      "name": "log_path_daily",
       "schema": "",
       "columns": {
-        "keyword_id": {
-          "name": "keyword_id",
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "upload_id": {
+          "name": "upload_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "feature": {
-          "name": "feature",
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "bot_id": {
+          "name": "bot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requests": {
+          "name": "requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "verified_requests": {
+          "name": "verified_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "bytes_total": {
+          "name": "bytes_total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "response_time_ms_sum": {
+          "name": "response_time_ms_sum",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "response_time_samples": {
+          "name": "response_time_samples",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status_2xx": {
+          "name": "status_2xx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status_3xx": {
+          "name": "status_3xx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status_4xx": {
+          "name": "status_4xx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status_5xx": {
+          "name": "status_5xx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {
-        "keyword_magic_serp_features_feature_idx": {
-          "name": "keyword_magic_serp_features_feature_idx",
+        "log_path_daily_upload_bot_day_path_idx": {
+          "name": "log_path_daily_upload_bot_day_path_idx",
           "columns": [
             {
-              "expression": "feature",
+              "expression": "upload_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "bot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "day",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "log_path_daily_project_bot_day_idx": {
+          "name": "log_path_daily_project_bot_day_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "bot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "day",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "log_path_daily_upload_id_idx": {
+          "name": "log_path_daily_upload_id_idx",
+          "columns": [
+            {
+              "expression": "upload_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -8847,12 +8780,25 @@
         }
       },
       "foreignKeys": {
-        "keyword_magic_serp_features_keyword_id_keyword_magic_keywords_id_fk": {
-          "name": "keyword_magic_serp_features_keyword_id_keyword_magic_keywords_id_fk",
-          "tableFrom": "keyword_magic_serp_features",
-          "tableTo": "keyword_magic_keywords",
+        "log_path_daily_upload_id_log_file_uploads_id_fk": {
+          "name": "log_path_daily_upload_id_log_file_uploads_id_fk",
+          "tableFrom": "log_path_daily",
+          "tableTo": "log_file_uploads",
           "columnsFrom": [
-            "keyword_id"
+            "upload_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "log_path_daily_project_id_projects_id_fk": {
+          "name": "log_path_daily_project_id_projects_id_fk",
+          "tableFrom": "log_path_daily",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -8861,15 +8807,7 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "keyword_magic_serp_features_keyword_id_feature_pk": {
-          "name": "keyword_magic_serp_features_keyword_id_feature_pk",
-          "columns": [
-            "keyword_id",
-            "feature"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

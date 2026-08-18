@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2b1355e2-e220-4e53-bf29-6c0565998f30",
+  "id": "9493b5e8-702a-4024-b74e-443f36d3b297",
   "prevId": "9db93913-9a60-43bf-a314-7a5005b1a68c",
   "tables": {
     "backlink_snapshots": {
@@ -7459,8 +7459,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "keyword_magic_clusters": {
-      "name": "keyword_magic_clusters",
+    "log_file_bot_summaries": {
+      "name": "log_file_bot_summaries",
       "columns": {
         "id": {
           "name": "id",
@@ -7469,30 +7469,46 @@
           "notNull": true,
           "autoincrement": false
         },
-        "run_id": {
-          "name": "run_id",
+        "upload_id": {
+          "name": "upload_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "name": {
-          "name": "name",
+        "bot_id": {
+          "name": "bot_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "keyword_count": {
-          "name": "keyword_count",
+        "requests": {
+          "name": "requests",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": 0
         },
-        "sort_order": {
-          "name": "sort_order",
+        "verified_requests": {
+          "name": "verified_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "unverified_requests": {
+          "name": "unverified_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "unique_ips_claimed": {
+          "name": "unique_ips_claimed",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -7501,30 +7517,22 @@
         }
       },
       "indexes": {
-        "keyword_magic_clusters_run_name_idx": {
-          "name": "keyword_magic_clusters_run_name_idx",
+        "log_file_bot_summaries_upload_bot_idx": {
+          "name": "log_file_bot_summaries_upload_bot_idx",
           "columns": [
-            "run_id",
-            "name"
+            "upload_id",
+            "bot_id"
           ],
           "isUnique": true
-        },
-        "keyword_magic_clusters_run_sort_idx": {
-          "name": "keyword_magic_clusters_run_sort_idx",
-          "columns": [
-            "run_id",
-            "sort_order"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {
-        "keyword_magic_clusters_run_id_keyword_magic_runs_id_fk": {
-          "name": "keyword_magic_clusters_run_id_keyword_magic_runs_id_fk",
-          "tableFrom": "keyword_magic_clusters",
-          "tableTo": "keyword_magic_runs",
+        "log_file_bot_summaries_upload_id_log_file_uploads_id_fk": {
+          "name": "log_file_bot_summaries_upload_id_log_file_uploads_id_fk",
+          "tableFrom": "log_file_bot_summaries",
+          "tableTo": "log_file_uploads",
           "columnsFrom": [
-            "run_id"
+            "upload_id"
           ],
           "columnsTo": [
             "id"
@@ -7537,194 +7545,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "keyword_magic_keywords": {
-      "name": "keyword_magic_keywords",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "cluster_id": {
-          "name": "cluster_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "keyword": {
-          "name": "keyword",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "search_volume": {
-          "name": "search_volume",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cpc": {
-          "name": "cpc",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "competition": {
-          "name": "competition",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "keyword_difficulty": {
-          "name": "keyword_difficulty",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "intent": {
-          "name": "intent",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "word_count": {
-          "name": "word_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "is_broad": {
-          "name": "is_broad",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "is_phrase": {
-          "name": "is_phrase",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "is_exact": {
-          "name": "is_exact",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "is_question": {
-          "name": "is_question",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "metrics_updated_at": {
-          "name": "metrics_updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "keyword_magic_keywords_run_keyword_idx": {
-          "name": "keyword_magic_keywords_run_keyword_idx",
-          "columns": [
-            "run_id",
-            "keyword"
-          ],
-          "isUnique": true
-        },
-        "keyword_magic_keywords_run_cluster_idx": {
-          "name": "keyword_magic_keywords_run_cluster_idx",
-          "columns": [
-            "run_id",
-            "cluster_id"
-          ],
-          "isUnique": false
-        },
-        "keyword_magic_keywords_run_volume_idx": {
-          "name": "keyword_magic_keywords_run_volume_idx",
-          "columns": [
-            "run_id",
-            "search_volume"
-          ],
-          "isUnique": false
-        },
-        "keyword_magic_keywords_run_word_count_idx": {
-          "name": "keyword_magic_keywords_run_word_count_idx",
-          "columns": [
-            "run_id",
-            "word_count"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "keyword_magic_keywords_run_id_keyword_magic_runs_id_fk": {
-          "name": "keyword_magic_keywords_run_id_keyword_magic_runs_id_fk",
-          "tableFrom": "keyword_magic_keywords",
-          "tableTo": "keyword_magic_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "keyword_magic_keywords_cluster_id_keyword_magic_clusters_id_fk": {
-          "name": "keyword_magic_keywords_cluster_id_keyword_magic_clusters_id_fk",
-          "tableFrom": "keyword_magic_keywords",
-          "tableTo": "keyword_magic_clusters",
-          "columnsFrom": [
-            "cluster_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "keyword_magic_runs": {
-      "name": "keyword_magic_runs",
+    "log_file_uploads": {
+      "name": "log_file_uploads",
       "columns": {
         "id": {
           "name": "id",
@@ -7740,47 +7562,39 @@
           "notNull": true,
           "autoincrement": false
         },
-        "seed": {
-          "name": "seed",
+        "uploaded_by_user_id": {
+          "name": "uploaded_by_user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "location_code": {
-          "name": "location_code",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "language_code": {
-          "name": "language_code",
+        "original_filename": {
+          "name": "original_filename",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "clickstream": {
-          "name": "clickstream",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "max_keywords": {
-          "name": "max_keywords",
+        "size_bytes": {
+          "name": "size_bytes",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "fingerprint": {
-          "name": "fingerprint",
+        "r2_key": {
+          "name": "r2_key",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "format": {
+          "name": "format",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "status": {
@@ -7789,30 +7603,51 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'ready'"
+          "default": "'processing'"
         },
-        "provider": {
-          "name": "provider",
+        "lines_parsed": {
+          "name": "lines_parsed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "lines_skipped": {
+          "name": "lines_skipped",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "date_from": {
+          "name": "date_from",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "date_to": {
+          "name": "date_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "keyword_count": {
-          "name": "keyword_count",
-          "type": "integer",
+        "error_detail": {
+          "name": "error_detail",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "estimated_cost_credits": {
-          "name": "estimated_cost_credits",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
+          "notNull": false,
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -7822,25 +7657,24 @@
           "autoincrement": false,
           "default": "(current_timestamp)"
         },
-        "expires_at": {
-          "name": "expires_at",
+        "completed_at": {
+          "name": "completed_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
       "indexes": {
-        "keyword_magic_runs_project_fingerprint_idx": {
-          "name": "keyword_magic_runs_project_fingerprint_idx",
+        "log_file_uploads_project_id_idx": {
+          "name": "log_file_uploads_project_id_idx",
           "columns": [
-            "project_id",
-            "fingerprint"
+            "project_id"
           ],
-          "isUnique": true
+          "isUnique": false
         },
-        "keyword_magic_runs_project_created_idx": {
-          "name": "keyword_magic_runs_project_created_idx",
+        "log_file_uploads_project_created_idx": {
+          "name": "log_file_uploads_project_created_idx",
           "columns": [
             "project_id",
             "created_at"
@@ -7849,12 +7683,25 @@
         }
       },
       "foreignKeys": {
-        "keyword_magic_runs_project_id_projects_id_fk": {
-          "name": "keyword_magic_runs_project_id_projects_id_fk",
-          "tableFrom": "keyword_magic_runs",
+        "log_file_uploads_project_id_projects_id_fk": {
+          "name": "log_file_uploads_project_id_projects_id_fk",
+          "tableFrom": "log_file_uploads",
           "tableTo": "projects",
           "columnsFrom": [
             "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "log_file_uploads_uploaded_by_user_id_user_id_fk": {
+          "name": "log_file_uploads_uploaded_by_user_id_user_id_fk",
+          "tableFrom": "log_file_uploads",
+          "tableTo": "user",
+          "columnsFrom": [
+            "uploaded_by_user_id"
           ],
           "columnsTo": [
             "id"
@@ -7867,40 +7714,172 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "keyword_magic_serp_features": {
-      "name": "keyword_magic_serp_features",
+    "log_path_daily": {
+      "name": "log_path_daily",
       "columns": {
-        "keyword_id": {
-          "name": "keyword_id",
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "upload_id": {
+          "name": "upload_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "feature": {
-          "name": "feature",
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "bot_id": {
+          "name": "bot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "day": {
+          "name": "day",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "requests": {
+          "name": "requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "verified_requests": {
+          "name": "verified_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "bytes_total": {
+          "name": "bytes_total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "response_time_ms_sum": {
+          "name": "response_time_ms_sum",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "response_time_samples": {
+          "name": "response_time_samples",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "status_2xx": {
+          "name": "status_2xx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "status_3xx": {
+          "name": "status_3xx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "status_4xx": {
+          "name": "status_4xx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "status_5xx": {
+          "name": "status_5xx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         }
       },
       "indexes": {
-        "keyword_magic_serp_features_feature_idx": {
-          "name": "keyword_magic_serp_features_feature_idx",
+        "log_path_daily_upload_bot_day_path_idx": {
+          "name": "log_path_daily_upload_bot_day_path_idx",
           "columns": [
-            "feature"
+            "upload_id",
+            "bot_id",
+            "day",
+            "path"
+          ],
+          "isUnique": true
+        },
+        "log_path_daily_project_bot_day_idx": {
+          "name": "log_path_daily_project_bot_day_idx",
+          "columns": [
+            "project_id",
+            "bot_id",
+            "day"
+          ],
+          "isUnique": false
+        },
+        "log_path_daily_upload_id_idx": {
+          "name": "log_path_daily_upload_id_idx",
+          "columns": [
+            "upload_id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "keyword_magic_serp_features_keyword_id_keyword_magic_keywords_id_fk": {
-          "name": "keyword_magic_serp_features_keyword_id_keyword_magic_keywords_id_fk",
-          "tableFrom": "keyword_magic_serp_features",
-          "tableTo": "keyword_magic_keywords",
+        "log_path_daily_upload_id_log_file_uploads_id_fk": {
+          "name": "log_path_daily_upload_id_log_file_uploads_id_fk",
+          "tableFrom": "log_path_daily",
+          "tableTo": "log_file_uploads",
           "columnsFrom": [
-            "keyword_id"
+            "upload_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "log_path_daily_project_id_projects_id_fk": {
+          "name": "log_path_daily_project_id_projects_id_fk",
+          "tableFrom": "log_path_daily",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -7909,15 +7888,7 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "keyword_magic_serp_features_keyword_id_feature_pk": {
-          "columns": [
-            "keyword_id",
-            "feature"
-          ],
-          "name": "keyword_magic_serp_features_keyword_id_feature_pk"
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     }

@@ -58,6 +58,7 @@ import {
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
 import { getOrganicTrafficInsightsTool } from "@/server/mcp/tools/traffic-insights-tools";
+import { getCrawlBudgetTool } from "@/server/mcp/tools/get-crawl-budget";
 import {
   getAuditIssuesTool,
   getAuditPagesTool,
@@ -144,7 +145,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
       title: "OpenSEO",
       version: "0.0.12",
       description:
-        "SEO research and operations for AI agents: keyword and competitor research, backlinks, rank tracking, local SEO geo-grids and citation evidence, site audits, and Google performance data.",
+        "SEO research and operations for AI agents: keyword and competitor research, backlinks, rank tracking, local SEO geo-grids and citation evidence, site audits, access-log crawl budget, and Google performance data.",
       websiteUrl: "https://openseo.so",
       icons: [
         {
@@ -220,6 +221,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getAuditStatusTool);
   register(getAuditIssuesTool);
   register(getAuditPagesTool);
+  register(getCrawlBudgetTool);
 
   return server;
 }
