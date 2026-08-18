@@ -3,15 +3,23 @@ import {
   resolveDateRange,
   type GscDateRange,
 } from "@/server/features/gsc/searchAnalytics";
-import { normalizeLandingPageKey } from "@/server/features/traffic-insights/normalizeLandingPageKey";
+import { landingPageKey } from "@/server/lib/landingPageKey";
+import {
+  addGa4,
+  addGsc,
+  displayUrl,
+  emptyPage,
+  joinSourcePages,
+  preferUrl,
+  QUERIES_PER_PAGE,
+  toPage,
+  type DraftPage,
+} from "./trafficInsightsJoin";
 import {
   loadGa4Source,
   loadGscSource,
   loadRankTrackingSource,
 } from "./trafficInsightsSources";
-
-const QUERIES_PER_PAGE = 15;
-const KEYWORDS_PER_PAGE = 15;
 
 export type TrafficInsightsDateRange = Extract<
   GscDateRange,
@@ -77,95 +85,6 @@ export type TrafficInsightsResult = {
   truncated: { ga4: boolean; gsc: boolean; gscQueries: boolean };
 };
 
-type DraftPage = {
-  key: string;
-  url: string;
-  coverage: Set<"ga4" | "gsc" | "rank_tracking">;
-  sessions: number | null;
-  engagementRate: number | null;
-  keyEvents: number | null;
-  clicks: number | null;
-  impressions: number | null;
-  ctr: number | null;
-  averagePosition: number | null;
-  queries: TrafficInsightsQuery[];
-  keywordsByName: Map<string, TrafficInsightsKeyword>;
-};
-
-function optionalNumber(
-  row: Record<string, string | number | null>,
-  name: string,
-): number | null {
-  const value = row[name];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function getOrCreatePage(
-  pages: Map<string, DraftPage>,
-  key: string,
-  url: string,
-): DraftPage {
-  const existing = pages.get(key);
-  if (existing) {
-    if (url.startsWith("http") && !existing.url.startsWith("http")) {
-      existing.url = url;
-    }
-    return existing;
-  }
-  const created: DraftPage = {
-    key,
-    url,
-    coverage: new Set(),
-    sessions: null,
-    engagementRate: null,
-    keyEvents: null,
-    clicks: null,
-    impressions: null,
-    ctr: null,
-    averagePosition: null,
-    queries: [],
-    keywordsByName: new Map(),
-  };
-  pages.set(key, created);
-  return created;
-}
-
-function displayUrl(page: string, host?: string): string {
-  if (page.includes("://")) return page;
-  if (host) {
-    const path = page.startsWith("/") ? page : `/${page}`;
-    return `https://${host}${path}`;
-  }
-  return page;
-}
-
-function toPage(
-  draft: DraftPage,
-  rankConfigured: boolean,
-): TrafficInsightsPage {
-  const trackedKeywords = [...draft.keywordsByName.values()].toSorted(
-    (left, right) => left.position - right.position,
-  );
-  return {
-    key: draft.key,
-    url: draft.url,
-    coverage: [...draft.coverage],
-    sessions: draft.sessions,
-    engagementRate: draft.engagementRate,
-    keyEvents: draft.keyEvents,
-    clicks: draft.clicks,
-    impressions: draft.impressions,
-    ctr: draft.ctr,
-    averagePosition: draft.averagePosition,
-    queries: draft.queries,
-    trackedKeywords: trackedKeywords.slice(0, KEYWORDS_PER_PAGE),
-    keywordCount: rankConfigured ? trackedKeywords.length : null,
-    bestPosition: rankConfigured
-      ? (trackedKeywords[0]?.position ?? null)
-      : null,
-  };
-}
-
 function ga4Source(
   ga4: Awaited<ReturnType<typeof loadGa4Source>>,
 ): TrafficInsightsResult["sources"]["ga4"] {
@@ -228,40 +147,37 @@ async function getInsights(
     loadRankTrackingSource(input.projectId),
   ]);
 
-  const pages = new Map<string, DraftPage>();
+  const ga4ByKey = new Map<string, DraftPage>();
+  const gscByKey = new Map<string, DraftPage>();
+  const rankByKey = new Map<string, DraftPage>();
+  const queriesByPage = groupTopQueriesByPage(gsc.queryRows, QUERIES_PER_PAGE);
 
   for (const row of ga4.rows) {
     const host = typeof row.hostName === "string" ? row.hostName : "";
     const landing = typeof row.landingPage === "string" ? row.landingPage : "";
-    const key = normalizeLandingPageKey(landing, host);
+    const key = landingPageKey(landing, host);
     if (!key) continue;
-    const page = getOrCreatePage(pages, key, displayUrl(landing, host));
-    page.coverage.add("ga4");
-    page.sessions = optionalNumber(row, "sessions");
-    page.engagementRate = optionalNumber(row, "engagementRate");
-    page.keyEvents = optionalNumber(row, "keyEvents");
+    const page = ga4ByKey.get(key) ?? emptyPage(key, displayUrl(landing, host));
+    addGa4(page, row, displayUrl(landing, host));
+    ga4ByKey.set(key, page);
   }
 
-  const queriesByPage = groupTopQueriesByPage(gsc.queryRows, QUERIES_PER_PAGE);
   for (const row of gsc.rows) {
     const url = row.keys?.[0] ?? "";
-    const key = normalizeLandingPageKey(url);
+    const key = landingPageKey(url);
     if (!key) continue;
-    const page = getOrCreatePage(pages, key, url);
-    page.coverage.add("gsc");
-    page.clicks = row.clicks;
-    page.impressions = row.impressions;
-    page.ctr = row.ctr;
-    page.averagePosition = row.position;
-    page.queries = queriesByPage.get(url) ?? [];
+    const page = gscByKey.get(key) ?? emptyPage(key, url);
+    addGsc(page, row, url, queriesByPage.get(url) ?? []);
+    gscByKey.set(key, page);
   }
 
   for (const snapshot of rankTracking.snapshots) {
     if (!snapshot.url || snapshot.position == null) continue;
-    const key = normalizeLandingPageKey(snapshot.url);
+    const key = landingPageKey(snapshot.url);
     if (!key) continue;
-    const page = getOrCreatePage(pages, key, snapshot.url);
+    const page = rankByKey.get(key) ?? emptyPage(key, snapshot.url);
     page.coverage.add("rank_tracking");
+    page.url = preferUrl(page.url, snapshot.url);
     const existing = page.keywordsByName.get(snapshot.keyword);
     if (!existing || snapshot.position < existing.position) {
       page.keywordsByName.set(snapshot.keyword, {
@@ -270,9 +186,10 @@ async function getInsights(
         device: snapshot.device,
       });
     }
+    rankByKey.set(key, page);
   }
 
-  const rows = [...pages.values()]
+  const rows = [...joinSourcePages(ga4ByKey, gscByKey, rankByKey).values()]
     .map((draft) => toPage(draft, rankTracking.status === "configured"))
     .toSorted(comparePages);
   return {

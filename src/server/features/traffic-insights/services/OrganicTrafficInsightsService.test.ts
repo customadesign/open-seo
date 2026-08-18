@@ -114,7 +114,7 @@ describe("OrganicTrafficInsightsService", () => {
     });
 
     const joined = result.rows.find(
-      (row) => row.key === "example.com/high-value",
+      (row) => row.key === "example.com/High-Value",
     );
     expect(joined?.coverage.toSorted()).toEqual([
       "ga4",
@@ -214,6 +214,151 @@ describe("OrganicTrafficInsightsService", () => {
       sessions: 40,
       engagementRate: null,
       keyEvents: null,
+    });
+  });
+
+  it("joins a GSC page onto a GA4 page when only the path casing differs", async () => {
+    mocks.getLatestSnapshotsForKeywords.mockResolvedValue([]);
+    mocks.runGa4Report.mockResolvedValue(
+      makeGa4ReportResult({
+        rows: [
+          {
+            hostName: "example.com",
+            landingPage: "/High-Value",
+            sessions: 50,
+            engagementRate: 0.6,
+            keyEvents: 3,
+          },
+        ],
+        rowCount: 1,
+        totalRowCount: 1,
+      }),
+    );
+    mocks.getPerformance.mockImplementation(
+      async (input: { dimensions?: string[] }) => {
+        if (input.dimensions?.[1] === "query") {
+          return { siteUrl: "https://example.com/", rows: [] };
+        }
+        return {
+          siteUrl: "https://example.com/",
+          rows: [
+            {
+              keys: ["https://example.com/high-value"],
+              clicks: 8,
+              impressions: 80,
+              ctr: 0.1,
+              position: 9,
+            },
+          ],
+        };
+      },
+    );
+
+    const result = await OrganicTrafficInsightsService.getInsights({
+      projectId: "project_1",
+      startDate: "2026-07-07",
+      endDate: "2026-08-03",
+    });
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({
+      key: "example.com/High-Value",
+      sessions: 50,
+      clicks: 8,
+    });
+  });
+
+  it("keeps path-case variants as separate pages", async () => {
+    mocks.getLatestSnapshotsForKeywords.mockResolvedValue([]);
+    mocks.runGa4Report.mockResolvedValue(
+      makeGa4ReportResult({
+        rows: [
+          {
+            hostName: "example.com",
+            landingPage: "/Services",
+            sessions: 10,
+            engagementRate: 0.5,
+            keyEvents: 1,
+          },
+          {
+            hostName: "example.com",
+            landingPage: "/services",
+            sessions: 20,
+            engagementRate: 0.4,
+            keyEvents: 2,
+          },
+        ],
+        rowCount: 2,
+        totalRowCount: 2,
+      }),
+    );
+    mocks.getPerformance.mockResolvedValue({
+      siteUrl: "https://example.com/",
+      rows: [],
+    });
+
+    const result = await OrganicTrafficInsightsService.getInsights({
+      projectId: "project_1",
+      startDate: "2026-07-07",
+      endDate: "2026-08-03",
+    });
+
+    expect(result.rows.map((row) => row.key).toSorted()).toEqual([
+      "example.com/Services",
+      "example.com/services",
+    ]);
+    expect(
+      result.rows.find((row) => row.key === "example.com/Services")?.sessions,
+    ).toBe(10);
+    expect(
+      result.rows.find((row) => row.key === "example.com/services")?.sessions,
+    ).toBe(20);
+  });
+
+  it("groups query-string variants onto one path row and sums their metrics", async () => {
+    mocks.getLatestSnapshotsForKeywords.mockResolvedValue([]);
+    mocks.runGa4Report.mockResolvedValue(
+      makeGa4ReportResult({ rows: [], rowCount: 0, totalRowCount: 0 }),
+    );
+    mocks.getPerformance.mockImplementation(
+      async (input: { dimensions?: string[] }) => {
+        const dimensions = input.dimensions ?? [];
+        if (dimensions[0] === "page" && dimensions[1] === "query") {
+          return { siteUrl: "https://example.com/", rows: [] };
+        }
+        return {
+          siteUrl: "https://example.com/",
+          rows: [
+            {
+              keys: ["https://example.com/product?product_id=1"],
+              clicks: 4,
+              impressions: 40,
+              ctr: 0.1,
+              position: 5,
+            },
+            {
+              keys: ["https://example.com/product?product_id=2"],
+              clicks: 6,
+              impressions: 60,
+              ctr: 0.1,
+              position: 7,
+            },
+          ],
+        };
+      },
+    );
+
+    const result = await OrganicTrafficInsightsService.getInsights({
+      projectId: "project_1",
+      startDate: "2026-07-07",
+      endDate: "2026-08-03",
+    });
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({
+      key: "example.com/product",
+      clicks: 10,
+      impressions: 100,
     });
   });
 });

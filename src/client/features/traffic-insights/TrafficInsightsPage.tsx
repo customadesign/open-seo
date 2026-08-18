@@ -107,13 +107,19 @@ export function TrafficInsightsPage({ projectId }: { projectId: string }) {
             />
             <div className="overflow-hidden rounded-xl border border-base-300 bg-base-100">
               <div className="flex items-center justify-between gap-3 border-b border-base-300 px-4 py-3">
-                <p className="text-sm text-base-content/60">
-                  {data.rows.length} landing page
-                  {data.rows.length === 1 ? "" : "s"}
-                  {data.truncated.ga4 || data.truncated.gsc
-                    ? " · results capped at 1,000 rows per source"
-                    : ""}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-base-content/60">
+                    {data.rows.length} landing page
+                    {data.rows.length === 1 ? "" : "s"}
+                    {data.truncated.ga4 || data.truncated.gsc
+                      ? " · results capped at 1,000 rows per source"
+                      : ""}
+                  </p>
+                  <p className="text-xs text-base-content/50">
+                    URLs that differ only by query string are grouped by path.
+                    Paths that differ only by letter case stay separate.
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
                   {query.isFetching && !query.isPending ? (
                     <Loader2 className="size-4 animate-spin text-base-content/40" />

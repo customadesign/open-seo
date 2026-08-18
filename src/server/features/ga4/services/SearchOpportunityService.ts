@@ -6,6 +6,10 @@ import {
 } from "@/server/features/ga4/services/Ga4ReportingService";
 import { Ga4ReportError } from "@/server/lib/ga4Errors";
 import { Ga4ConnectionRepository } from "@/server/features/ga4/repositories/Ga4ConnectionRepository";
+import {
+  landingPageKey,
+  matchLandingPageKey,
+} from "@/server/lib/landingPageKey";
 import { ga4DateInTimeZone, shiftGa4Date } from "./Ga4Dates";
 
 type SearchOpportunityInput = {
@@ -54,26 +58,6 @@ function resolveCombinedDates(
     };
   }
   return resolveGa4DateRange(input, propertyTimeZone, now).resolvedDateRange;
-}
-
-function normalizePageKey(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === "(not set)") return null;
-  try {
-    const url = new URL(
-      trimmed.includes("://") ? trimmed : `https://${trimmed}`,
-    );
-    let host = url.hostname.toLowerCase();
-    const defaultPort =
-      (url.protocol === "http:" && url.port === "80") ||
-      (url.protocol === "https:" && url.port === "443");
-    if (url.port && !defaultPort) host += `:${url.port}`;
-    let path = url.pathname || "/";
-    if (path.length > 1) path = path.replace(/\/+$/, "");
-    return `${host}${path}`;
-  } catch {
-    return null;
-  }
 }
 
 function numberField(
@@ -151,7 +135,7 @@ async function getOpportunities(
   for (const row of ga4.rows) {
     const host = typeof row.hostName === "string" ? row.hostName : "";
     const landing = typeof row.landingPage === "string" ? row.landingPage : "";
-    const key = normalizePageKey(`${host}${landing}`);
+    const key = landingPageKey(landing, host);
     if (!key) {
       invalidGa4Rows += 1;
       continue;
@@ -163,10 +147,11 @@ async function getOpportunities(
     .filter((row) => row.position >= 4 && row.position <= 20)
     .map((row) => {
       const page = row.keys?.[0] ?? "";
-      const normalizedPage = normalizePageKey(page);
-      const analytics = normalizedPage
-        ? ga4ByPage.get(normalizedPage)
+      const normalizedPage = landingPageKey(page);
+      const ga4Key = normalizedPage
+        ? matchLandingPageKey(ga4ByPage.keys(), normalizedPage)
         : undefined;
+      const analytics = ga4Key ? ga4ByPage.get(ga4Key) : undefined;
       return {
         page,
         normalizedPage,
