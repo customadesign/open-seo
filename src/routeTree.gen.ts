@@ -45,6 +45,7 @@ import { Route as ProjectPProjectIdSearchPerformanceRouteImport } from './routes
 import { Route as ProjectPProjectIdSavedRouteImport } from './routes/_project/p/$projectId/saved'
 import { Route as ProjectPProjectIdSamRouteImport } from './routes/_project/p/$projectId/sam'
 import { Route as ProjectPProjectIdReportsRouteImport } from './routes/_project/p/$projectId/reports'
+import { Route as ProjectPProjectIdLogFilesRouteImport } from './routes/_project/p/$projectId/log-files'
 import { Route as ProjectPProjectIdRankTrackingRouteImport } from './routes/_project/p/$projectId/rank-tracking'
 import { Route as ProjectPProjectIdPromptExplorerRouteImport } from './routes/_project/p/$projectId/prompt-explorer'
 import { Route as ProjectPProjectIdLocalSeoRouteImport } from './routes/_project/p/$projectId/local-seo'
@@ -243,6 +244,12 @@ const ProjectPProjectIdReportsRoute =
     path: '/reports',
     getParentRoute: () => ProjectPProjectIdRouteRoute,
   } as any)
+const ProjectPProjectIdLogFilesRoute =
+  ProjectPProjectIdLogFilesRouteImport.update({
+    id: '/log-files',
+    path: '/log-files',
+    getParentRoute: () => ProjectPProjectIdRouteRoute,
+  } as any)
 const ProjectPProjectIdRankTrackingRoute =
   ProjectPProjectIdRankTrackingRouteImport.update({
     id: '/rank-tracking',
@@ -350,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
   '/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/p/$projectId/local-seo': typeof ProjectPProjectIdLocalSeoRoute
+  '/p/$projectId/log-files': typeof ProjectPProjectIdLogFilesRoute
   '/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingRouteWithChildren
   '/p/$projectId/reports': typeof ProjectPProjectIdReportsRoute
@@ -395,6 +403,7 @@ export interface FileRoutesByTo {
   '/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
   '/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/p/$projectId/local-seo': typeof ProjectPProjectIdLocalSeoRoute
+  '/p/$projectId/log-files': typeof ProjectPProjectIdLogFilesRoute
   '/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/p/$projectId/reports': typeof ProjectPProjectIdReportsRoute
   '/p/$projectId/sam': typeof ProjectPProjectIdSamRoute
@@ -446,6 +455,7 @@ export interface FileRoutesById {
   '/_project/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
   '/_project/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/_project/p/$projectId/local-seo': typeof ProjectPProjectIdLocalSeoRoute
+  '/_project/p/$projectId/log-files': typeof ProjectPProjectIdLogFilesRoute
   '/_project/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/_project/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingRouteWithChildren
   '/_project/p/$projectId/reports': typeof ProjectPProjectIdReportsRoute
@@ -495,6 +505,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/domain'
     | '/p/$projectId/keywords'
     | '/p/$projectId/local-seo'
+    | '/p/$projectId/log-files'
     | '/p/$projectId/prompt-explorer'
     | '/p/$projectId/rank-tracking'
     | '/p/$projectId/reports'
@@ -540,6 +551,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/domain'
     | '/p/$projectId/keywords'
     | '/p/$projectId/local-seo'
+    | '/p/$projectId/log-files'
     | '/p/$projectId/prompt-explorer'
     | '/p/$projectId/reports'
     | '/p/$projectId/sam'
@@ -590,6 +602,7 @@ export interface FileRouteTypes {
     | '/_project/p/$projectId/domain'
     | '/_project/p/$projectId/keywords'
     | '/_project/p/$projectId/local-seo'
+    | '/_project/p/$projectId/log-files'
     | '/_project/p/$projectId/prompt-explorer'
     | '/_project/p/$projectId/rank-tracking'
     | '/_project/p/$projectId/reports'
@@ -880,6 +893,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectPProjectIdReportsRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
+    '/_project/p/$projectId/log-files': {
+      id: '/_project/p/$projectId/log-files'
+      path: '/log-files'
+      fullPath: '/p/$projectId/log-files'
+      preLoaderRoute: typeof ProjectPProjectIdLogFilesRouteImport
+      parentRoute: typeof ProjectPProjectIdRouteRoute
+    }
     '/_project/p/$projectId/rank-tracking': {
       id: '/_project/p/$projectId/rank-tracking'
       path: '/rank-tracking'
@@ -1043,6 +1063,7 @@ interface ProjectPProjectIdRouteRouteChildren {
   ProjectPProjectIdDomainRoute: typeof ProjectPProjectIdDomainRoute
   ProjectPProjectIdKeywordsRoute: typeof ProjectPProjectIdKeywordsRoute
   ProjectPProjectIdLocalSeoRoute: typeof ProjectPProjectIdLocalSeoRoute
+  ProjectPProjectIdLogFilesRoute: typeof ProjectPProjectIdLogFilesRoute
   ProjectPProjectIdPromptExplorerRoute: typeof ProjectPProjectIdPromptExplorerRoute
   ProjectPProjectIdRankTrackingRoute: typeof ProjectPProjectIdRankTrackingRouteWithChildren
   ProjectPProjectIdReportsRoute: typeof ProjectPProjectIdReportsRoute
@@ -1062,6 +1083,7 @@ const ProjectPProjectIdRouteRouteChildren: ProjectPProjectIdRouteRouteChildren =
     ProjectPProjectIdDomainRoute: ProjectPProjectIdDomainRoute,
     ProjectPProjectIdKeywordsRoute: ProjectPProjectIdKeywordsRoute,
     ProjectPProjectIdLocalSeoRoute: ProjectPProjectIdLocalSeoRoute,
+    ProjectPProjectIdLogFilesRoute: ProjectPProjectIdLogFilesRoute,
     ProjectPProjectIdPromptExplorerRoute: ProjectPProjectIdPromptExplorerRoute,
     ProjectPProjectIdRankTrackingRoute:
       ProjectPProjectIdRankTrackingRouteWithChildren,

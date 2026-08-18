@@ -13,3 +13,4 @@ export * from "./telemetry.schema";
 export * from "./local-seo.schema";
 export * from "./ai-visibility.schema";
 export * from "./rank-tracking.schema";
+export * from "./log-files.schema";

@@ -19,6 +19,7 @@ export const R2_KEY_COLUMNS = [
   { table: "audit_lighthouse_results", column: "r2_key" },
   { table: "ai_visibility_observations", column: "evidence_r2_key" },
   { table: "monthly_report_artifacts", column: "storage_key" },
+  { table: "log_file_uploads", column: "r2_key" },
 ] as const;
 
 /** One query per entry in R2_KEY_COLUMNS, in the same order. */
@@ -58,6 +59,10 @@ export function projectR2KeyQueries(db: R2InventoryDb, projectIds: string[]) {
         eq(schema.reportRuns.id, schema.reportArtifacts.runId),
       )
       .where(inArray(schema.reportRuns.projectId, projectIds)),
+    db
+      .selectDistinct({ key: schema.logFileUploads.r2Key })
+      .from(schema.logFileUploads)
+      .where(inArray(schema.logFileUploads.projectId, projectIds)),
   ];
 }
 

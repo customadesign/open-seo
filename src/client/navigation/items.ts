@@ -8,6 +8,7 @@ import {
   Link2,
   MapPinned,
   FileBarChart,
+  FileText,
   MessageSquare,
   Search,
   Sparkles,
@@ -64,6 +65,11 @@ const projectNavItems = [
     to: "/p/$projectId/audit" as const,
     label: "Site Audit",
     icon: ClipboardCheck,
+  },
+  {
+    to: "/p/$projectId/log-files" as const,
+    label: "Log Files",
+    icon: FileText,
   },
   {
     to: "/p/$projectId/reports" as const,
@@ -142,6 +148,7 @@ export function getProjectNavGroups(
         byPath("/p/$projectId/local-seo"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
+        byPath("/p/$projectId/log-files"),
         byPath("/p/$projectId/ai-visibility"),
         byPath("/p/$projectId/reports"),
       ],
@@ -162,6 +169,7 @@ export function getProjectNavGroups(
                 item.to === "/p/$projectId/rank-tracking" ||
                 item.to === "/p/$projectId/saved" ||
                 item.to === "/p/$projectId/audit" ||
+                item.to === "/p/$projectId/log-files" ||
                 item.to === "/p/$projectId/reports",
             ),
           }
