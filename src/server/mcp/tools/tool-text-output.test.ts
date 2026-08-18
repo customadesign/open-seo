@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as researchTools from "./dataforseo-research-tools";
+import { getBacklinksAnchorsTool } from "./get-backlinks-anchors";
 import { getBacklinksOverviewTool } from "./get-backlinks-overview";
 import { getBacklinksProfileTool } from "./get-backlinks-profile";
 import { getDomainKeywordSuggestionsTool } from "./get-domain-keyword-suggestions";
@@ -20,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   profileOverview: vi.fn(),
   profileReferringDomainsPage: vi.fn(),
   profileBacklinksPage: vi.fn(),
+  profileAnchors: vi.fn(),
+  estimateBulkAnalysis: vi.fn(),
+  runBulkAnalysis: vi.fn(),
   getSuggestedKeywords: vi.fn(),
   getConfigById: vi.fn(),
   getConfigsForProject: vi.fn(),
@@ -45,6 +49,9 @@ vi.mock("@/server/features/backlinks/services/BacklinksService", () => ({
     profileOverview: mocks.profileOverview,
     profileReferringDomainsPage: mocks.profileReferringDomainsPage,
     profileBacklinksPage: mocks.profileBacklinksPage,
+    profileAnchors: mocks.profileAnchors,
+    estimateBulkAnalysis: mocks.estimateBulkAnalysis,
+    runBulkAnalysis: mocks.runBulkAnalysis,
   },
 }));
 vi.mock("@/server/features/domain/services/DomainService", () => ({
@@ -211,6 +218,37 @@ describe("MCP tool text output (service-backed tools)", () => {
     expect(out).toContain("https://a.example/post");
     expect(out).toContain("click here");
     expect(out).toContain("dofollow");
+  });
+
+  it("get_backlinks_anchors renders each anchor row", async () => {
+    mocks.profileAnchors.mockResolvedValue({
+      rows: [
+        {
+          anchor: "buy cheap widgets",
+          referringDomains: 12,
+          backlinks: 40,
+          share: 0.8,
+          kind: "commercial",
+          concentrated: true,
+        },
+      ],
+      totalCount: 1,
+      totalBacklinks: 40,
+      concentratedAnchors: ["buy cheap widgets"],
+    });
+
+    const result = await getBacklinksAnchorsTool.handler(
+      { projectId: "project_1", target: "example.com" },
+      toolContext,
+    );
+
+    const out = textContent(result);
+    expect(out).toContain(
+      "anchor | referring domains | backlinks | share | kind | concentrated",
+    );
+    expect(out).toContain(
+      "buy cheap widgets | 12 | 40 | 80.0% | commercial | yes",
+    );
   });
 
   it("get_rank_tracker renders every tracked-keyword row (detail view)", async () => {

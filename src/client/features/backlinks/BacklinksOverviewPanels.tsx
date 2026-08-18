@@ -33,6 +33,7 @@ export function BacklinksOverviewPanels({
             size: undefined,
             sort: undefined,
             order: undefined,
+            range: undefined,
           }}
           replace
           className="btn btn-ghost btn-sm gap-2 px-0 text-base-content/70 hover:bg-transparent"

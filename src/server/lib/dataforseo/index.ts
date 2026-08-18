@@ -60,4 +60,11 @@ export type {
   ReferringDomainItem,
   DomainPageSummaryItem,
   BacklinksHistoryItem,
+  BacklinksAnchorItem,
+  BacklinksNewLostTimeseriesItem,
+  BacklinksBulkRankItem,
+  BacklinksBulkBacklinksItem,
+  BacklinksBulkReferringDomainsItem,
 } from "@/server/lib/dataforseo/backlinks";
+
+export type { BulkTrafficEstimationItem } from "@/server/lib/dataforseo/labs";

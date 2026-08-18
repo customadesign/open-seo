@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { OnChangeFn, SortingState } from "@tanstack/react-table";
+import { BacklinksBulkPanel } from "./BacklinksBulkPanel";
 import { BacklinksOverviewPanels } from "./BacklinksOverviewPanels";
 import { BacklinksResultsCard } from "./BacklinksPageSections";
 import {
@@ -9,6 +10,8 @@ import {
 import { BacklinksHistorySection } from "./BacklinksHistorySection";
 import type { BacklinksSearchHistoryItem } from "@/client/hooks/useBacklinksSearchHistory";
 import type {
+  BacklinksAnchorsData,
+  BacklinksNewLostData,
   BacklinksOverviewData,
   BacklinksReferringDomainsData,
   BacklinksRowsPageData,
@@ -34,6 +37,10 @@ type BacklinksBodyProps = {
   backlinksRowsPage: BacklinksRowsPageData | undefined;
   referringDomainsPage: BacklinksReferringDomainsData | undefined;
   topPagesPage: BacklinksTopPagesData | undefined;
+  anchorsData: BacklinksAnchorsData | undefined;
+  newLostData: BacklinksNewLostData | undefined;
+  newLostGroupRange: "day" | "week";
+  onNewLostRangeChange: (value: "day" | "week") => void;
   searchState: BacklinksSearchState;
   filters: BacklinksFiltersState;
   sorting: SortingState;
@@ -67,6 +74,10 @@ export function BacklinksBody({
   backlinksRowsPage,
   referringDomainsPage,
   topPagesPage,
+  anchorsData,
+  newLostData,
+  newLostGroupRange,
+  onNewLostRangeChange,
   searchState,
   filters,
   sorting,
@@ -113,6 +124,16 @@ export function BacklinksBody({
   ) : null;
 
   if (!searchState.target) {
+    if (searchState.tab === "bulk") {
+      return (
+        <>
+          {tabStrip}
+          <div className="border border-base-300 rounded-xl bg-base-100 p-4">
+            <BacklinksBulkPanel projectId={projectId} />
+          </div>
+        </>
+      );
+    }
     return (
       <BacklinksHistorySection
         projectId={projectId}
@@ -163,6 +184,12 @@ export function BacklinksBody({
         isTabLoading={tabLoading}
         tabErrorMessage={tabErrorMessage}
         exportTarget={overviewData.displayTarget || searchState.target}
+        anchorsData={anchorsData}
+        newLostData={newLostData}
+        newLostGroupRange={newLostGroupRange}
+        onNewLostRangeChange={onNewLostRangeChange}
+        overviewData={overviewData}
+        target={searchState.target}
         pagination={{
           page: searchState.page,
           pageSize: searchState.pageSize,

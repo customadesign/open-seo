@@ -1,6 +1,19 @@
 import { z } from "zod";
+import {
+  MAX_BACKLINKS_BULK_TARGETS,
+  MAX_BACKLINKS_COMPETITORS,
+} from "@/shared/backlinks";
 
-export const backlinksTabSchema = z.enum(["backlinks", "domains", "pages"]);
+export const backlinksTabSchema = z.enum([
+  "backlinks",
+  "domains",
+  "pages",
+  "anchors",
+  "new-lost",
+  "authority",
+  "compare",
+  "bulk",
+]);
 export const backlinksTargetScopeSchema = z.enum(["domain", "page"]);
 const DEFAULT_BACKLINKS_SPAM_THRESHOLD = 40;
 
@@ -139,10 +152,51 @@ export const BACKLINKS_DEFAULT_SORT = {
   backlinks: { field: "firstSeen", order: "desc" },
   domains: { field: "backlinks", order: "desc" },
   pages: { field: "backlinks", order: "desc" },
+  anchors: { field: "backlinks", order: "desc" },
+  "new-lost": { field: "date", order: "desc" },
+  authority: { field: "date", order: "desc" },
+  compare: { field: "authorityScore", order: "desc" },
+  bulk: { field: "authorityScore", order: "desc" },
 } as const satisfies Record<
   z.infer<typeof backlinksTabSchema>,
   { field: string; order: z.infer<typeof backlinksSortOrderSchema> }
 >;
+
+export const backlinksNewLostGroupRangeSchema = z.enum(["day", "week"]);
+export const MAX_BACKLINKS_REPORT_ROWS = 1000;
+
+const backlinksTargetsListSchema = z
+  .array(z.string().min(1).max(2048))
+  .min(1)
+  .max(MAX_BACKLINKS_BULK_TARGETS);
+
+export const backlinksAnchorsRequestSchema = backlinksLookupSchema.extend({
+  projectId: z.string().min(1),
+});
+
+export const backlinksNewLostRequestSchema = backlinksLookupSchema.extend({
+  projectId: z.string().min(1),
+  groupRange: backlinksNewLostGroupRangeSchema.default("week"),
+});
+
+export const backlinksBulkTargetsSchema = z.object({
+  projectId: z.string().min(1),
+  targets: backlinksTargetsListSchema,
+});
+
+export const backlinksBulkAnalysisRequestSchema =
+  backlinksBulkTargetsSchema.extend({
+    maxCostCredits: z.number().int().positive(),
+  });
+
+export const backlinksCompareRequestSchema = backlinksLookupSchema.extend({
+  projectId: z.string().min(1),
+  competitors: z
+    .array(z.string().min(1).max(2048))
+    .min(1)
+    .max(MAX_BACKLINKS_COMPETITORS),
+  maxCostCredits: z.number().int().positive(),
+});
 
 const backlinksPageRequestBase = backlinksLookupSchema.extend({
   projectId: z.string().min(1),
@@ -200,6 +254,7 @@ export const backlinksSearchSchema = z.object({
   order: backlinksSortOrderSchema.optional().catch(undefined),
   // Backlinks tab only: "all" shows every link; default is one per domain.
   view: z.literal("all").optional().catch(undefined),
+  range: backlinksNewLostGroupRangeSchema.optional().catch(undefined),
 });
 
 export type BacklinksLookupInput = z.infer<typeof backlinksLookupSchema>;
@@ -225,3 +280,21 @@ export type ReferringDomainsPageInput = z.infer<
   typeof referringDomainsPageRequestSchema
 >;
 export type TopPagesPageInput = z.infer<typeof topPagesPageRequestSchema>;
+export type BacklinksNewLostGroupRange = z.infer<
+  typeof backlinksNewLostGroupRangeSchema
+>;
+export type BacklinksAnchorsInput = z.infer<
+  typeof backlinksAnchorsRequestSchema
+>;
+export type BacklinksNewLostInput = z.infer<
+  typeof backlinksNewLostRequestSchema
+>;
+export type BacklinksBulkTargetsInput = z.infer<
+  typeof backlinksBulkTargetsSchema
+>;
+export type BacklinksBulkAnalysisInput = z.infer<
+  typeof backlinksBulkAnalysisRequestSchema
+>;
+export type BacklinksCompareInput = z.infer<
+  typeof backlinksCompareRequestSchema
+>;

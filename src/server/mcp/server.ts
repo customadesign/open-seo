@@ -11,6 +11,9 @@ import {
 } from "@/server/mcp/context";
 import { objectSchema } from "@/server/mcp/output-schemas";
 import { instrumentMcpToolHandler } from "@/server/mcp/instrumentation";
+import { analyzeBacklinksBulkTool } from "@/server/mcp/tools/analyze-backlinks-bulk";
+import { estimateBacklinksBulkAnalysisTool } from "@/server/mcp/tools/estimate-backlinks-bulk";
+import { getBacklinksAnchorsTool } from "@/server/mcp/tools/get-backlinks-anchors";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
@@ -159,6 +162,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getDomainKeywordSuggestionsTool);
   register(getBacklinksOverviewTool);
   register(getBacklinksProfileTool);
+  register(getBacklinksAnchorsTool);
+  register(estimateBacklinksBulkAnalysisTool);
+  register(analyzeBacklinksBulkTool);
   register(getSerpResultsTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);

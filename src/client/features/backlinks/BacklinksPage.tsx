@@ -86,6 +86,19 @@ export function BacklinksPage({
     [navigate],
   );
 
+  const handleNewLostRangeChange = useCallback(
+    (nextRange: "day" | "week") => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          range: nextRange === "week" ? undefined : nextRange,
+        }),
+        replace: true,
+      });
+    },
+    [navigate],
+  );
+
   const handleViewChange = useCallback(
     (nextView: "all" | undefined) => {
       navigate({
@@ -110,6 +123,9 @@ export function BacklinksPage({
     rowsQuery,
     searchCardInitialValues,
     topPagesQuery,
+    anchorsQuery,
+    newLostQuery,
+    newLostGroupRange,
   } = useBacklinksPageData({
     projectId,
     searchState,
@@ -213,6 +229,10 @@ export function BacklinksPage({
           backlinksRowsPage={rowsQuery.data}
           referringDomainsPage={referringDomainsQuery.data}
           topPagesPage={topPagesQuery.data}
+          anchorsData={anchorsQuery.data}
+          newLostData={newLostQuery.data}
+          newLostGroupRange={newLostGroupRange}
+          onNewLostRangeChange={handleNewLostRangeChange}
           searchState={searchState}
           filters={filters}
           sorting={sorting}

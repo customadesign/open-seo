@@ -106,6 +106,22 @@ const toolCategories: ToolCategory[] = [
         title: "Get backlinks profile",
         description: "Fetch paginated link-level backlink rows.",
       },
+      {
+        name: "get_backlinks_anchors",
+        title: "Get backlinks anchors",
+        description: "See anchor-text distribution and concentration.",
+      },
+      {
+        name: "estimate_backlinks_bulk_analysis",
+        title: "Estimate backlinks bulk analysis",
+        description: "Estimate credits for analyzing many domains at once.",
+      },
+      {
+        name: "analyze_backlinks_bulk",
+        title: "Analyze backlinks in bulk",
+        description:
+          "Compare authority, backlinks, and traffic for many domains.",
+      },
     ],
   },
   {

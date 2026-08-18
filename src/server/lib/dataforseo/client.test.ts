@@ -64,6 +64,7 @@ vi.mock("@/server/lib/dataforseo/labs", () => ({
   fetchRelevantPages: vi.fn(),
   fetchKeywordOverview: vi.fn(),
   fetchSerpCompetitors: vi.fn(),
+  fetchBulkTrafficEstimation: vi.fn(),
 }));
 vi.mock("@/server/lib/dataforseo/serp", () => ({
   fetchLiveSerp: vi.fn(),
@@ -81,6 +82,11 @@ vi.mock("@/server/lib/dataforseo/backlinks", () => ({
   fetchReferringDomains: vi.fn(),
   fetchDomainPagesSummary: vi.fn(),
   fetchBacklinksHistory: vi.fn(),
+  fetchBacklinksAnchors: vi.fn(),
+  fetchTimeseriesNewLostSummary: vi.fn(),
+  fetchBulkRanks: vi.fn(),
+  fetchBulkBacklinks: vi.fn(),
+  fetchBulkReferringDomains: vi.fn(),
 }));
 vi.mock("@/server/lib/dataforseo/lighthouse", () => ({
   fetchLighthouseResult: vi.fn(),

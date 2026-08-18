@@ -3,7 +3,13 @@ import { BacklinksService } from "@/server/features/backlinks/services/Backlinks
 import { DisavowService } from "@/server/features/backlinks/services/DisavowService";
 import { AppError } from "@/server/lib/errors";
 import { requireProjectUse } from "@/serverFunctions/middleware";
+import { resolveLabsMarket } from "@/shared/keyword-locations";
 import {
+  backlinksAnchorsRequestSchema,
+  backlinksBulkAnalysisRequestSchema,
+  backlinksBulkTargetsSchema,
+  backlinksCompareRequestSchema,
+  backlinksNewLostRequestSchema,
   backlinksOverviewInputSchema,
   backlinksRowsPageRequestSchema,
   referringDomainsPageRequestSchema,
@@ -66,6 +72,72 @@ export const getBacklinksTopPages = createServerFn({
   .handler(({ data, context }) =>
     BacklinksService.profileTopPagesPage(data, context),
   );
+
+export const getBacklinksAnchors = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(backlinksAnchorsRequestSchema)
+  .handler(({ data, context }) =>
+    BacklinksService.profileAnchors(
+      { target: data.target, scope: data.scope },
+      context,
+    ),
+  );
+
+export const getBacklinksNewLost = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(backlinksNewLostRequestSchema)
+  .handler(({ data, context }) =>
+    BacklinksService.profileNewLost(
+      {
+        target: data.target,
+        scope: data.scope,
+        groupRange: data.groupRange,
+      },
+      context,
+    ),
+  );
+
+export const estimateBacklinksBulkAnalysis = createServerFn({
+  method: "POST",
+})
+  .middleware(requireProjectUse)
+  .validator(backlinksBulkTargetsSchema)
+  .handler(() => BacklinksService.estimateBulkAnalysis());
+
+export const runBacklinksBulkAnalysis = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(backlinksBulkAnalysisRequestSchema)
+  .handler(({ data, context }) => {
+    const market = resolveLabsMarket({}, context.project);
+    return BacklinksService.runBulkAnalysis(
+      {
+        targets: data.targets,
+        locationCode: market.locationCode,
+        languageCode: market.languageCode,
+        maxCostCredits: data.maxCostCredits,
+      },
+      context,
+    );
+  });
+
+export const runBacklinksCompetitorComparison = createServerFn({
+  method: "POST",
+})
+  .middleware(requireProjectUse)
+  .validator(backlinksCompareRequestSchema)
+  .handler(({ data, context }) => {
+    const market = resolveLabsMarket({}, context.project);
+    return BacklinksService.compareCompetitors(
+      {
+        target: data.target,
+        competitors: data.competitors,
+        locationCode: market.locationCode,
+        languageCode: market.languageCode,
+        maxCostCredits: data.maxCostCredits,
+      },
+      context,
+    );
+  });
 
 export const getDisavowEntries = createServerFn({ method: "POST" })
   .middleware(requireProjectUse)

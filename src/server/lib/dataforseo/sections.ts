@@ -12,14 +12,20 @@ export {
 } from "@/server/lib/dataforseo/business";
 
 export {
+  fetchBacklinksAnchors,
   fetchBacklinksHistory,
   fetchBacklinksRows,
   fetchBacklinksSummary,
+  fetchBulkBacklinks,
+  fetchBulkRanks,
+  fetchBulkReferringDomains,
   fetchDomainPagesSummary,
   fetchReferringDomains,
+  fetchTimeseriesNewLostSummary,
 } from "@/server/lib/dataforseo/backlinks";
 
 export {
+  fetchBulkTrafficEstimation,
   fetchDomainRankOverview,
   fetchKeywordIdeas,
   fetchKeywordOverview,

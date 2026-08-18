@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  DataforseoLabsGoogleBulkTrafficEstimationLiveRequestInfo,
   DataforseoLabsGoogleDomainRankOverviewLiveRequestInfo,
   DataforseoLabsGoogleKeywordIdeasLiveRequestInfo,
   DataforseoLabsGoogleKeywordOverviewLiveRequestInfo,
@@ -9,6 +10,7 @@ import {
   DataforseoLabsGoogleRelevantPagesLiveRequestInfo,
   DataforseoLabsGoogleSerpCompetitorsLiveRequestInfo,
   type DataforseoLabsDomainRankOverviewLiveItem,
+  type DataforseoLabsGoogleBulkTrafficEstimationLiveItem,
   type DataforseoLabsGoogleKeywordOverviewLiveItem,
   type DataforseoLabsRelatedKeywordsLiveItem,
   type DataforseoLabsRelevantPagesLiveItem,
@@ -31,6 +33,8 @@ type DomainMetricsItem = DataforseoLabsDomainRankOverviewLiveItem;
 export type RelevantPagesItem = DataforseoLabsRelevantPagesLiveItem;
 export type KeywordOverviewItem = DataforseoLabsGoogleKeywordOverviewLiveItem;
 type SerpCompetitorItem = DataforseoLabsSerpCompetitorsLiveItem;
+export type BulkTrafficEstimationItem =
+  DataforseoLabsGoogleBulkTrafficEstimationLiveItem;
 
 // Ranked keywords is the one Labs endpoint the SDK types loosely: its
 // `ranked_serp_element.serp_item` is the base element item, so the url / etv /
@@ -314,6 +318,26 @@ export async function fetchSerpCompetitors(input: {
       include_subdomains: input.includeSubdomains,
       limit: input.limit,
       offset: input.offset,
+    }),
+  ]);
+  const task = assertOk(response);
+  return {
+    data: task.result?.[0]?.items ?? [],
+    billing: buildTaskBilling(task),
+  };
+}
+
+export async function fetchBulkTrafficEstimation(input: {
+  targets: string[];
+  locationCode: number;
+  languageCode: string;
+}): Promise<DataforseoApiResponse<BulkTrafficEstimationItem[]>> {
+  const response = await labsApi().googleBulkTrafficEstimationLive([
+    new DataforseoLabsGoogleBulkTrafficEstimationLiveRequestInfo({
+      targets: input.targets,
+      location_code: input.locationCode,
+      language_code: input.languageCode,
+      item_types: ["organic"],
     }),
   ]);
   const task = assertOk(response);

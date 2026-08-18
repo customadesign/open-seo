@@ -15,6 +15,15 @@ import {
   type ReferringDomainsPageServiceInput,
   type TopPagesPageServiceInput,
 } from "@/server/features/backlinks/services/backlinksServiceData";
+import {
+  bulkApprovalMessages,
+  competitorApprovalMessages,
+  fingerprintTargets,
+  profileBacklinksAnchors,
+  profileNewLostTimeseries,
+  runBulkAnalysisSnapshot,
+} from "@/server/features/backlinks/services/backlinksReportData";
+import { estimateBacklinksBulkCredits } from "@/shared/backlinks";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import type { CreditFeature } from "@/shared/billing-credit-features";
 
@@ -108,6 +117,107 @@ function createBacklinksService(cache: BacklinksCache = defaultCache) {
       );
 
       return profileTopPagesPage(cache, cacheKey, input, billingCustomer);
+    },
+    async profileAnchors(
+      input: { target: string; scope?: "domain" | "page" },
+      billingCustomer: BillingCustomerContext,
+    ) {
+      const cacheKey = await buildCacheKey("backlinks:anchors", {
+        ...buildTargetCacheInput(input, billingCustomer),
+      });
+      return profileBacklinksAnchors(cache, cacheKey, input, billingCustomer);
+    },
+    async profileNewLost(
+      input: {
+        target: string;
+        scope?: "domain" | "page";
+        groupRange: "day" | "week";
+      },
+      billingCustomer: BillingCustomerContext,
+    ) {
+      const cacheKey = await buildCacheKey("backlinks:new-lost", {
+        ...buildTargetCacheInput(input, billingCustomer),
+        groupRange: input.groupRange,
+      });
+      return profileNewLostTimeseries(cache, cacheKey, input, billingCustomer);
+    },
+    estimateBulkAnalysis() {
+      return estimateBacklinksBulkCredits();
+    },
+    async runBulkAnalysis(
+      input: {
+        targets: string[];
+        locationCode: number;
+        languageCode: string;
+        maxCostCredits?: number;
+      },
+      billingCustomer: BillingCustomerContext,
+    ) {
+      const normalized = input.targets.map((target) =>
+        normalizeBacklinksTarget(target),
+      );
+      const cacheKey = await buildCacheKey("backlinks:bulk", {
+        organizationId: billingCustomer.organizationId,
+        fingerprint: fingerprintTargets(
+          normalized.map((item) => item.apiTarget),
+        ),
+        locationCode: input.locationCode,
+        languageCode: input.languageCode,
+      });
+      return runBulkAnalysisSnapshot(
+        cache,
+        cacheKey,
+        {
+          targets: input.targets,
+          locationCode: input.locationCode,
+          languageCode: input.languageCode,
+          maxCostCredits: input.maxCostCredits,
+          ...bulkApprovalMessages(),
+        },
+        billingCustomer,
+      );
+    },
+    async compareCompetitors(
+      input: {
+        target: string;
+        competitors: string[];
+        locationCode: number;
+        languageCode: string;
+        maxCostCredits?: number;
+      },
+      billingCustomer: BillingCustomerContext,
+    ) {
+      const primary = normalizeBacklinksTarget(input.target, {
+        scope: "domain",
+      });
+      const competitors = input.competitors.map((target) =>
+        normalizeBacklinksTarget(target, { scope: "domain" }),
+      );
+      const cacheKey = await buildCacheKey("backlinks:compare", {
+        organizationId: billingCustomer.organizationId,
+        target: primary.apiTarget,
+        fingerprint: fingerprintTargets(
+          competitors.map((item) => item.apiTarget),
+        ),
+        locationCode: input.locationCode,
+        languageCode: input.languageCode,
+      });
+      return runBulkAnalysisSnapshot(
+        cache,
+        cacheKey,
+        {
+          targets: [
+            primary.apiTarget,
+            ...competitors.map((item) => item.apiTarget),
+          ],
+          locationCode: input.locationCode,
+          languageCode: input.languageCode,
+          maxCostCredits: input.maxCostCredits,
+          primaryTarget: primary.apiTarget,
+          ...competitorApprovalMessages(),
+        },
+        billingCustomer,
+      );
     },
   } as const;
 }

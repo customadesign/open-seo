@@ -1,10 +1,16 @@
+/* eslint-disable max-lines -- one module owns every Backlinks API fetcher */
 import { z } from "zod";
 import {
+  BacklinksAnchorsLiveRequestInfo,
   BacklinksBacklinksLiveRequestInfo,
+  BacklinksBulkBacklinksLiveRequestInfo,
+  BacklinksBulkRanksLiveRequestInfo,
+  BacklinksBulkReferringDomainsLiveRequestInfo,
   BacklinksDomainPagesSummaryLiveRequestInfo,
   BacklinksHistoryLiveRequestInfo,
   BacklinksReferringDomainsLiveRequestInfo,
   BacklinksSummaryLiveRequestInfo,
+  BacklinksTimeseriesNewLostSummaryLiveRequestInfo,
 } from "dataforseo-client";
 import {
   normalizeBacklinksSpamFilterOptions,
@@ -37,6 +43,12 @@ type BacklinksTimeseriesRequest = {
   target: string;
   dateFrom: string;
   dateTo: string;
+};
+type BacklinksNewLostTimeseriesRequest = BacklinksTimeseriesRequest & {
+  groupRange?: "day" | "week";
+};
+type BacklinksBulkTargetsRequest = {
+  targets: string[];
 };
 
 const classifyBacklinksError = createDataforseoBillingClassifier({
@@ -134,6 +146,53 @@ export const backlinksHistoryItemSchema = z
     lost_reffering_domains: z.number().nullable().optional(),
     new_referring_domains: z.number().nullable().optional(),
     lost_referring_domains: z.number().nullable().optional(),
+  })
+  .passthrough();
+
+export const backlinksAnchorItemSchema = z
+  .object({
+    anchor: z.string().nullable().optional(),
+    rank: z.number().nullable().optional(),
+    backlinks: z.number().nullable().optional(),
+    referring_domains: z.number().nullable().optional(),
+    referring_pages: z.number().nullable().optional(),
+    first_seen: z.string().nullable().optional(),
+    lost_date: z.string().nullable().optional(),
+    backlinks_spam_score: z.number().nullable().optional(),
+  })
+  .passthrough();
+
+export const backlinksNewLostTimeseriesItemSchema = z
+  .object({
+    date: z.string().nullable().optional(),
+    new_backlinks: z.number().nullable().optional(),
+    lost_backlinks: z.number().nullable().optional(),
+    new_referring_domains: z.number().nullable().optional(),
+    lost_referring_domains: z.number().nullable().optional(),
+    new_referring_main_domains: z.number().nullable().optional(),
+    lost_referring_main_domains: z.number().nullable().optional(),
+  })
+  .passthrough();
+
+export const backlinksBulkRankItemSchema = z
+  .object({
+    target: z.string().nullable().optional(),
+    rank: z.number().nullable().optional(),
+  })
+  .passthrough();
+
+export const backlinksBulkBacklinksItemSchema = z
+  .object({
+    target: z.string().nullable().optional(),
+    backlinks: z.number().nullable().optional(),
+  })
+  .passthrough();
+
+export const backlinksBulkReferringDomainsItemSchema = z
+  .object({
+    target: z.string().nullable().optional(),
+    referring_domains: z.number().nullable().optional(),
+    referring_main_domains: z.number().nullable().optional(),
   })
   .passthrough();
 
@@ -318,8 +377,136 @@ export async function fetchBacklinksHistory(input: BacklinksTimeseriesRequest) {
   };
 }
 
+export async function fetchBacklinksAnchors(input: BacklinksListRequest) {
+  const response = await backlinksApi(classifyBacklinksError).anchorsLive([
+    new BacklinksAnchorsLiveRequestInfo({
+      ...buildCommonPayload(input),
+      limit: input.limit ?? 1000,
+      offset: input.offset,
+      order_by: input.orderBy ?? ["backlinks,desc"],
+      ...(input.filters && input.filters.length > 0
+        ? { filters: input.filters }
+        : {}),
+    }),
+  ]);
+  const task = assertOk(response, assertOptions("/v3/backlinks/anchors/live"));
+  return {
+    data: {
+      items: parseTaskItems(
+        "backlinks-anchors-live",
+        task,
+        backlinksAnchorItemSchema,
+      ),
+      totalCount: parseTaskTotalCount(task),
+    },
+    billing: buildTaskBilling(task),
+  };
+}
+
+export async function fetchTimeseriesNewLostSummary(
+  input: BacklinksNewLostTimeseriesRequest,
+) {
+  const response = await backlinksApi(
+    classifyBacklinksError,
+  ).timeseriesNewLostSummaryLive([
+    new BacklinksTimeseriesNewLostSummaryLiveRequestInfo({
+      target: input.target,
+      date_from: input.dateFrom,
+      date_to: input.dateTo,
+      group_range: input.groupRange ?? "week",
+      include_subdomains: true,
+    }),
+  ]);
+  const task = assertOk(
+    response,
+    assertOptions("/v3/backlinks/timeseries_new_lost_summary/live"),
+  );
+  return {
+    data: parseTaskItems(
+      "backlinks-timeseries-new-lost-live",
+      task,
+      backlinksNewLostTimeseriesItemSchema,
+    ),
+    billing: buildTaskBilling(task),
+  };
+}
+
+export async function fetchBulkRanks(input: BacklinksBulkTargetsRequest) {
+  const response = await backlinksApi(classifyBacklinksError).bulkRanksLive([
+    new BacklinksBulkRanksLiveRequestInfo({
+      targets: input.targets,
+      rank_scale: "one_hundred",
+    }),
+  ]);
+  const task = assertOk(
+    response,
+    assertOptions("/v3/backlinks/bulk_ranks/live"),
+  );
+  return {
+    data: parseTaskItems(
+      "backlinks-bulk-ranks-live",
+      task,
+      backlinksBulkRankItemSchema,
+    ),
+    billing: buildTaskBilling(task),
+  };
+}
+
+export async function fetchBulkBacklinks(input: BacklinksBulkTargetsRequest) {
+  const response = await backlinksApi(classifyBacklinksError).bulkBacklinksLive(
+    [new BacklinksBulkBacklinksLiveRequestInfo({ targets: input.targets })],
+  );
+  const task = assertOk(
+    response,
+    assertOptions("/v3/backlinks/bulk_backlinks/live"),
+  );
+  return {
+    data: parseTaskItems(
+      "backlinks-bulk-backlinks-live",
+      task,
+      backlinksBulkBacklinksItemSchema,
+    ),
+    billing: buildTaskBilling(task),
+  };
+}
+
+export async function fetchBulkReferringDomains(
+  input: BacklinksBulkTargetsRequest,
+) {
+  const response = await backlinksApi(
+    classifyBacklinksError,
+  ).bulkReferringDomainsLive([
+    new BacklinksBulkReferringDomainsLiveRequestInfo({
+      targets: input.targets,
+    }),
+  ]);
+  const task = assertOk(
+    response,
+    assertOptions("/v3/backlinks/bulk_referring_domains/live"),
+  );
+  return {
+    data: parseTaskItems(
+      "backlinks-bulk-referring-domains-live",
+      task,
+      backlinksBulkReferringDomainsItemSchema,
+    ),
+    billing: buildTaskBilling(task),
+  };
+}
+
 export type BacklinksSummaryItem = z.infer<typeof backlinksSummaryItemSchema>;
 export type BacklinksItem = z.infer<typeof backlinksItemSchema>;
 export type ReferringDomainItem = z.infer<typeof referringDomainItemSchema>;
 export type DomainPageSummaryItem = z.infer<typeof domainPageSummaryItemSchema>;
 export type BacklinksHistoryItem = z.infer<typeof backlinksHistoryItemSchema>;
+export type BacklinksAnchorItem = z.infer<typeof backlinksAnchorItemSchema>;
+export type BacklinksNewLostTimeseriesItem = z.infer<
+  typeof backlinksNewLostTimeseriesItemSchema
+>;
+export type BacklinksBulkRankItem = z.infer<typeof backlinksBulkRankItemSchema>;
+export type BacklinksBulkBacklinksItem = z.infer<
+  typeof backlinksBulkBacklinksItemSchema
+>;
+export type BacklinksBulkReferringDomainsItem = z.infer<
+  typeof backlinksBulkReferringDomainsItemSchema
+>;

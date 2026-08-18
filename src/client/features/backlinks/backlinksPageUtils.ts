@@ -7,8 +7,29 @@ export const TAB_DESCRIPTIONS: Record<BacklinksTab, string> = {
   domains:
     "View the unique domains linking to your target, grouped at the site level instead of by individual link.",
   pages:
-    "See which pages on the target site attract the most backlinks and referring domains.",
+    "See which of the site's own pages attract the most referring domains and backlinks.",
+  anchors:
+    "Anchor-text distribution across the profile. Commercial/keyword anchors at or above 15% of fetched backlinks are flagged.",
+  "new-lost":
+    "New versus lost referring domains and backlinks over the last six months.",
+  authority:
+    "This domain's authority score over the last 12 months from the cached history snapshot.",
+  compare:
+    "Compare this domain with up to three competitors on the overview metrics. Fan-out spend requires an approved estimate.",
+  bulk: "Analyze up to 200 domains or URLs at once. Fan-out spend requires an approved estimate.",
 };
+
+export const SERVER_PAGED_TABS = [
+  "backlinks",
+  "domains",
+  "pages",
+] as const satisfies readonly BacklinksTab[];
+
+export function isServerPagedBacklinksTab(
+  tab: BacklinksTab,
+): tab is (typeof SERVER_PAGED_TABS)[number] {
+  return (SERVER_PAGED_TABS as readonly string[]).includes(tab);
+}
 
 export function buildSummaryStats(data: BacklinksOverviewData | undefined) {
   if (!data) return [];

@@ -80,6 +80,14 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       referringDomains: meter(customer, (s) => s.fetchReferringDomains),
       domainPages: meter(customer, (s) => s.fetchDomainPagesSummary),
       history: meter(customer, (s) => s.fetchBacklinksHistory),
+      anchors: meter(customer, (s) => s.fetchBacklinksAnchors),
+      timeseriesNewLost: meter(
+        customer,
+        (s) => s.fetchTimeseriesNewLostSummary,
+      ),
+      bulkRanks: meter(customer, (s) => s.fetchBulkRanks),
+      bulkBacklinks: meter(customer, (s) => s.fetchBulkBacklinks),
+      bulkReferringDomains: meter(customer, (s) => s.fetchBulkReferringDomains),
     },
     keywords: {
       related: meter(customer, (s) => s.fetchRelatedKeywords),
@@ -117,6 +125,10 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         "rank_tracking",
       ),
       serpCompetitors: meter(customer, (s) => s.fetchSerpCompetitors),
+      bulkTrafficEstimation: meter(
+        customer,
+        (s) => s.fetchBulkTrafficEstimation,
+      ),
     },
     lighthouse: {
       live: meter(customer, (s) => s.fetchLighthouseResult),
