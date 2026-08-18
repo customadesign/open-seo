@@ -23,6 +23,8 @@ export interface AiCrawlerAccess {
 export interface LlmsTxtStatus {
   available: boolean;
   statusCode: number | null;
+  /** First 32 KB of the body when the file was available. */
+  text: string | null;
 }
 
 const SEARCH_AND_RETRIEVAL_CRAWLERS = [
@@ -87,15 +89,22 @@ async function fetchLlmsTxtStatus(origin: string): Promise<LlmsTxtStatus> {
       },
     );
     const contentType = response.headers.get("content-type")?.toLowerCase();
+    const available =
+      response.ok &&
+      (contentType?.includes("text/plain") === true ||
+        contentType?.includes("text/markdown") === true);
+    let text: string | null = null;
+    if (available) {
+      const raw = await response.text();
+      text = raw.slice(0, 32 * 1024);
+    }
     return {
-      available:
-        response.ok &&
-        (contentType?.includes("text/plain") === true ||
-          contentType?.includes("text/markdown") === true),
+      available,
       statusCode: response.status,
+      text,
     };
   } catch {
-    return { available: false, statusCode: null };
+    return { available: false, statusCode: null, text: null };
   }
 }
 

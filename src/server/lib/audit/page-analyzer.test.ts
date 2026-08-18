@@ -21,6 +21,10 @@ type SemanticSignalKey =
   | "hasDateSignal"
   | "mixedContentCount"
   | "contentExternalLinkTargets"
+  | "contentDate"
+  | "semanticElementCount"
+  | "malformedLinkHrefs"
+  | "hreflangLinks"
   | "htmlBytes"
   | "hasDoctype"
   | "charset"
@@ -154,6 +158,10 @@ function expectParity(html: string) {
     hasDateSignal: _hasDateSignal,
     mixedContentCount: _mixedContentCount,
     contentExternalLinkTargets: _contentExternalLinkTargets,
+    contentDate: _contentDate,
+    semanticElementCount: _semanticElementCount,
+    malformedLinkHrefs: _malformedLinkHrefs,
+    hreflangLinks: _hreflangLinks,
     htmlBytes: _htmlBytes,
     hasDoctype: _hasDoctype,
     charset: _charset,
@@ -351,5 +359,37 @@ describe("analyzeHtml document and resource signals", () => {
     );
     expect(result.hasDoctype).toBe(false);
     expect(result.charset).toBe("ISO-8859-1");
+  });
+
+  it("captures malformed hrefs, hreflang hrefs, dates, and semantic tags", () => {
+    const result = analyzeHtml(
+      `<!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta property="article:published_time" content="2024-01-15">
+          <link rel="alternate" hreflang="en" href="https://example.com/en">
+          <link rel="alternate" hreflang="de" href="/de">
+        </head>
+        <body>
+          <main>
+            <article>
+              <h1>Hello</h1>
+              <a href="http://">Broken</a>
+              <time datetime="2024-06-01">June</time>
+            </article>
+          </main>
+        </body>
+      </html>`,
+      PAGE_URL,
+      200,
+      0,
+    );
+    expect(result.malformedLinkHrefs).toEqual(["http://"]);
+    expect(result.hreflangLinks).toEqual([
+      { lang: "en", href: "https://example.com/en" },
+      { lang: "de", href: "https://example.com/de" },
+    ]);
+    expect(result.contentDate).toBe("2024-06-01");
+    expect(result.semanticElementCount).toBeGreaterThanOrEqual(2);
   });
 });

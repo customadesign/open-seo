@@ -1,6 +1,7 @@
 import type {
   CrawledPageResult,
   PageFetchClass,
+  PageFetchErrorKind,
   PageResponseHeaders,
 } from "@/server/lib/audit/types";
 import { sha256Hex } from "@/server/lib/audit/ids";
@@ -22,6 +23,37 @@ const CHALLENGE_BODY_MARKERS = [
   "attention required! | cloudflare",
   "verifying you are human",
 ];
+
+export function classifyFetchError(error: unknown): PageFetchErrorKind {
+  const message = error instanceof Error ? error.message : String(error);
+  const cause =
+    error instanceof Error && error.cause instanceof Error
+      ? error.cause.message
+      : "";
+  const code =
+    error instanceof Error &&
+    error.cause &&
+    typeof error.cause === "object" &&
+    "code" in error.cause
+      ? String((error.cause as { code: unknown }).code)
+      : "";
+  const haystack = `${message} ${cause} ${code}`.toLowerCase();
+  if (
+    /invalid url|failed to parse url|url constructor|malformed uri/i.test(
+      haystack,
+    )
+  ) {
+    return "malformed";
+  }
+  if (
+    /enotfound|eai_again|err_name_not_resolved|dns|getaddrinfo|name not resolved|could not resolve|nxdomain/i.test(
+      haystack,
+    )
+  ) {
+    return "dns";
+  }
+  return "network";
+}
 
 function classifyFetch(
   statusCode: number,
@@ -97,6 +129,7 @@ export async function crawlPage(
         url,
         statusCode,
         fetchClass: "ok",
+        fetchErrorKind: null,
         redirectUrl,
         responseTimeMs,
         responseHeaders,
@@ -125,6 +158,7 @@ export async function crawlPage(
         url,
         statusCode,
         fetchClass,
+        fetchErrorKind: null,
         redirectUrl: null,
         responseTimeMs,
         responseHeaders,
@@ -158,6 +192,7 @@ export async function crawlPage(
       url,
       statusCode,
       fetchClass,
+      fetchErrorKind: null,
       redirectUrl: null,
       title: analysis.title,
       metaDescription: analysis.metaDescription,
@@ -171,6 +206,7 @@ export async function crawlPage(
       ogDescription: analysis.ogDescription,
       ogImage: analysis.ogImage,
       h1Count: analysis.h1s.filter((h) => h.length > 0).length,
+      h1Text: analysis.h1s.find((h) => h.length > 0) ?? null,
       h2Count: headingCount(2),
       h3Count: headingCount(3),
       h4Count: headingCount(4),
@@ -178,6 +214,8 @@ export async function crawlPage(
       h6Count: headingCount(6),
       headingOrder: analysis.headingOrder,
       wordCount: analysis.wordCount,
+      contentDate: analysis.contentDate,
+      semanticElementCount: analysis.semanticElementCount,
       contentHash: analysis.bodyText
         ? await sha256Hex(analysis.bodyText)
         : null,
@@ -201,6 +239,7 @@ export async function crawlPage(
         .length,
       images: analysis.images,
       links: analysis.links,
+      malformedLinkHrefs: analysis.malformedLinkHrefs,
       hasStructuredData: analysis.hasStructuredData,
       structuredDataTypes: analysis.structuredDataTypes,
       invalidStructuredDataCount: analysis.invalidStructuredDataCount,
@@ -214,6 +253,7 @@ export async function crawlPage(
       mixedContentCount: analysis.mixedContentCount,
       contentExternalLinkTargets: analysis.contentExternalLinkTargets,
       hreflangTags: analysis.hreflangTags,
+      hreflangLinks: analysis.hreflangLinks,
       isIndexable,
       responseTimeMs,
       crawlDepth,
@@ -226,6 +266,7 @@ export async function crawlPage(
       url,
       statusCode: 0,
       fetchClass: "error",
+      fetchErrorKind: classifyFetchError(error),
       redirectUrl: null,
       responseTimeMs,
       xRobotsTag: null,
@@ -246,9 +287,11 @@ function readPageResponseHeaders(headers: Headers): PageResponseHeaders {
   return {
     contentEncoding: headers.get("content-encoding"),
     cacheControl: headers.get("cache-control"),
+    expires: headers.get("expires"),
     xRobotsTag: headers.get("x-robots-tag"),
     contentType: headers.get("content-type"),
     contentLength: parseContentLength(headers.get("content-length")),
+    strictTransportSecurity: headers.get("strict-transport-security"),
   };
 }
 
@@ -304,6 +347,7 @@ function emptyPageResult(input: {
   url: string;
   statusCode: number;
   fetchClass: PageFetchClass;
+  fetchErrorKind: PageFetchErrorKind | null;
   redirectUrl: string | null;
   responseTimeMs: number;
   xRobotsTag?: string | null;
@@ -316,15 +360,18 @@ function emptyPageResult(input: {
   const responseHeaders = input.responseHeaders ?? {
     contentEncoding: null,
     cacheControl: null,
+    expires: null,
     xRobotsTag: input.xRobotsTag ?? null,
     contentType: null,
     contentLength: null,
+    strictTransportSecurity: null,
   };
   return {
     id: crypto.randomUUID(),
     url: input.url,
     statusCode: input.statusCode,
     fetchClass: input.fetchClass,
+    fetchErrorKind: input.fetchErrorKind,
     redirectUrl: input.redirectUrl,
     title: "",
     metaDescription: "",
@@ -336,6 +383,7 @@ function emptyPageResult(input: {
     ogDescription: null,
     ogImage: null,
     h1Count: 0,
+    h1Text: null,
     h2Count: 0,
     h3Count: 0,
     h4Count: 0,
@@ -343,6 +391,8 @@ function emptyPageResult(input: {
     h6Count: 0,
     headingOrder: [],
     wordCount: 0,
+    contentDate: null,
+    semanticElementCount: 0,
     contentHash: null,
     isHtml: false,
     htmlBytes: input.htmlBytes ?? 0,
@@ -350,6 +400,7 @@ function emptyPageResult(input: {
     imagesMissingAlt: 0,
     images: [],
     links: [],
+    malformedLinkHrefs: [],
     hasStructuredData: false,
     structuredDataTypes: [],
     invalidStructuredDataCount: 0,
@@ -363,6 +414,7 @@ function emptyPageResult(input: {
     mixedContentCount: 0,
     contentExternalLinkTargets: [],
     hreflangTags: [],
+    hreflangLinks: [],
     isIndexable: false,
     responseTimeMs: input.responseTimeMs,
     crawlDepth: input.crawlDepth,

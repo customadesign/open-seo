@@ -42,6 +42,13 @@ export function parseAuditConfig(configRaw: string | null): AuditConfig | null {
 /** How a page fetch resolved. "blocked" = WAF/bot challenge stood in the way. */
 export type PageFetchClass = "ok" | "blocked" | "error";
 
+/**
+ * Why a fetchClass "error" page failed. Transient — used by page reporters
+ * so DNS and malformed-URL failures are distinguishable. "network" is
+ * everything else (timeout, connection reset) and is not a dedicated issue.
+ */
+export type PageFetchErrorKind = "dns" | "malformed" | "network";
+
 /** One outgoing link edge, deduped by target URL within a page. */
 export interface PageLink {
   targetUrl: string;
@@ -50,13 +57,21 @@ export interface PageLink {
   isNofollow: boolean;
 }
 
+/** One hreflang alternate, with the language code and resolved href. */
+export interface HreflangLink {
+  lang: string;
+  href: string | null;
+}
+
 /** Response headers used by later audit checks. */
 export interface PageResponseHeaders {
   contentEncoding: string | null;
   cacheControl: string | null;
+  expires: string | null;
   xRobotsTag: string | null;
   contentType: string | null;
   contentLength: number | null;
+  strictTransportSecurity: string | null;
 }
 
 /** Data extracted from a single page's HTML. */
@@ -82,12 +97,18 @@ export interface PageAnalysis {
   // Content
   wordCount: number;
   bodyText: string;
+  /** Newest parseable published/updated date as YYYY-MM-DD, if any. */
+  contentDate: string | null;
+  /** Count of landmark/sectioning elements (main, article, nav, …). */
+  semanticElementCount: number;
 
   // Images
   images: Array<{ src: string | null; alt: string | null }>;
 
   // Links (normalized, deduped by target)
   links: PageLink[];
+  /** hrefs that could not be resolved to an HTTP(S) URL. */
+  malformedLinkHrefs: string[];
 
   // Structured data
   hasStructuredData: boolean;
@@ -107,6 +128,7 @@ export interface PageAnalysis {
 
   // Hreflang
   hreflangTags: string[];
+  hreflangLinks: HreflangLink[];
 
   // Document / resource signals for later audit slices
   htmlBytes: number;
@@ -152,6 +174,10 @@ export interface CrawledPageResult {
   url: string;
   statusCode: number;
   fetchClass: PageFetchClass;
+  /**
+   * Set only when fetchClass is "error". Transient — not persisted.
+   */
+  fetchErrorKind: PageFetchErrorKind | null;
   redirectUrl: string | null;
   title: string;
   metaDescription: string;
@@ -163,6 +189,8 @@ export interface CrawledPageResult {
   ogDescription: string | null;
   ogImage: string | null;
   h1Count: number;
+  /** First non-empty H1 text. Transient — used by page reporters. */
+  h1Text: string | null;
   h2Count: number;
   h3Count: number;
   h4Count: number;
@@ -170,6 +198,8 @@ export interface CrawledPageResult {
   h6Count: number;
   headingOrder: number[];
   wordCount: number;
+  contentDate: string | null;
+  semanticElementCount: number;
   contentHash: string | null;
   /**
    * True when an HTML document was fetched and analyzed. Gates the content
@@ -187,6 +217,7 @@ export interface CrawledPageResult {
   imagesMissingAlt: number;
   images: Array<{ src: string | null; alt: string | null }>;
   links: PageLink[];
+  malformedLinkHrefs: string[];
   hasStructuredData: boolean;
   structuredDataTypes: string[];
   invalidStructuredDataCount: number;
@@ -200,6 +231,7 @@ export interface CrawledPageResult {
   mixedContentCount: number;
   contentExternalLinkTargets: string[];
   hreflangTags: string[];
+  hreflangLinks: HreflangLink[];
   isIndexable: boolean;
   responseTimeMs: number;
   /** null = not reached via links (e.g. sitemap-seeded). */

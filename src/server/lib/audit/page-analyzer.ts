@@ -13,7 +13,12 @@
  */
 import { Parser } from "htmlparser2";
 import { normalizeUrl, isSameOrigin } from "./url-utils";
-import type { PageAnalysis, PageLink, PageResponseHeaders } from "./types";
+import type {
+  HreflangLink,
+  PageAnalysis,
+  PageLink,
+  PageResponseHeaders,
+} from "./types";
 
 const SKIPPED_LINK_PROTOCOLS = /^(javascript:|mailto:|tel:|#)/;
 /** Subtrees whose text is not visible content. */
@@ -30,6 +35,15 @@ const MAX_ANCHOR_CHARS = 200;
 const MAX_JSON_LD_CHARS = 100_000;
 const CHROME_TAGS = new Set(["aside", "footer", "header", "nav"]);
 const PRIMARY_CONTENT_TAGS = new Set(["article", "main"]);
+const SEMANTIC_TAGS = new Set([
+  "article",
+  "aside",
+  "footer",
+  "header",
+  "main",
+  "nav",
+  "section",
+]);
 const QUESTION_HEADING =
   /^(what|why|how|when|where|who|which|can|could|does|do|is|are|should|will)\b|\?$/i;
 
@@ -46,6 +60,7 @@ function inspectStructuredData(
     types: Set<string>;
     author: boolean;
     date: boolean;
+    dates: string[];
   },
 ) {
   if (Array.isArray(value)) {
@@ -65,11 +80,38 @@ function inspectStructuredData(
   if (record["datePublished"] != null || record["dateModified"] != null) {
     signals.date = true;
   }
+  for (const key of ["datePublished", "dateModified", "dateCreated"] as const) {
+    const raw = record[key];
+    if (typeof raw === "string") signals.dates.push(raw);
+  }
   for (const child of Object.values(record)) {
     if (child && typeof child === "object") {
       inspectStructuredData(child, signals);
     }
   }
+}
+
+/** Parse a date-like string to YYYY-MM-DD, or null if unusable. */
+export function parseContentDate(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const isoDay = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDay) {
+    const parsed = Date.parse(`${isoDay[1]}T00:00:00Z`);
+    return Number.isFinite(parsed) ? isoDay[1] : null;
+  }
+  const parsed = Date.parse(trimmed);
+  if (!Number.isFinite(parsed)) return null;
+  return new Date(parsed).toISOString().slice(0, 10);
+}
+
+function newestContentDate(values: string[]): string | null {
+  let newest: string | null = null;
+  for (const value of values) {
+    const day = parseContentDate(value);
+    if (day && (!newest || day > newest)) newest = day;
+  }
+  return newest;
 }
 
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
@@ -112,9 +154,11 @@ function recordExternalImage(
 const EMPTY_RESPONSE_HEADERS: PageResponseHeaders = {
   contentEncoding: null,
   cacheControl: null,
+  expires: null,
   xRobotsTag: null,
   contentType: null,
   contentLength: null,
+  strictTransportSecurity: null,
 };
 
 /**
@@ -160,6 +204,10 @@ export function analyzeHtml(
   const contentExternalLinkTargets = new Set<string>();
   const isHttpsPage = pageUrl.toLowerCase().startsWith("https://");
   const hreflangTags: string[] = [];
+  const hreflangLinks: HreflangLink[] = [];
+  const contentDateValues: string[] = [];
+  const malformedLinkHrefs: string[] = [];
+  let semanticElementCount = 0;
   let charset: string | null = null;
   let hasMetaRefresh = false;
   let frameCount = 0;
@@ -233,6 +281,7 @@ export function analyzeHtml(
       attribs["property"] === "article:modified_time"
     ) {
       hasDateSignal ||= Boolean(content?.trim());
+      if (content?.trim()) contentDateValues.push(content);
     }
   };
 
@@ -241,6 +290,11 @@ export function analyzeHtml(
       canonical ??= attribs["href"] ?? null;
     } else if (attribs["rel"] === "alternate" && attribs["hreflang"]) {
       hreflangTags.push(attribs["hreflang"]);
+      const href = attribs["href"]?.trim() || null;
+      hreflangLinks.push({
+        lang: attribs["hreflang"],
+        href: href ? (normalizeUrl(href, pageUrl) ?? href) : null,
+      });
     }
     const relTokens = attribs["rel"]?.split(/\s+/) ?? [];
     if (relTokens.includes("author")) {
@@ -267,6 +321,7 @@ export function analyzeHtml(
         types: structuredDataTypes,
         author: hasAuthorSignal,
         date: hasDateSignal,
+        dates: contentDateValues,
       };
       inspectStructuredData(parsed, signals);
       hasAuthorSignal = signals.author;
@@ -282,7 +337,10 @@ export function analyzeHtml(
     const isContent = openAnchor.isContent;
     openAnchor = null;
     const resolved = normalizeUrl(href, pageUrl);
-    if (!resolved) return;
+    if (!resolved) {
+      malformedLinkHrefs.push(href.slice(0, 500));
+      return;
+    }
     const isInternal = isSameOrigin(resolved, pageUrl);
     if (isContent && !isInternal) contentExternalLinkTargets.add(resolved);
     if (linksByTarget.has(resolved)) return;
@@ -304,6 +362,7 @@ export function analyzeHtml(
       onopentag(name, attribs) {
         if (CHROME_TAGS.has(name)) chromeDepth += 1;
         if (PRIMARY_CONTENT_TAGS.has(name)) primaryContentDepth += 1;
+        if (SEMANTIC_TAGS.has(name)) semanticElementCount += 1;
         const isContentContext =
           primaryContentDepth > 0 || (headDepth === 0 && chromeDepth === 0);
 
@@ -420,6 +479,9 @@ export function analyzeHtml(
           case "time":
             if (isContentContext) {
               hasDateSignal ||= Boolean(attribs["datetime"]?.trim());
+              if (attribs["datetime"]?.trim()) {
+                contentDateValues.push(attribs["datetime"]);
+              }
             }
             break;
           case "a": {
@@ -536,8 +598,11 @@ export function analyzeHtml(
     headingOrder,
     wordCount,
     bodyText,
+    contentDate: newestContentDate(contentDateValues),
+    semanticElementCount,
     images,
     links: Array.from(linksByTarget.values()),
+    malformedLinkHrefs,
     hasStructuredData,
     structuredDataTypes: Array.from(structuredDataTypes).toSorted(),
     invalidStructuredDataCount,
@@ -553,6 +618,7 @@ export function analyzeHtml(
     mixedContentCount,
     contentExternalLinkTargets: Array.from(contentExternalLinkTargets),
     hreflangTags,
+    hreflangLinks,
     htmlBytes: utf8ByteLength(html),
     hasDoctype: detectDoctype(html),
     charset,
