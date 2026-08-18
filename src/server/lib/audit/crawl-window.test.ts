@@ -72,6 +72,7 @@ function page(
       cacheControl: null,
       xRobotsTag: null,
       contentType: null,
+      contentLength: null,
     },
   };
 }

@@ -236,12 +236,19 @@ export async function crawlPage(
   }
 }
 
+function parseContentLength(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 function readPageResponseHeaders(headers: Headers): PageResponseHeaders {
   return {
     contentEncoding: headers.get("content-encoding"),
     cacheControl: headers.get("cache-control"),
     xRobotsTag: headers.get("x-robots-tag"),
     contentType: headers.get("content-type"),
+    contentLength: parseContentLength(headers.get("content-length")),
   };
 }
 
@@ -311,6 +318,7 @@ function emptyPageResult(input: {
     cacheControl: null,
     xRobotsTag: input.xRobotsTag ?? null,
     contentType: null,
+    contentLength: null,
   };
   return {
     id: crypto.randomUUID(),

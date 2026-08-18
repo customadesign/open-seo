@@ -79,6 +79,7 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
       cacheControl: null,
       xRobotsTag: null,
       contentType: "text/html",
+      contentLength: null,
     },
     ...overrides,
   };
@@ -321,6 +322,7 @@ describe("runPageReporters", () => {
           cacheControl: null,
           xRobotsTag: "noindex, nofollow",
           contentType: "text/html",
+          contentLength: null,
         },
         xRobotsTag: "noindex, nofollow",
       }),
@@ -338,9 +340,75 @@ describe("runPageReporters", () => {
         "url-has-underscores",
         "url-too-many-parameters",
         "noindex-via-x-robots-tag",
-        "page-not-compressed",
       ]),
     );
+    expect(types).not.toContain("page-not-compressed");
+  });
+
+  it("does not flag HTML that advertises a real Content-Encoding", () => {
+    expect(
+      issueTypes(
+        makePage({
+          responseHeaders: {
+            contentEncoding: "br",
+            cacheControl: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: 10_000,
+          },
+        }),
+      ),
+    ).not.toContain("page-not-compressed");
+  });
+
+  it("flags HTML served with identity Content-Encoding", () => {
+    expect(
+      issueTypes(
+        makePage({
+          responseHeaders: {
+            contentEncoding: "identity",
+            cacheControl: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: null,
+          },
+        }),
+      ),
+    ).toContain("page-not-compressed");
+  });
+
+  it("flags HTML whose Content-Length matches the decoded body", () => {
+    expect(
+      issueTypes(
+        makePage({
+          htmlBytes: 10_000,
+          responseHeaders: {
+            contentEncoding: null,
+            cacheControl: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: 10_020,
+          },
+        }),
+      ),
+    ).toContain("page-not-compressed");
+  });
+
+  it("stays silent when workerd strips encoding and length", () => {
+    expect(
+      issueTypes(
+        makePage({
+          htmlBytes: 10_000,
+          responseHeaders: {
+            contentEncoding: null,
+            cacheControl: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: null,
+          },
+        }),
+      ),
+    ).not.toContain("page-not-compressed");
   });
 });
 

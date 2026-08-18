@@ -16,6 +16,7 @@ import {
   URL_TOO_LONG_CHARS,
   URL_TOO_MANY_PARAMETERS,
 } from "@/server/lib/audit/issues/thresholds";
+import { shouldReportUncompressedHtml } from "@/server/lib/audit/issues/uncompressed-html";
 
 export interface DetectedIssue {
   issueType: AuditIssueType;
@@ -190,16 +191,6 @@ function hasNoindexDirective(value: string | null): boolean {
   return value?.toLowerCase().includes("noindex") === true;
 }
 
-function isCompressedEncoding(contentEncoding: string | null): boolean {
-  if (!contentEncoding) return false;
-  const tokens = contentEncoding
-    .toLowerCase()
-    .split(",")
-    .map((token) => token.trim())
-    .filter(Boolean);
-  return tokens.some((token) => token !== "identity");
-}
-
 function reportUrlShape(page: CrawledPageResult, report: ReportIssue) {
   if (page.url.length > URL_TOO_LONG_CHARS) {
     report("url-too-long", { length: page.url.length });
@@ -219,10 +210,7 @@ function reportHeaderSignals(page: CrawledPageResult, report: ReportIssue) {
       xRobotsTag: page.responseHeaders.xRobotsTag ?? page.xRobotsTag,
     });
   }
-  if (
-    page.isHtml &&
-    !isCompressedEncoding(page.responseHeaders.contentEncoding)
-  ) {
+  if (shouldReportUncompressedHtml(page)) {
     report("page-not-compressed");
   }
 }

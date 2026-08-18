@@ -139,6 +139,7 @@ export const auditPages = sqliteTable(
     contentEncoding: text("content_encoding"),
     cacheControl: text("cache_control"),
     contentType: text("content_type"),
+    contentLength: integer("content_length"),
   },
   (table) => [index("audit_pages_audit_url_idx").on(table.auditId, table.url)],
 );

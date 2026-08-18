@@ -56,6 +56,7 @@ export interface PageResponseHeaders {
   cacheControl: string | null;
   xRobotsTag: string | null;
   contentType: string | null;
+  contentLength: number | null;
 }
 
 /** Data extracted from a single page's HTML. */

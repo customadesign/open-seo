@@ -114,6 +114,7 @@ const EMPTY_RESPONSE_HEADERS: PageResponseHeaders = {
   cacheControl: null,
   xRobotsTag: null,
   contentType: null,
+  contentLength: null,
 };
 
 /**

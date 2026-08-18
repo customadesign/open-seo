@@ -208,6 +208,7 @@ async function insertCrawledBatch(
       contentEncoding: page.responseHeaders.contentEncoding,
       cacheControl: page.responseHeaders.cacheControl,
       contentType: page.responseHeaders.contentType,
+      contentLength: page.responseHeaders.contentLength,
     };
     return tx
       .insert(auditPages)

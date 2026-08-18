@@ -538,9 +538,9 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "warning",
     title: "HTML is served uncompressed",
     explanation:
-      "The HTML response has no Content-Encoding (gzip, Brotli, or similar). Uncompressed HTML wastes bandwidth and slows first-byte and parse time, especially on mobile.",
+      "This HTML response was delivered uncompressed (Content-Encoding is identity, or the Content-Length matches the decoded HTML size). Uncompressed HTML wastes bandwidth and slows first-byte and parse time, especially on mobile. A missing Content-Encoding header alone is not enough to flag this — some runtimes strip that header after they decompress the body.",
     howToFix:
-      "Enable gzip or Brotli compression for text responses on the origin or CDN, then confirm Content-Encoding is present on HTML requests.",
+      "Enable gzip or Brotli compression for text responses on the origin or CDN, then confirm a browser or curl request receives Content-Encoding: gzip or br.",
   },
 } as const satisfies Record<string, BaseAuditIssueDescriptor>;
 
@@ -651,6 +651,10 @@ const GUIDANCE_OVERRIDES: Partial<
     effort: "small",
     howToVerify:
       "Open /llms.txt directly and confirm it returns a useful text document; no score should depend on it.",
+  },
+  "page-not-compressed": {
+    howToVerify:
+      "Request the URL with curl -I or DevTools and confirm Content-Encoding is gzip or br. A missing header in the audit row is not proof the origin skipped compression.",
   },
   "noindex-page": { fixOrder: "monitor", impact: "low", effort: "small" },
   "noindex-via-x-robots-tag": {

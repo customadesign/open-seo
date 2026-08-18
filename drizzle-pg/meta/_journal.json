@@ -218,6 +218,13 @@
       "when": 1787050503236,
       "tag": "0030_hard_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787051087413,
+      "tag": "0031_absent_selene",
+      "breakpoints": true
     }
   ]
 }

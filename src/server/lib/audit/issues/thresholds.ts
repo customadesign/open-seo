@@ -15,3 +15,9 @@ export const SITEMAP_MAX_URLS = 50_000;
 
 /** Uncompressed sitemap byte size above this fails `sitemap-too-large`. */
 export const SITEMAP_MAX_BYTES = 50 * 1024 * 1024;
+
+/**
+ * When Content-Encoding is absent, treat Content-Length as the uncompressed
+ * wire size only if it is this close to the decoded HTML byte count.
+ */
+export const UNCOMPRESSED_CONTENT_LENGTH_TOLERANCE_BYTES = 64;
