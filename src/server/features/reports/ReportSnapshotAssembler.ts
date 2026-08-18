@@ -43,6 +43,35 @@ function buildEvidence(
               ? "positive"
               : "negative",
       });
+      const top3 = section.data.configs.reduce(
+        (sum, config) => sum + (config.distribution?.current.top3 ?? 0),
+        0,
+      );
+      const enteredTop3 = section.data.configs.reduce(
+        (sum, config) =>
+          sum + (config.distribution?.movement.top3.entered ?? 0),
+        0,
+      );
+      if (section.data.configs.some((config) => config.distribution)) {
+        evidence.push({
+          key: "rankings.distribution",
+          label: "Rankings in 1–3",
+          value: `${top3} now, ${enteredTop3} newly in the band`,
+          direction: enteredTop3 > 0 ? "positive" : "neutral",
+        });
+      }
+      const cannibalizing = section.data.configs.reduce(
+        (sum, config) => sum + (config.cannibalization?.findings.length ?? 0),
+        0,
+      );
+      if (section.data.configs.some((config) => config.cannibalization)) {
+        evidence.push({
+          key: "rankings.cannibalization",
+          label: "Keywords with competing URLs",
+          value: String(cannibalizing),
+          direction: cannibalizing === 0 ? "positive" : "negative",
+        });
+      }
     }
     if (section.key === "gsc") {
       evidence.push({

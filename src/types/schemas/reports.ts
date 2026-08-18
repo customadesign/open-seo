@@ -70,6 +70,18 @@ const comparisonMetricSchema = z.object({
   percentChange: z.number().nullable(),
 });
 
+const rankBandCountSchema = z.object({
+  top3: z.number().int(),
+  top4to10: z.number().int(),
+  top11to20: z.number().int(),
+  top21to100: z.number().int(),
+  notInTop100: z.number().int(),
+});
+const rankBandMoveSchema = z.object({
+  entered: z.number().int(),
+  left: z.number().int(),
+});
+
 const rankingsSectionSchema = z.object({
   configs: z.array(
     z.object({
@@ -108,6 +120,39 @@ const rankingsSectionSchema = z.object({
           top20: z.number().int(),
         }),
       ),
+      distribution: z
+        .object({
+          current: rankBandCountSchema,
+          previous: rankBandCountSchema.nullable(),
+          movement: z.object({
+            top3: rankBandMoveSchema,
+            top4to10: rankBandMoveSchema,
+            top11to20: rankBandMoveSchema,
+            top21to100: rankBandMoveSchema,
+            notInTop100: rankBandMoveSchema,
+          }),
+        })
+        .optional(),
+      cannibalization: z
+        .object({
+          findings: z.array(
+            z.object({
+              keyword: z.string(),
+              device: z.enum(["desktop", "mobile"]),
+              currentPosition: z.number().nullable(),
+              currentUrl: z.string().nullable(),
+              transitionCount: z.number().int(),
+              competingUrls: z.array(
+                z.object({
+                  url: z.string(),
+                  snapshotCount: z.number().int(),
+                }),
+              ),
+            }),
+          ),
+          scannedKeywords: z.number().int(),
+        })
+        .optional(),
     }),
   ),
 });

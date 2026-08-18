@@ -164,3 +164,16 @@ export const getPositionMatrixSchema = z.object({
   device: deviceEnum,
   runLimit: z.number().int().positive().max(26).default(12),
 });
+
+export const getRankReportSchema = z.object({
+  projectId: z.string().uuid(),
+  configId: z.string().uuid(),
+  device: deviceEnum,
+});
+
+export const tagTrackingKeywordsSchema = z.object({
+  projectId: z.string().uuid(),
+  configId: z.string().uuid(),
+  keywordIds: z.array(z.string().uuid()).min(1).max(2000),
+  tags: z.array(z.string().trim().min(1).max(64)).min(1).max(20),
+});

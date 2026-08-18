@@ -17,6 +17,10 @@ import {
   toDimensionRows,
 } from "@/server/features/gsc/searchPerformanceReport";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
+import {
+  distributionFromSnapshotRows,
+  RankTrackingReportService,
+} from "@/server/features/rank-tracking/services/rankTrackingReports";
 import type { ReportSectionKey, ReportSnapshot } from "@/types/schemas/reports";
 import {
   isoEndTimestamp,
@@ -133,6 +137,10 @@ async function loadRankings(
         },
       ];
     });
+    const cannibalization = await RankTrackingReportService.getCannibalization(
+      config.id,
+      projectId,
+    );
     configReports.push({
       configId: config.id,
       domain: config.domain,
@@ -142,6 +150,18 @@ async function loadRankings(
       summary,
       rows,
       trend,
+      distribution: distributionFromSnapshotRows(current, previous),
+      cannibalization: {
+        findings: cannibalization.findings.map((finding) => ({
+          keyword: finding.keyword,
+          device: finding.device,
+          currentPosition: finding.currentPosition,
+          currentUrl: finding.currentUrl,
+          transitionCount: finding.transitionCount,
+          competingUrls: finding.competingUrls,
+        })),
+        scannedKeywords: cannibalization.scannedKeywords,
+      },
     });
   }
   return configReports.length === 0

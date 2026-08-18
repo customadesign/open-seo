@@ -26,6 +26,17 @@ const toolCategories: ToolCategory[] = [
         description: "Read tracked keyword positions.",
       },
       {
+        name: "get_rank_cannibalization",
+        title: "Get rank cannibalization",
+        description:
+          "Find keywords whose ranking URL has flipped between pages.",
+      },
+      {
+        name: "get_rankings_distribution",
+        title: "Get rankings distribution",
+        description: "Count tracked keywords in each position band over time.",
+      },
+      {
         name: "create_rank_tracker",
         title: "Create a rank tracker",
         description: "Configure a domain for rank tracking.",

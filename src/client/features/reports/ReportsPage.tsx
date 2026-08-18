@@ -860,6 +860,66 @@ function RankingsSection({
                     : String(row.change),
               ])}
           />
+          {config.distribution ? (
+            <div>
+              <h4 className="mb-2 text-sm font-semibold">
+                Rankings distribution
+              </h4>
+              <DataTable
+                headers={["Band", "Now", "Entered", "Left"]}
+                rows={[
+                  [
+                    "1–3",
+                    config.distribution.current.top3,
+                    config.distribution.movement.top3.entered,
+                    config.distribution.movement.top3.left,
+                  ],
+                  [
+                    "4–10",
+                    config.distribution.current.top4to10,
+                    config.distribution.movement.top4to10.entered,
+                    config.distribution.movement.top4to10.left,
+                  ],
+                  [
+                    "11–20",
+                    config.distribution.current.top11to20,
+                    config.distribution.movement.top11to20.entered,
+                    config.distribution.movement.top11to20.left,
+                  ],
+                  [
+                    "21–100",
+                    config.distribution.current.top21to100,
+                    config.distribution.movement.top21to100.entered,
+                    config.distribution.movement.top21to100.left,
+                  ],
+                  [
+                    "Out of top 100",
+                    config.distribution.current.notInTop100,
+                    config.distribution.movement.notInTop100.entered,
+                    config.distribution.movement.notInTop100.left,
+                  ],
+                ]}
+              />
+            </div>
+          ) : null}
+          {config.cannibalization &&
+          config.cannibalization.findings.length > 0 ? (
+            <div>
+              <h4 className="mb-2 text-sm font-semibold">Cannibalization</h4>
+              <DataTable
+                headers={["Keyword", "Device", "Position", "URLs", "Flips"]}
+                rows={config.cannibalization.findings
+                  .slice(0, 20)
+                  .map((row) => [
+                    row.keyword,
+                    row.device,
+                    row.currentPosition ?? "—",
+                    row.competingUrls.length,
+                    row.transitionCount,
+                  ])}
+              />
+            </div>
+          ) : null}
         </div>
       ))}
     </SectionShell>

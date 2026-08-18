@@ -6,6 +6,9 @@ import {
   rankCheckRuns,
   rankSnapshots,
   rankTrackingKeywords,
+  savedKeywordTagAssignments,
+  savedKeywordTags,
+  savedKeywords,
 } from "@/db/schema";
 import { DB_BATCH_SIZE, executeInBatches } from "@/db/runBatch";
 import type { RankTrackingEngine } from "@/shared/rank-tracking";
@@ -20,6 +23,8 @@ import {
   getKeywordHistory,
   getConfigTrend,
   getPositionMatrix,
+  getCompletedFullRuns,
+  getSnapshotsForRuns,
 } from "./snapshotQueries";
 
 // ---------------------------------------------------------------------------
@@ -361,6 +366,41 @@ async function getKeywordCountForConfig(configId: string) {
   return rows[0]?.value ?? 0;
 }
 
+async function getTagAssignmentsForConfig(params: {
+  projectId: string;
+  configId: string;
+  locationCode: number;
+  languageCode: string;
+}) {
+  return db
+    .select({
+      trackingKeywordId: rankTrackingKeywords.id,
+      keyword: rankTrackingKeywords.keyword,
+      tagId: savedKeywordTags.id,
+      tagName: savedKeywordTags.name,
+      tagColor: savedKeywordTags.color,
+    })
+    .from(rankTrackingKeywords)
+    .innerJoin(
+      savedKeywords,
+      and(
+        eq(savedKeywords.projectId, params.projectId),
+        eq(savedKeywords.keyword, rankTrackingKeywords.keyword),
+        eq(savedKeywords.locationCode, params.locationCode),
+        eq(savedKeywords.languageCode, params.languageCode),
+      ),
+    )
+    .innerJoin(
+      savedKeywordTagAssignments,
+      eq(savedKeywordTagAssignments.savedKeywordId, savedKeywords.id),
+    )
+    .innerJoin(
+      savedKeywordTags,
+      eq(savedKeywordTags.id, savedKeywordTagAssignments.tagId),
+    )
+    .where(eq(rankTrackingKeywords.configId, params.configId));
+}
+
 /** Keyword counts keyed by config id. Configs with no keywords are absent. */
 async function getKeywordCountsForConfigs(configIds: string[]) {
   // Chunked so the IN list stays under D1's ~100 bound-parameter cap.
@@ -405,4 +445,7 @@ export const RankTrackingRepository = {
   getKeywordHistory,
   getConfigTrend,
   getPositionMatrix,
+  getCompletedFullRuns,
+  getSnapshotsForRuns,
+  getTagAssignmentsForConfig,
 };

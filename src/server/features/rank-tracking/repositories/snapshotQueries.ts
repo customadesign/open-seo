@@ -80,6 +80,7 @@ export async function getConfigTrend(
       top3: sql<number>`sum(case when ${rankSnapshots.position} between 1 and 3 then 1 else 0 end)`,
       top4to10: sql<number>`sum(case when ${rankSnapshots.position} between 4 and 10 then 1 else 0 end)`,
       top11to20: sql<number>`sum(case when ${rankSnapshots.position} between 11 and 20 then 1 else 0 end)`,
+      top21to100: sql<number>`sum(case when ${rankSnapshots.position} between 21 and 100 then 1 else 0 end)`,
     })
     .from(rankSnapshots)
     .innerJoin(rankCheckRuns, eq(rankSnapshots.runId, rankCheckRuns.id))
@@ -198,6 +199,57 @@ export async function getSnapshotsForConfig(
       ),
     )
     .where(inArray(rankSnapshots.runId, completedRunIds));
+}
+
+const REPORT_RUN_LIMIT = 52;
+
+/**
+ * Newest completed full-config runs (subset/add-keyword checks are excluded so
+ * band counts and URL history stay comparable across the keyword set).
+ */
+export async function getCompletedFullRuns(
+  configId: string,
+  limit = REPORT_RUN_LIMIT,
+) {
+  return db
+    .select({
+      id: rankCheckRuns.id,
+      startedAt: rankCheckRuns.startedAt,
+    })
+    .from(rankCheckRuns)
+    .where(
+      and(
+        eq(rankCheckRuns.configId, configId),
+        eq(rankCheckRuns.status, "completed"),
+        eq(rankCheckRuns.isSubsetRun, false),
+      ),
+    )
+    .orderBy(desc(rankCheckRuns.startedAt))
+    .limit(limit);
+}
+
+/**
+ * Flat snapshot rows for a set of completed runs. Bounded by the caller so the
+ * IN list stays well under D1's parameter cap.
+ */
+export async function getSnapshotsForRuns(runIds: string[]) {
+  if (runIds.length === 0) return [];
+
+  return db
+    .select({
+      runId: rankSnapshots.runId,
+      checkedAt: rankCheckRuns.startedAt,
+      trackingKeywordId: rankSnapshots.trackingKeywordId,
+      keyword: rankSnapshots.keyword,
+      device: rankSnapshots.device,
+      position: rankSnapshots.position,
+      url: rankSnapshots.url,
+      serpFeatures: rankSnapshots.serpFeatures,
+    })
+    .from(rankSnapshots)
+    .innerJoin(rankCheckRuns, eq(rankSnapshots.runId, rankCheckRuns.id))
+    .where(inArray(rankSnapshots.runId, runIds))
+    .orderBy(asc(rankCheckRuns.startedAt));
 }
 
 export async function getLatestSnapshotsForKeywords(configId: string) {
