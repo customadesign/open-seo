@@ -3,12 +3,16 @@ import {
   count,
   desc,
   eq,
+  gte,
   isNull,
+  lte,
   type InferInsertModel,
 } from "drizzle-orm";
 import { db } from "@/db";
 import { projectChangeEvents, projectChangeEventStates } from "@/db/schema";
 import type { ChangeEventSource } from "@/types/schemas/change-events";
+
+export const CHANGE_EVENT_REPORT_LIMIT = 50;
 
 type NewChangeEvent = InferInsertModel<typeof projectChangeEvents>;
 
@@ -81,6 +85,57 @@ async function countUnread(projectId: string, userId: string) {
       ),
     );
   return row?.total ?? 0;
+}
+
+function reportPeriodWhere(input: {
+  projectId: string;
+  periodStart: string;
+  periodEnd: string;
+}) {
+  return and(
+    eq(projectChangeEvents.projectId, input.projectId),
+    gte(projectChangeEvents.occurredAt, input.periodStart),
+    lte(projectChangeEvents.occurredAt, input.periodEnd),
+  );
+}
+
+function clampedReportLimit(limit: number) {
+  return Math.min(Math.max(Math.trunc(limit), 1), CHANGE_EVENT_REPORT_LIMIT);
+}
+
+/** Immutable project events for a report period. Never joins per-user state. */
+async function listForReportPeriod(input: {
+  projectId: string;
+  periodStart: string;
+  periodEnd: string;
+  limit: number;
+}) {
+  return db
+    .select()
+    .from(projectChangeEvents)
+    .where(reportPeriodWhere(input))
+    .orderBy(
+      desc(projectChangeEvents.occurredAt),
+      desc(projectChangeEvents.detectedAt),
+      desc(projectChangeEvents.id),
+    )
+    .limit(clampedReportLimit(input.limit));
+}
+
+async function summarizeForReportPeriod(input: {
+  projectId: string;
+  periodStart: string;
+  periodEnd: string;
+}) {
+  return db
+    .select({
+      source: projectChangeEvents.source,
+      severity: projectChangeEvents.severity,
+      total: count(),
+    })
+    .from(projectChangeEvents)
+    .where(reportPeriodWhere(input))
+    .groupBy(projectChangeEvents.source, projectChangeEvents.severity);
 }
 
 async function eventExistsInProject(eventId: string, projectId: string) {
@@ -162,6 +217,8 @@ async function dismiss(input: {
 export const ChangeEventRepository = {
   insert,
   listForProject,
+  listForReportPeriod,
+  summarizeForReportPeriod,
   countUnread,
   markRead,
   dismiss,

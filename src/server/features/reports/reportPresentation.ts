@@ -1,13 +1,7 @@
-import type { ReportSnapshot } from "@/types/schemas/reports";
-
-const SECTION_LABELS = {
-  rank: "Search rankings",
-  audit: "Site health",
-  backlinks: "Backlinks",
-  local: "Local visibility",
-  gsc: "Google Search Console",
-  ga4: "Google Analytics",
-} as const;
+import {
+  reportSectionLabel,
+  type ReportSnapshot,
+} from "@/types/schemas/reports";
 
 const OMISSION_LABELS = {
   not_configured: "not connected",
@@ -130,7 +124,7 @@ export function renderReportHtml(snapshot: ReportSnapshot): string {
   const sections = snapshot.sections
     .map(
       (section) => `<section>
-        <h2>${escapeReportHtml(SECTION_LABELS[section.key])}</h2>
+        <h2>${escapeReportHtml(reportSectionLabel(section.key))}</h2>
         ${renderData(section.data)}
       </section>`,
     )
@@ -138,7 +132,7 @@ export function renderReportHtml(snapshot: ReportSnapshot): string {
   const omissions = snapshot.omissions
     .map(
       (omission) =>
-        `<li><strong>${escapeReportHtml(SECTION_LABELS[omission.key])}:</strong> ${escapeReportHtml(OMISSION_LABELS[omission.reason])}</li>`,
+        `<li><strong>${escapeReportHtml(reportSectionLabel(omission.key))}:</strong> ${escapeReportHtml(OMISSION_LABELS[omission.reason])}</li>`,
     )
     .join("");
 
@@ -193,11 +187,12 @@ export function renderReportEmail(input: {
 }): { html: string; text: string } {
   const { snapshot } = input;
   const period = `${formatDate(snapshot.period.start)} – ${formatDate(snapshot.period.end)}`;
-  const available = snapshot.sections.map(
-    (section) => SECTION_LABELS[section.key],
+  const available = snapshot.sections.map((section) =>
+    reportSectionLabel(section.key),
   );
   const omitted = snapshot.omissions.map(
-    (item) => `${SECTION_LABELS[item.key]} (${OMISSION_LABELS[item.reason]})`,
+    (item) =>
+      `${reportSectionLabel(item.key)} (${OMISSION_LABELS[item.reason]})`,
   );
   const attachmentCopy = input.hasPdf
     ? "Your PDF report is attached."

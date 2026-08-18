@@ -16,7 +16,10 @@ import {
   retryReportRun,
   runReport,
 } from "@/serverFunctions/reports";
-import { REPORT_SECTION_KEYS } from "@/types/schemas/reports";
+import {
+  REPORT_SECTION_KEYS,
+  reportSectionLabel,
+} from "@/types/schemas/reports";
 
 function reportPeriod() {
   const end = new Date();
@@ -232,7 +235,9 @@ export function ReportsPage({ projectId }: { projectId: string }) {
                       <p className="mt-1 text-xs text-base-content/60">
                         {template.sections
                           .filter((section) => section.isEnabled)
-                          .map((section) => section.sectionKey)
+                          .map((section) =>
+                            reportSectionLabel(section.sectionKey),
+                          )
                           .join(" · ")}
                       </p>
                     </div>

@@ -8,6 +8,7 @@ import { GscService } from "@/server/features/gsc/services/GscService";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import { getLatestResults } from "@/server/features/rank-tracking/services/rankTrackingResults";
 import { ReportSourceRepository } from "./repositories/ReportSourceRepository";
+import { ChangesReportSectionService } from "./services/ChangesReportSectionService";
 import type {
   ReportSectionDataSource,
   ReportSectionLoadResult,
@@ -218,6 +219,8 @@ export const defaultReportSectionDataSource: ReportSectionDataSource = {
         return loadGsc(input);
       case "ga4":
         return loadGa4(input);
+      case "changes":
+        return ChangesReportSectionService.load(input);
     }
   },
 };

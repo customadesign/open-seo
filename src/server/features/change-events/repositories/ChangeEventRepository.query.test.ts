@@ -129,3 +129,188 @@ describe("ChangeEventRepository isolation and user state", () => {
     expect(result.rows[0]?.total).toBe(1);
   });
 });
+
+const period = {
+  projectId: "project-a",
+  periodStart: "2026-08-11T00:00:00.000Z",
+  periodEnd: "2026-08-18T00:00:00.000Z",
+};
+
+async function insertReportEvent(values: {
+  id: string;
+  projectId?: string;
+  source?: string;
+  eventType?: string;
+  severity?: string;
+  title?: string;
+  occurredAt: string;
+  detectedAt?: string;
+  dismissed?: boolean;
+}) {
+  const detectedAt = values.detectedAt ?? values.occurredAt;
+  await client.execute({
+    sql: `INSERT INTO project_change_events VALUES
+      (?, ?, ?, ?, ?, ?, 'Summary', NULL, NULL, NULL, ?, NULL, NULL, NULL, NULL, ?, ?)`,
+    args: [
+      values.id,
+      values.projectId ?? "project-a",
+      values.source ?? "audit",
+      values.eventType ?? "audit.regression",
+      values.severity ?? "warning",
+      values.title ?? values.id,
+      `dedupe:${values.id}`,
+      values.occurredAt,
+      detectedAt,
+    ],
+  });
+  if (values.dismissed) {
+    await client.execute({
+      sql: `INSERT INTO project_change_event_states VALUES
+        (?, ?, 'user-1', ?, ?, ?)`,
+      args: [
+        `state-${values.id}`,
+        values.id,
+        values.occurredAt,
+        values.occurredAt,
+        values.occurredAt,
+      ],
+    });
+  }
+}
+
+describe("ChangeEventRepository report period queries", () => {
+  it("scopes by project and ignores read or dismissed state", async () => {
+    await insertReportEvent({
+      id: "event-dismissed",
+      occurredAt: "2026-08-12T00:00:00.000Z",
+      dismissed: true,
+    });
+    await insertReportEvent({
+      id: "event-other-project",
+      projectId: "project-b",
+      occurredAt: "2026-08-12T00:00:00.000Z",
+    });
+
+    const rows = await repository.listForReportPeriod({
+      ...period,
+      limit: 50,
+    });
+    expect(rows.map((row) => row.id).toSorted()).toEqual([
+      "event-1",
+      "event-2",
+      "event-dismissed",
+    ]);
+  });
+
+  it("includes events on both period endpoints and excludes neighbors", async () => {
+    await insertReportEvent({
+      id: "event-before",
+      occurredAt: "2026-08-10T23:59:59.999Z",
+    });
+    await insertReportEvent({
+      id: "event-start",
+      occurredAt: "2026-08-11T00:00:00.000Z",
+    });
+    await insertReportEvent({
+      id: "event-end",
+      occurredAt: "2026-08-18T00:00:00.000Z",
+    });
+    await insertReportEvent({
+      id: "event-after",
+      occurredAt: "2026-08-18T00:00:00.001Z",
+    });
+
+    const rows = await repository.listForReportPeriod({
+      ...period,
+      limit: 50,
+    });
+    expect(rows.map((row) => row.id)).toEqual([
+      "event-end",
+      "event-1",
+      "event-2",
+      "event-start",
+    ]);
+  });
+
+  it("caps results and tie-breaks newest first by occurredAt, detectedAt, then id", async () => {
+    await insertReportEvent({
+      id: "event-z",
+      occurredAt: "2026-08-17T12:00:00.000Z",
+      detectedAt: "2026-08-17T12:00:00.000Z",
+    });
+    await insertReportEvent({
+      id: "event-a",
+      occurredAt: "2026-08-17T12:00:00.000Z",
+      detectedAt: "2026-08-17T13:00:00.000Z",
+    });
+    await insertReportEvent({
+      id: "event-m",
+      occurredAt: "2026-08-17T12:00:00.000Z",
+      detectedAt: "2026-08-17T13:00:00.000Z",
+    });
+
+    const rows = await repository.listForReportPeriod({
+      ...period,
+      limit: 2,
+    });
+    expect(rows.map((row) => row.id)).toEqual(["event-m", "event-a"]);
+  });
+
+  it("clamps oversized limits to the report cap", async () => {
+    for (let index = 0; index < 51; index += 1) {
+      await insertReportEvent({
+        id: `event-cap-${String(index).padStart(2, "0")}`,
+        occurredAt: new Date(Date.UTC(2026, 7, 14, 0, 0, index)).toISOString(),
+      });
+    }
+
+    const rows = await repository.listForReportPeriod({
+      ...period,
+      limit: 999,
+    });
+    expect(rows).toHaveLength(50);
+  });
+
+  it("returns no groups for an empty period", async () => {
+    await expect(
+      repository.listForReportPeriod({
+        projectId: "project-a",
+        periodStart: "2026-01-01T00:00:00.000Z",
+        periodEnd: "2026-01-02T00:00:00.000Z",
+        limit: 50,
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      repository.summarizeForReportPeriod({
+        projectId: "project-a",
+        periodStart: "2026-01-01T00:00:00.000Z",
+        periodEnd: "2026-01-02T00:00:00.000Z",
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it("summarizes every matching event, including those past the list cap", async () => {
+    await insertReportEvent({
+      id: "event-critical",
+      severity: "critical",
+      source: "ga4",
+      occurredAt: "2026-08-13T00:00:00.000Z",
+    });
+
+    const groups = await repository.summarizeForReportPeriod(period);
+    const total = groups.reduce((sum, group) => sum + Number(group.total), 0);
+    expect(total).toBe(3);
+    expect(groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "audit",
+          severity: "warning",
+        }),
+        expect.objectContaining({
+          source: "ga4",
+          severity: "critical",
+        }),
+      ]),
+    );
+  });
+});

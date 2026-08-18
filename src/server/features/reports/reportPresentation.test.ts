@@ -37,6 +37,26 @@ const snapshot: ReportSnapshot = {
         ],
       },
     },
+    {
+      key: "changes",
+      data: {
+        total: 1,
+        shown: 1,
+        omitted: 0,
+        bySeverity: [{ severity: "warning", count: 1 }],
+        bySource: [{ source: "audit", count: 1 }],
+        events: [
+          {
+            occurredAt: "2026-08-12T00:00:00.000Z",
+            source: "audit",
+            eventType: "audit.regression",
+            severity: "warning",
+            title: "Dropped <script>alert(1)</script>",
+            summary: "Ranks & titles",
+          },
+        ],
+      },
+    },
   ],
   omissions: [{ key: "ga4", reason: "not_configured" }],
 };
@@ -49,14 +69,35 @@ describe("report presentation", () => {
     expect(html).not.toContain("<script>alert(1)</script>");
     expect(html).not.toContain(snapshot.branding.logoUrl ?? "never");
     expect(html).toContain("Google Analytics:</strong> not connected");
+    expect(html).toContain("<h2>Changes</h2>");
+    expect(html).not.toContain("<h2>changes</h2>");
+    expect(html).toContain("Dropped &lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).toContain("Ranks &amp; titles");
   });
 
   it("builds concise HTML and plain-text email summaries", () => {
     const message = renderReportEmail({ snapshot, hasPdf: true });
     expect(message.html).toContain("Your PDF report is attached.");
     expect(message.html).toContain("Agency &amp; Co");
-    expect(message.text).toContain("Included: Site health");
+    expect(message.text).toContain("Included: Site health, Changes");
     expect(message.text).toContain("Google Analytics (not connected)");
+    expect(message.text).not.toContain("Included: changes");
+  });
+
+  it("labels an empty changes period in share HTML and email", () => {
+    const emptyChanges = {
+      ...snapshot,
+      sections: [],
+      omissions: [{ key: "changes" as const, reason: "no_data" as const }],
+    };
+    const html = renderReportHtml(emptyChanges);
+    const message = renderReportEmail({
+      snapshot: emptyChanges,
+      hasPdf: false,
+    });
+    expect(html).toContain("Changes:</strong> no data for this period");
+    expect(html).not.toContain("changes:</strong>");
+    expect(message.text).toContain("Changes (no data for this period)");
   });
 
   it("escapes quotes and markup", () => {

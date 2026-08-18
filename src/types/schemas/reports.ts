@@ -7,9 +7,32 @@ export const REPORT_SECTION_KEYS = [
   "local",
   "gsc",
   "ga4",
+  "changes",
 ] as const;
 
 export const reportSectionKeySchema = z.enum(REPORT_SECTION_KEYS);
+
+const REPORT_SECTION_LABELS: Record<
+  (typeof REPORT_SECTION_KEYS)[number],
+  string
+> = {
+  rank: "Search rankings",
+  audit: "Site health",
+  backlinks: "Backlinks",
+  local: "Local visibility",
+  gsc: "Google Search Console",
+  ga4: "Google Analytics",
+  changes: "Changes",
+};
+
+const REPORT_SECTION_LABEL_BY_KEY = new Map<string, string>(
+  Object.entries(REPORT_SECTION_LABELS),
+);
+
+export function reportSectionLabel(key: string): string {
+  return REPORT_SECTION_LABEL_BY_KEY.get(key) ?? key;
+}
+
 export const reportFrequencySchema = z.enum(["manual", "weekly", "monthly"]);
 
 const idField = z.string().min(1).max(160);
