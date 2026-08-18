@@ -16,8 +16,13 @@ import {
   type SnippetOwnershipRow,
 } from "@/shared/rank-tracking-snippets";
 import {
+  serpDetailStatus,
+  type SerpDetailStatus,
+} from "@/shared/rank-serp-retention";
+import {
   capturedRunsForDevice,
   loadReportContext,
+  retainedSerpRuns,
   snapshotsForDevice,
   type Device,
   type ReportSnapshotRow,
@@ -105,7 +110,9 @@ export type CannibalizationReport = {
   scannedKeywords: number;
   runCount: number;
   capturedRunCount: number;
+  retainedRunCount: number;
   capturedSince: string | null;
+  serpDetail: SerpDetailStatus;
 };
 
 export async function getCannibalization(
@@ -121,9 +128,10 @@ export async function getCannibalization(
     : runs.filter((run) =>
         snapshots.some((row) => row.runId === run.id && row.serpCaptured),
       );
-  const latestCapturedId = capturedRuns[0]?.id;
-  const ownedEntries = latestCapturedId
-    ? await RankTrackingRepository.getSerpEntriesForRuns([latestCapturedId], {
+  const retainedRuns = retainedSerpRuns(snapshots, runs, device);
+  const latestRetainedId = retainedRuns[0]?.id;
+  const ownedEntries = latestRetainedId
+    ? await RankTrackingRepository.getSerpEntriesForRuns([latestRetainedId], {
         rowKind: "owned",
         device,
       })
@@ -138,14 +146,21 @@ export async function getCannibalization(
     scannedKeywords: keywords.length,
     runCount: runs.length,
     capturedRunCount: capturedRuns.length,
-    capturedSince: capturedRuns.at(-1)?.startedAt ?? null,
+    retainedRunCount: retainedRuns.length,
+    capturedSince: retainedRuns.at(-1)?.startedAt ?? null,
+    serpDetail: serpDetailStatus({
+      capturedRunCount: capturedRuns.length,
+      retainedRunCount: retainedRuns.length,
+    }),
   };
 }
 
 export type SnippetsReport = {
   ownershipAvailable: boolean;
   capturedRunCount: number;
+  retainedRunCount: number;
   capturedSince: string | null;
+  serpDetail: SerpDetailStatus;
   rows: SnippetOwnershipRow[];
 };
 
@@ -156,8 +171,9 @@ export async function getSnippets(
 ): Promise<SnippetsReport> {
   const { snapshots, runs } = await loadReportContext(configId, projectId);
   const capturedRuns = capturedRunsForDevice(snapshots, runs, device);
-  const currentRunId = capturedRuns[0]?.id ?? null;
-  const previousRunId = capturedRuns[1]?.id ?? null;
+  const retainedRuns = retainedSerpRuns(snapshots, runs, device);
+  const currentRunId = retainedRuns[0]?.id ?? null;
+  const previousRunId = retainedRuns[1]?.id ?? null;
   const deviceRows = snapshotsForDevice(snapshots, device);
   const positionByRunKeyword = new Map(
     deviceRows.map((row) => [
@@ -195,7 +211,12 @@ export async function getSnippets(
   return {
     ownershipAvailable: currentRunId != null,
     capturedRunCount: capturedRuns.length,
-    capturedSince: capturedRuns.at(-1)?.startedAt ?? null,
+    retainedRunCount: retainedRuns.length,
+    capturedSince: retainedRuns.at(-1)?.startedAt ?? null,
+    serpDetail: serpDetailStatus({
+      capturedRunCount: capturedRuns.length,
+      retainedRunCount: retainedRuns.length,
+    }),
     rows: detectSnippetOwnership(
       toOwnership(currentRunId),
       toOwnership(previousRunId),
@@ -205,9 +226,11 @@ export async function getSnippets(
 
 export type CompetitorsReport = {
   available: boolean;
-  reason: "serp_not_captured" | "no_checks" | null;
+  reason: "serp_not_captured" | "serp_pruned" | "no_checks" | null;
   capturedRunCount: number;
+  retainedRunCount: number;
   capturedSince: string | null;
+  serpDetail: SerpDetailStatus;
   competitors: CompetitorDiscoveryRow[];
 };
 
@@ -222,35 +245,46 @@ export async function getCompetitors(
       available: false,
       reason: "no_checks",
       capturedRunCount: 0,
+      retainedRunCount: 0,
       capturedSince: null,
+      serpDetail: "none",
       competitors: [],
     };
   }
   const capturedRuns = capturedRunsForDevice(snapshots, runs, device);
-  const latestCapturedId = capturedRuns[0]?.id;
-  if (latestCapturedId == null) {
+  const retainedRuns = retainedSerpRuns(snapshots, runs, device);
+  const detail = serpDetailStatus({
+    capturedRunCount: capturedRuns.length,
+    retainedRunCount: retainedRuns.length,
+  });
+  if (retainedRuns.length === 0) {
     return {
       available: false,
-      reason: "serp_not_captured",
-      capturedRunCount: 0,
+      reason: detail === "pruned" ? "serp_pruned" : "serp_not_captured",
+      capturedRunCount: capturedRuns.length,
+      retainedRunCount: 0,
       capturedSince: null,
+      serpDetail: detail,
       competitors: [],
     };
   }
   const entries = await RankTrackingRepository.getSerpEntriesForRuns(
-    [latestCapturedId],
+    retainedRuns.map((run) => run.id),
     { rowKind: "competitor", device },
   );
   return {
     available: true,
     reason: null,
     capturedRunCount: capturedRuns.length,
-    capturedSince: capturedRuns.at(-1)?.startedAt ?? null,
+    retainedRunCount: retainedRuns.length,
+    capturedSince: retainedRuns.at(-1)?.startedAt ?? null,
+    serpDetail: detail,
     competitors: discoverCompetitors(
       entries.map((entry) => ({
         trackingKeywordId: entry.trackingKeywordId,
         domain: entry.domain ?? entry.identity,
         position: entry.position,
+        runId: entry.runId,
       })),
     ),
   };

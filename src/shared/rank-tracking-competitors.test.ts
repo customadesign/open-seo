@@ -10,9 +10,41 @@ describe("discoverCompetitors", () => {
       { trackingKeywordId: "a", domain: "rival.com", position: 5 },
     ]);
     expect(rows).toEqual([
-      { domain: "rival.com", overlapCount: 2, averagePosition: 5 },
-      { domain: "other.com", overlapCount: 1, averagePosition: 1 },
+      {
+        domain: "rival.com",
+        overlapCount: 2,
+        appearanceCount: 1,
+        averagePosition: 5,
+      },
+      {
+        domain: "other.com",
+        overlapCount: 1,
+        appearanceCount: 1,
+        averagePosition: 1,
+      },
     ]);
+  });
+
+  it("counts distinct retained checks as appearance frequency", () => {
+    const rows = discoverCompetitors([
+      {
+        trackingKeywordId: "a",
+        domain: "rival.com",
+        position: 3,
+        runId: "r1",
+      },
+      {
+        trackingKeywordId: "a",
+        domain: "rival.com",
+        position: 4,
+        runId: "r2",
+      },
+    ]);
+    expect(rows[0]).toMatchObject({
+      overlapCount: 1,
+      appearanceCount: 2,
+      averagePosition: 3,
+    });
   });
 
   it("ignores rows without a usable organic position", () => {

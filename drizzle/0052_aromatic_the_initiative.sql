@@ -1,0 +1,1 @@
+ALTER TABLE `rank_check_runs` ADD `serp_pruned` integer DEFAULT false NOT NULL;

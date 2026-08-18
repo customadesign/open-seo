@@ -245,6 +245,7 @@ export async function getCompletedFullRuns(
     .select({
       id: rankCheckRuns.id,
       startedAt: rankCheckRuns.startedAt,
+      serpPruned: rankCheckRuns.serpPruned,
     })
     .from(rankCheckRuns)
     .where(

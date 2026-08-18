@@ -55,15 +55,39 @@ export function volumeByKeywordId(
   return new Map(keywords.map((keyword) => [keyword.id, keyword.searchVolume]));
 }
 
-export function capturedRunsForDevice(
+export type ReportRunRow = {
+  id: string;
+  startedAt: string;
+  serpPruned: boolean;
+};
+
+export function capturedRunIds(
   snapshots: ReportSnapshotRow[],
-  runs: Array<{ id: string; startedAt: string }>,
-  device: Device,
+  device?: Device,
 ) {
-  const captured = new Set(
+  return new Set(
     snapshots
-      .filter((row) => row.device === device && row.serpCaptured)
+      .filter(
+        (row) => row.serpCaptured && (device == null || row.device === device),
+      )
       .map((row) => row.runId),
   );
+}
+
+export function capturedRunsForDevice(
+  snapshots: ReportSnapshotRow[],
+  runs: ReportRunRow[],
+  device: Device,
+) {
+  const captured = capturedRunIds(snapshots, device);
   return runs.filter((run) => captured.has(run.id));
+}
+
+export function retainedSerpRuns(
+  snapshots: ReportSnapshotRow[],
+  runs: ReportRunRow[],
+  device?: Device,
+) {
+  const captured = capturedRunIds(snapshots, device);
+  return runs.filter((run) => captured.has(run.id) && !run.serpPruned);
 }

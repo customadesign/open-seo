@@ -45,9 +45,11 @@ export function CannibalizationReportPanel({
   if (!data || (sameSerp.length === 0 && urlFlips.length === 0)) {
     return (
       <EmptyState>
-        {data && data.capturedRunCount === 0
+        {data?.serpDetail === "none"
           ? "No URL-flip cannibalization in stored snapshots. Same-SERP detection starts after the next rank check — older snapshots only stored the best URL."
-          : "No same-SERP multi-URL cases and no URL-flip cannibalization in stored checks. A single one-way URL change is not reported."}
+          : data?.serpDetail === "pruned"
+            ? "Same-SERP detail for older checks was pruned. Position history is still complete. Run a new check to refresh SERP URLs."
+            : "No same-SERP multi-URL cases and no URL-flip cannibalization in stored checks. A single one-way URL change is not reported."}
       </EmptyState>
     );
   }
@@ -62,13 +64,11 @@ export function CannibalizationReportPanel({
         </p>
         {sameSerp.length === 0 ? (
           <p className="text-sm text-base-content/60">
-            {data.capturedRunCount === 0
-              ? `No same-SERP data yet${
-                  formatCheckDate(data.capturedSince)
-                    ? ""
-                    : " — older checks did not store every ranking URL"
-                }.`
-              : "No keyword has two of your URLs on the latest captured SERP."}
+            {data.serpDetail === "none"
+              ? "No same-SERP data yet — older checks did not store every ranking URL."
+              : data.serpDetail === "pruned"
+                ? "Same-SERP detail for older checks was pruned."
+                : "No keyword has two of your URLs on the latest captured SERP."}
           </p>
         ) : (
           <ReportTable
@@ -131,9 +131,9 @@ export function SnippetsReportPanel({
   if (!data || !data.ownershipAvailable) {
     return (
       <EmptyState>
-        Snippet ownership was not stored on older checks. Run a rank check to
-        see owned, available, and lost featured snippets — no extra provider
-        cost.
+        {data?.serpDetail === "pruned"
+          ? "Snippet ownership for older checks was pruned. Position history is still complete. Run a new check to refresh owned, available, and lost snippets."
+          : "Snippet ownership was not stored on older checks. Run a rank check to see owned, available, and lost featured snippets — no extra provider cost."}
       </EmptyState>
     );
   }
@@ -194,7 +194,9 @@ export function CompetitorsReportPanel({
       <EmptyState>
         {data?.reason === "no_checks"
           ? "No stored rank checks yet."
-          : "Not enough history yet. Competitor domains start being stored on the next rank check — no extra provider cost. Older snapshots cannot invent a competitor list."}
+          : data?.reason === "serp_pruned"
+            ? "Competitor domains for older checks were pruned. Position history is still complete. Run a new check to refresh discovery — no extra provider cost."
+            : "Not enough history yet. Competitor domains start being stored on the next rank check — no extra provider cost. Older snapshots cannot invent a competitor list."}
       </EmptyState>
     );
   }
@@ -213,16 +215,18 @@ export function CompetitorsReportPanel({
     <div className="space-y-3">
       <p className="text-xs text-base-content/60">
         Domains that appear in organic results for this tracker&apos;s keywords,
-        ranked by overlap and average position.
+        ranked by keyword overlap, how often they appear in recent checks, and
+        average position.
         {formatCheckDate(data.capturedSince)
           ? ` No competitor data before ${formatCheckDate(data.capturedSince)}.`
           : ""}
       </p>
       <ReportTable
-        headers={["Domain", "Keywords", "Avg position"]}
+        headers={["Domain", "Keywords", "Checks", "Avg position"]}
         rows={data.competitors.map((row) => [
           row.domain,
           row.overlapCount,
+          row.appearanceCount,
           row.averagePosition.toFixed(1),
         ])}
       />

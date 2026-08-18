@@ -132,6 +132,12 @@ export const rankCheckRuns = pgTable(
     errorMessage: text("error_message"),
     startedAt: timestampColumn("started_at").notNull().default(isoNow),
     completedAt: timestampColumn("completed_at"),
+    /**
+     * True after rank_serp_entries for this run were pruned. Position
+     * snapshots are never deleted. serp_captured on snapshots still means
+     * "this check wrote SERP detail", not "the detail is still stored".
+     */
+    serpPruned: boolean("serp_pruned").notNull().default(false),
   },
   (table) => [
     index("rank_check_runs_config_idx").on(table.configId, table.startedAt),
@@ -184,7 +190,9 @@ export const rankSnapshots = pgTable(
  * Extra SERP rows captured from the same rank-check response that writes
  * rank_snapshots. No extra provider call. Historical snapshots have no rows
  * here — reports must treat that as "not captured", not as zero competitors
- * or no cannibalization.
+ * or no cannibalization. Retention deletes only these rows (newest N checks
+ * plus a minimum age floor). It never deletes rank_snapshots or
+ * rank_check_runs — position history stays complete.
  *
  * rowKind:
  * - owned: a tracked-domain organic URL (identity = normalized URL)

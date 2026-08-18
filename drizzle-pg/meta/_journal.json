@@ -218,6 +218,13 @@
       "when": 1787051856325,
       "tag": "0030_secret_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787053229049,
+      "tag": "0031_windy_lionheart",
+      "breakpoints": true
     }
   ]
 }
