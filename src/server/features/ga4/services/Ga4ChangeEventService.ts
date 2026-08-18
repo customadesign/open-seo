@@ -269,6 +269,10 @@ async function recordDashboardChanges(input: {
           currentNumericValue: change.currentNumericValue,
           unit: change.unit,
           occurredAt,
+          periodStart: input.period.startDate,
+          periodEnd: input.period.endDate,
+          previousPeriodStart: input.period.previousStartDate,
+          previousPeriodEnd: input.period.previousEndDate,
         }),
       ),
     );

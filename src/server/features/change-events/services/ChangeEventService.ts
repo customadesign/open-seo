@@ -39,6 +39,23 @@ async function getFeed(input: {
   };
 }
 
+/** Returns null rather than throwing NOT_FOUND: for the detail page a missing
+ * event is an absence to render, not a failure. The mutations below still throw,
+ * because there "nothing happened" has to reach the caller as an error. */
+async function getEvent(input: {
+  eventId: string;
+  projectId: string;
+  userId: string;
+}) {
+  const row = await ChangeEventRepository.findForUser(input);
+  if (!row) return null;
+  return {
+    ...row.event,
+    isRead: row.readAt !== null,
+    isDismissed: row.dismissedAt !== null,
+  };
+}
+
 async function markRead(input: {
   eventId: string;
   projectId: string;
@@ -68,6 +85,7 @@ async function dismiss(input: {
 export const ChangeEventService = {
   record,
   getFeed,
+  getEvent,
   markRead,
   dismiss,
 } as const;

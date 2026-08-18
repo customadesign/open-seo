@@ -28,6 +28,8 @@ beforeAll(async () => {
       source_run_id TEXT, dedupe_key TEXT NOT NULL, metric_key TEXT,
       previous_numeric_value REAL, current_numeric_value REAL, unit TEXT,
       occurred_at TEXT NOT NULL, detected_at TEXT NOT NULL,
+      period_start TEXT, period_end TEXT,
+      previous_period_start TEXT, previous_period_end TEXT,
       UNIQUE(project_id, source, dedupe_key)
     );
     CREATE TABLE project_change_event_states (
@@ -47,9 +49,9 @@ beforeEach(async () => {
     DELETE FROM project_change_event_states;
     DELETE FROM project_change_events;
     INSERT INTO project_change_events VALUES
-      ('event-1', 'project-a', 'audit', 'audit.regression', 'warning', 'New issues', 'Summary', 'audit', 'audit-1', 'audit-1', 'audit:1', 'issue_count', 1, 2, 'issues', '2026-08-17T00:00:00.000Z', '2026-08-17T00:00:00.000Z'),
-      ('event-2', 'project-a', 'reports', 'reports.failed', 'warning', 'Report failed', 'Summary', 'report_run', 'run-1', 'run-1', 'report:1', NULL, NULL, NULL, NULL, '2026-08-16T00:00:00.000Z', '2026-08-16T00:00:00.000Z'),
-      ('event-b', 'project-b', 'audit', 'audit.regression', 'critical', 'Other project', 'Summary', NULL, NULL, NULL, 'audit:b', NULL, NULL, NULL, NULL, '2026-08-18T00:00:00.000Z', '2026-08-18T00:00:00.000Z');
+      ('event-1', 'project-a', 'audit', 'audit.regression', 'warning', 'New issues', 'Summary', 'audit', 'audit-1', 'audit-1', 'audit:1', 'issue_count', 1, 2, 'issues', '2026-08-17T00:00:00.000Z', '2026-08-17T00:00:00.000Z', NULL, NULL, NULL, NULL),
+      ('event-2', 'project-a', 'reports', 'reports.failed', 'warning', 'Report failed', 'Summary', 'report_run', 'run-1', 'run-1', 'report:1', NULL, NULL, NULL, NULL, '2026-08-16T00:00:00.000Z', '2026-08-16T00:00:00.000Z', NULL, NULL, NULL, NULL),
+      ('event-b', 'project-b', 'audit', 'audit.regression', 'critical', 'Other project', 'Summary', NULL, NULL, NULL, 'audit:b', NULL, NULL, NULL, NULL, '2026-08-18T00:00:00.000Z', '2026-08-18T00:00:00.000Z', NULL, NULL, NULL, NULL);
     INSERT INTO project_change_event_states VALUES
       ('state-1', 'event-1', 'user-1', '2026-08-17T01:00:00.000Z', NULL, '2026-08-17T01:00:00.000Z'),
       ('state-2', 'event-2', 'user-1', '2026-08-17T01:00:00.000Z', '2026-08-17T01:00:00.000Z', '2026-08-17T01:00:00.000Z');
@@ -110,6 +112,40 @@ describe("ChangeEventRepository isolation and user state", () => {
     );
   });
 
+  it("finds one event scoped to the project, with only the caller's state", async () => {
+    await expect(
+      repository.findForUser({
+        eventId: "event-b",
+        projectId: "project-a",
+        userId: "user-1",
+      }),
+    ).resolves.toBeNull();
+
+    const own = await repository.findForUser({
+      eventId: "event-1",
+      projectId: "project-a",
+      userId: "user-1",
+    });
+    expect(own?.event.id).toBe("event-1");
+    expect(own?.readAt).toBe("2026-08-17T01:00:00.000Z");
+
+    const other = await repository.findForUser({
+      eventId: "event-1",
+      projectId: "project-a",
+      userId: "user-2",
+    });
+    expect(other?.event.id).toBe("event-1");
+    expect(other?.readAt).toBeNull();
+
+    // Dismissing hides a row from the feed; a direct link must still open it.
+    const dismissed = await repository.findForUser({
+      eventId: "event-2",
+      projectId: "project-a",
+      userId: "user-1",
+    });
+    expect(dismissed?.dismissedAt).toBe("2026-08-17T01:00:00.000Z");
+  });
+
   it("deduplicates a detector replay", async () => {
     await repository.insert({
       id: "duplicate-id",
@@ -150,7 +186,7 @@ async function insertReportEvent(values: {
   const detectedAt = values.detectedAt ?? values.occurredAt;
   await client.execute({
     sql: `INSERT INTO project_change_events VALUES
-      (?, ?, ?, ?, ?, ?, 'Summary', NULL, NULL, NULL, ?, NULL, NULL, NULL, NULL, ?, ?)`,
+      (?, ?, ?, ?, ?, ?, 'Summary', NULL, NULL, NULL, ?, NULL, NULL, NULL, NULL, ?, ?, NULL, NULL, NULL, NULL)`,
     args: [
       values.id,
       values.projectId ?? "project-a",

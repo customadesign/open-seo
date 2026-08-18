@@ -254,6 +254,10 @@ export function buildGscChangeEvents(input: GscChangeEventContext) {
     currentNumericValue: change.currentValue,
     unit: unitFor(change.metricKey),
     occurredAt,
+    periodStart: input.startDate,
+    periodEnd: input.endDate,
+    previousPeriodStart: input.prevStartDate,
+    previousPeriodEnd: input.prevEndDate,
   }));
 }
 

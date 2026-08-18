@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Bell, Check, Eye, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ChangeEventLink } from "./ChangeEventLink";
 import {
   changeEventSeverityClass,
   changeEventSourceLabels,
@@ -176,13 +176,13 @@ export function ChangeEventsPage({ projectId }: { projectId: string }) {
                   </button>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <ChangeEventLink
-                    projectId={projectId}
-                    event={event}
+                  <Link
+                    to="/p/$projectId/changes/$eventId"
+                    params={{ projectId, eventId: event.id }}
                     className="btn btn-outline btn-sm"
                   >
                     View details
-                  </ChangeEventLink>
+                  </Link>
                   {!event.isRead ? (
                     <button
                       type="button"

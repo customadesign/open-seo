@@ -31,6 +31,10 @@ export const projectChangeEvents = pgTable(
     unit: text("unit"),
     occurredAt: text("occurred_at").notNull(),
     detectedAt: text("detected_at").notNull().default(isoNow),
+    periodStart: text("period_start"),
+    periodEnd: text("period_end"),
+    previousPeriodStart: text("previous_period_start"),
+    previousPeriodEnd: text("previous_period_end"),
   },
   (table) => [
     uniqueIndex("project_change_events_project_source_dedupe_idx").on(

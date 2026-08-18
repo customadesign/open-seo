@@ -1,11 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ChangeEventsPage } from "@/client/features/change-events/ChangeEventsPage";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_project/p/$projectId/changes")({
-  component: ChangesRoute,
+  component: ChangesLayout,
 });
 
-function ChangesRoute() {
-  const { projectId } = Route.useParams();
-  return <ChangeEventsPage projectId={projectId} />;
+function ChangesLayout() {
+  return <Outlet />;
 }
