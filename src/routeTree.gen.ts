@@ -41,6 +41,7 @@ import { Route as ApiGscOauthCallbackRouteImport } from './routes/api/gsc/oauth/
 import { Route as ApiGoogleAdsOauthCallbackRouteImport } from './routes/api/google-ads/oauth/callback'
 import { Route as ApiGa4OauthCallbackRouteImport } from './routes/api/ga4/oauth/callback'
 import { Route as ProjectPProjectIdSettingsRouteImport } from './routes/_project/p/$projectId/settings'
+import { Route as ProjectPProjectIdTrafficInsightsRouteImport } from './routes/_project/p/$projectId/traffic-insights'
 import { Route as ProjectPProjectIdSearchPerformanceRouteImport } from './routes/_project/p/$projectId/search-performance'
 import { Route as ProjectPProjectIdSavedRouteImport } from './routes/_project/p/$projectId/saved'
 import { Route as ProjectPProjectIdSamRouteImport } from './routes/_project/p/$projectId/sam'
@@ -221,6 +222,12 @@ const ProjectPProjectIdSettingsRoute =
     path: '/settings',
     getParentRoute: () => ProjectPProjectIdRouteRoute,
   } as any)
+const ProjectPProjectIdTrafficInsightsRoute =
+  ProjectPProjectIdTrafficInsightsRouteImport.update({
+    id: '/traffic-insights',
+    path: '/traffic-insights',
+    getParentRoute: () => ProjectPProjectIdRouteRoute,
+  } as any)
 const ProjectPProjectIdSearchPerformanceRoute =
   ProjectPProjectIdSearchPerformanceRouteImport.update({
     id: '/search-performance',
@@ -357,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
   '/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
+  '/p/$projectId/traffic-insights': typeof ProjectPProjectIdTrafficInsightsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
@@ -401,6 +409,7 @@ export interface FileRoutesByTo {
   '/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
   '/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
+  '/p/$projectId/traffic-insights': typeof ProjectPProjectIdTrafficInsightsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
@@ -453,6 +462,7 @@ export interface FileRoutesById {
   '/_project/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
   '/_project/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/_project/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
+  '/_project/p/$projectId/traffic-insights': typeof ProjectPProjectIdTrafficInsightsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
@@ -502,6 +512,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/saved'
     | '/p/$projectId/search-performance'
     | '/p/$projectId/settings'
+    | '/p/$projectId/traffic-insights'
     | '/api/ga4/oauth/callback'
     | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
@@ -546,6 +557,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/saved'
     | '/p/$projectId/search-performance'
     | '/p/$projectId/settings'
+    | '/p/$projectId/traffic-insights'
     | '/api/ga4/oauth/callback'
     | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
@@ -597,6 +609,7 @@ export interface FileRouteTypes {
     | '/_project/p/$projectId/saved'
     | '/_project/p/$projectId/search-performance'
     | '/_project/p/$projectId/settings'
+    | '/_project/p/$projectId/traffic-insights'
     | '/api/ga4/oauth/callback'
     | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
@@ -859,6 +872,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectPProjectIdSearchPerformanceRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
+    '/_project/p/$projectId/traffic-insights': {
+      id: '/_project/p/$projectId/traffic-insights'
+      path: '/traffic-insights'
+      fullPath: '/p/$projectId/traffic-insights'
+      preLoaderRoute: typeof ProjectPProjectIdTrafficInsightsRouteImport
+      parentRoute: typeof ProjectPProjectIdRouteRoute
+    }
     '/_project/p/$projectId/saved': {
       id: '/_project/p/$projectId/saved'
       path: '/saved'
@@ -1050,6 +1070,7 @@ interface ProjectPProjectIdRouteRouteChildren {
   ProjectPProjectIdSavedRoute: typeof ProjectPProjectIdSavedRoute
   ProjectPProjectIdSearchPerformanceRoute: typeof ProjectPProjectIdSearchPerformanceRoute
   ProjectPProjectIdSettingsRoute: typeof ProjectPProjectIdSettingsRoute
+  ProjectPProjectIdTrafficInsightsRoute: typeof ProjectPProjectIdTrafficInsightsRoute
   ProjectPProjectIdIndexRoute: typeof ProjectPProjectIdIndexRoute
 }
 
@@ -1071,6 +1092,7 @@ const ProjectPProjectIdRouteRouteChildren: ProjectPProjectIdRouteRouteChildren =
     ProjectPProjectIdSearchPerformanceRoute:
       ProjectPProjectIdSearchPerformanceRoute,
     ProjectPProjectIdSettingsRoute: ProjectPProjectIdSettingsRoute,
+    ProjectPProjectIdTrafficInsightsRoute: ProjectPProjectIdTrafficInsightsRoute,
     ProjectPProjectIdIndexRoute: ProjectPProjectIdIndexRoute,
   }
 

@@ -1,13 +1,14 @@
 import {
+  BarChart3,
   Bookmark,
   Bot,
   ClipboardCheck,
   Eye,
+  FileBarChart,
   Globe,
   LayoutDashboard,
   Link2,
   MapPinned,
-  FileBarChart,
   MessageSquare,
   Search,
   Sparkles,
@@ -49,6 +50,11 @@ const projectNavItems = [
     to: "/p/$projectId/search-performance" as const,
     label: "GSC Insights",
     icon: GoogleGlyphMuted,
+  },
+  {
+    to: "/p/$projectId/traffic-insights" as const,
+    label: "Traffic Insights",
+    icon: BarChart3,
   },
   {
     to: "/p/$projectId/domain" as const,
@@ -138,6 +144,7 @@ export function getProjectNavGroups(
       label: "My Site",
       items: [
         byPath("/p/$projectId/search-performance"),
+        byPath("/p/$projectId/traffic-insights"),
         byPath("/p/$projectId/rank-tracking"),
         byPath("/p/$projectId/local-seo"),
         byPath("/p/$projectId/saved"),
@@ -159,6 +166,7 @@ export function getProjectNavGroups(
             items: group.items.filter(
               (item) =>
                 item.to === "/p/$projectId/search-performance" ||
+                item.to === "/p/$projectId/traffic-insights" ||
                 item.to === "/p/$projectId/rank-tracking" ||
                 item.to === "/p/$projectId/saved" ||
                 item.to === "/p/$projectId/audit" ||
