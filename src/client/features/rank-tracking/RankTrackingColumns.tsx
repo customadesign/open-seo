@@ -2,6 +2,7 @@ import { useMemo, type MutableRefObject } from "react";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { makeSelectionColumn } from "@/client/components/table/AppDataTable";
+import { HeaderHelpLabel } from "@/client/features/keywords/components";
 import type { RankTrackingRow } from "@/types/schemas/rank-tracking";
 import { formatLocationLabel } from "@/shared/keyword-locations";
 import {
@@ -24,7 +25,7 @@ const HEADER_TOOLTIPS: Record<string, string> = {
   mobilePosition:
     "Current Google ranking position, showing change from the comparison period",
   url: "The page on your site that ranks for this keyword",
-  serp: "Special result features appearing on the search results page (e.g. AI Overview, People Also Ask)",
+  serp: "Extra blocks Google shows on this keyword's results page besides the plain organic links — map pack, AI Overview, People Also Ask, and so on. Hover a badge for what it means.",
 };
 
 export function SortableHeader({
@@ -42,16 +43,16 @@ export function SortableHeader({
   tooltip?: string;
 }) {
   const sorted = column.getIsSorted();
+  const helpText = tooltip ?? HEADER_TOOLTIPS[id];
   return (
     <button
       type="button"
       className="inline-flex items-center gap-1 text-xs uppercase tracking-wide font-medium text-base-content/60 transition-colors hover:text-base-content"
       onClick={column.getToggleSortingHandler()}
-      title={tooltip ?? HEADER_TOOLTIPS[id]}
       aria-label={`Sort by ${label}`}
       aria-pressed={!!sorted}
     >
-      {label}
+      {helpText ? <HeaderHelpLabel label={label} helpText={helpText} /> : label}
       {sorted === "asc" ? (
         <ArrowUp className="size-3 shrink-0" />
       ) : sorted === "desc" ? (
@@ -160,11 +161,8 @@ function makeUrlColumn(
     id: device === "desktop" ? "desktopUrl" : "mobileUrl",
     enableSorting: false,
     header: () => (
-      <span
-        className="text-xs uppercase tracking-wide font-medium text-base-content/60 cursor-help"
-        title={HEADER_TOOLTIPS.url}
-      >
-        URL
+      <span className="text-xs uppercase tracking-wide font-medium text-base-content/60 cursor-help">
+        <HeaderHelpLabel label="URL" helpText={HEADER_TOOLTIPS.url} />
       </span>
     ),
     size: 240,
@@ -181,11 +179,11 @@ function makeSerpColumn(
     id: device === "desktop" ? "desktopSerp" : "mobileSerp",
     enableSorting: false,
     header: () => (
-      <span
-        className="text-xs uppercase tracking-wide font-medium text-base-content/60 cursor-help"
-        title={HEADER_TOOLTIPS.serp}
-      >
-        SERP Features
+      <span className="text-xs uppercase tracking-wide font-medium text-base-content/60 cursor-help">
+        <HeaderHelpLabel
+          label="SERP Features"
+          helpText={HEADER_TOOLTIPS.serp}
+        />
       </span>
     ),
     cell: ({ row }) => {
