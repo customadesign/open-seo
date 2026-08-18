@@ -1,0 +1,60 @@
+# Compose stack for the self-hosted NAS deployment.
+#
+# This file is the source of truth for what runs on the NAS. It used to exist
+# only on the box (/volume1/docker/open-seo/docker-compose.yaml), hand-edited
+# and untracked, which meant nothing in the repo described the running system
+# and the scheduler sidecar could be lost without any diff showing it.
+#
+# It differs from the repo-root compose.yaml in two ways: the image is pinned to
+# an explicit tag rather than a floating :latest (deploy/nas/deploy.sh writes
+# it), and data lives in a bind mount next to this file rather than a named
+# volume so the SQLite state is visible to NAS backups.
+services:
+  open-seo:
+    image: ${OPEN_SEO_IMAGE}
+    container_name: open-seo
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
+      PORT: ${PORT:-3001}
+      ALLOWED_HOST: ${ALLOWED_HOST}
+      AUTH_MODE: local_noauth
+      # Miniflare's local explorer grants read/write access to D1, KV and R2
+      # over the same /cdn-cgi/ prefix the scheduler uses. Off in a deployment
+      # that is reachable from a tailnet.
+      X_LOCAL_EXPLORER: "false"
+      OPENSEO_TELEMETRY_DISABLED: ${OPENSEO_TELEMETRY_DISABLED:-1}
+      DATAFORSEO_API_KEY: ${DATAFORSEO_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      VITE_SHOW_DEVTOOLS: "false"
+    # Loopback-only publish: the tailnet reaches this through the NAS reverse
+    # proxy, which terminates TLS. Binding 0.0.0.0 would expose an app running
+    # with AUTH_MODE=local_noauth to the whole LAN.
+    ports:
+      - "127.0.0.1:${PORT:-3001}:${PORT:-3001}"
+    volumes:
+      - ./data:/app/.wrangler
+
+  # Cloudflare fires the Worker's scheduled handler from wrangler.jsonc triggers.
+  # vite preview -> Miniflare never does, so rank checks, geo-grids, monthly
+  # reports and the stale-audit watchdog stay dead without this sidecar.
+  open-seo-scheduler:
+    image: ${OPEN_SEO_IMAGE}
+    container_name: open-seo-scheduler
+    restart: unless-stopped
+    depends_on:
+      open-seo:
+        condition: service_healthy
+    # Shares the app's network namespace so the unauthenticated trigger
+    # endpoint is only ever reachable over loopback.
+    network_mode: "service:open-seo"
+    environment:
+      PORT: ${PORT:-3001}
+    entrypoint: []
+    command: ["pnpm", "run", "selfhost:scheduler"]
