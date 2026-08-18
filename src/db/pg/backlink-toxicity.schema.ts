@@ -1,0 +1,92 @@
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+import { projects } from "./app.schema";
+import {
+  TOXICITY_CLASSIFICATIONS,
+  TOXICITY_VERDICTS,
+} from "@/shared/backlink-toxicity";
+
+const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+
+export const backlinkToxicityAudits = pgTable(
+  "backlink_toxicity_audits",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    target: text("target").notNull(),
+    scope: text("scope", { enum: ["domain", "page"] }).notNull(),
+    profileScore: integer("profile_score").notNull(),
+    profileVerdict: text("profile_verdict", {
+      enum: TOXICITY_VERDICTS,
+    }).notNull(),
+    domainCount: integer("domain_count").notNull().default(0),
+    backlinkCount: integer("backlink_count").notNull().default(0),
+    toxicCount: integer("toxic_count").notNull().default(0),
+    potentiallyToxicCount: integer("potentially_toxic_count")
+      .notNull()
+      .default(0),
+    nonToxicCount: integer("non_toxic_count").notNull().default(0),
+    toxicPercent: integer("toxic_percent").notNull().default(0),
+    newDomainCount: integer("new_domain_count").notNull().default(0),
+    lostDomainCount: integer("lost_domain_count").notNull().default(0),
+    brokenDomainCount: integer("broken_domain_count").notNull().default(0),
+    newBacklinkCount: integer("new_backlink_count").notNull().default(0),
+    lostBacklinkCount: integer("lost_backlink_count").notNull().default(0),
+    brokenBacklinkCount: integer("broken_backlink_count").notNull().default(0),
+    truncated: boolean("truncated").notNull().default(false),
+    createdAt: text("created_at").notNull().default(isoNow),
+  },
+  (table) => [
+    index("backlink_toxicity_audits_project_created_idx").on(
+      table.projectId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const backlinkToxicityDomains = pgTable(
+  "backlink_toxicity_domains",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => backlinkToxicityAudits.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    score: integer("score").notNull(),
+    verdict: text("verdict", { enum: TOXICITY_VERDICTS }).notNull(),
+    classification: text("classification", {
+      enum: TOXICITY_CLASSIFICATIONS,
+    }).notNull(),
+    backlinkCount: integer("backlink_count").notNull().default(0),
+    brokenBacklinkCount: integer("broken_backlink_count").notNull().default(0),
+    rank: integer("rank"),
+    spamScore: integer("spam_score"),
+    isNew: boolean("is_new").notNull().default(false),
+    isLost: boolean("is_lost").notNull().default(false),
+    isBroken: boolean("is_broken").notNull().default(false),
+    markersJson: text("markers_json").notNull().default("[]"),
+    createdAt: text("created_at").notNull().default(isoNow),
+  },
+  (table) => [
+    uniqueIndex("backlink_toxicity_domains_audit_domain_idx").on(
+      table.auditId,
+      table.domain,
+    ),
+    index("backlink_toxicity_domains_project_class_idx").on(
+      table.projectId,
+      table.classification,
+    ),
+  ],
+);

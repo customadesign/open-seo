@@ -3,6 +3,7 @@ import type { SortingState, Updater } from "@tanstack/react-table";
 import { BacklinksSearchCard } from "./BacklinksSearchCard";
 import { BacklinksBody } from "./BacklinksPageContent";
 import { DisavowRegistryPanel } from "./DisavowRegistryPanel";
+import { ToxicityAuditPanel } from "./ToxicityAuditPanel";
 import type { BacklinksPageProps } from "./backlinksPageTypes";
 import type { BacklinksSearchState } from "./backlinksPageTypes";
 import {
@@ -217,6 +218,11 @@ export function BacklinksPage({
           }}
         />
 
+        <ToxicityAuditPanel
+          projectId={projectId}
+          target={searchState.target}
+          scope={searchState.scope}
+        />
         <DisavowRegistryPanel projectId={projectId} />
 
         <BacklinksBody

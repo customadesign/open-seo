@@ -104,6 +104,10 @@ export const backlinksItemSchema = z
     is_lost: z.boolean().nullable().optional(),
     is_broken: z.boolean().nullable().optional(),
     links_count: z.number().nullable().optional(),
+    domain_from_ip: z.string().nullable().optional(),
+    page_from_language: z.string().nullable().optional(),
+    semantic_location: z.string().nullable().optional(),
+    tld_from: z.string().nullable().optional(),
     rel_attributes: z.array(z.string()).nullable().optional(),
     attributes: z.array(z.string()).nullable().optional(),
   })
