@@ -127,6 +127,22 @@ function buildEvidence(
           answered === 0 ? "neutral" : mentioned > 0 ? "positive" : "negative",
       });
     }
+    if (section.key === "traffic_insights") {
+      evidence.push({
+        key: "traffic_insights.pages",
+        label: "Landing pages with organic traffic",
+        value: `${formatNumber(section.data.summary.pageCount)} pages${
+          section.data.summary.sessions != null
+            ? ` · ${formatNumber(section.data.summary.sessions)} sessions`
+            : ""
+        }${
+          section.data.summary.clicks != null
+            ? ` · ${formatNumber(section.data.summary.clicks)} clicks`
+            : ""
+        }`,
+        direction: section.data.summary.pageCount > 0 ? "neutral" : "negative",
+      });
+    }
     if (section.key === "local_geo_grid") {
       const withRank = section.data.configs.filter(
         (config) => config.summary.averageRank != null,

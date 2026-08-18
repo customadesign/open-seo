@@ -595,7 +595,9 @@ function ReportSection({ section }: { section: SnapshotSection }) {
     return <BacklinksSection data={section.data} />;
   if (section.key === "ai_visibility")
     return <AiVisibilitySection data={section.data} />;
-  return <LocalGeoGridSection data={section.data} />;
+  if (section.key === "local_geo_grid")
+    return <LocalGeoGridSection data={section.data} />;
+  return <TrafficInsightsSection data={section.data} />;
 }
 
 function UnavailableList({
@@ -762,6 +764,54 @@ function LocalGeoGridSection({
           label: item.keyword,
           reason: item.reason,
         }))}
+      />
+    </SectionShell>
+  );
+}
+
+function TrafficInsightsSection({
+  data,
+}: {
+  data: Extract<SnapshotSection, { key: "traffic_insights" }>["data"];
+}) {
+  return (
+    <SectionShell title="Organic traffic insights">
+      <MetricGrid
+        metrics={[
+          { label: "Landing pages", current: data.summary.pageCount },
+          { label: "Sessions", current: data.summary.sessions },
+          { label: "Clicks", current: data.summary.clicks },
+          { label: "Tracked keywords", current: data.summary.trackedKeywords },
+        ]}
+      />
+      <p className="text-xs text-base-content/50">
+        Analytics {data.sources.ga4} · Search Console {data.sources.gsc} · Rank
+        tracking {data.sources.rankTracking}
+      </p>
+      {data.warnings.length > 0 ? (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+          Limited Analytics data. Missing metrics are dashes, not zeros.
+        </div>
+      ) : null}
+      <DataTable
+        headers={[
+          "Landing page",
+          "Sessions",
+          "Clicks",
+          "Impressions",
+          "Keywords",
+          "Best pos.",
+          "Sources",
+        ]}
+        rows={data.pages.map((row) => [
+          row.url,
+          row.sessions ?? "—",
+          row.clicks ?? "—",
+          row.impressions ?? "—",
+          row.keywordCount ?? "—",
+          row.bestPosition ?? "—",
+          row.coverage,
+        ])}
       />
     </SectionShell>
   );

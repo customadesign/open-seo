@@ -17,6 +17,7 @@ import {
   toDimensionRows,
 } from "@/server/features/gsc/searchPerformanceReport";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
+import { OrganicTrafficInsightsService } from "@/server/features/traffic-insights/services/OrganicTrafficInsightsService";
 import type { ReportSectionKey, ReportSnapshot } from "@/types/schemas/reports";
 import {
   isoEndTimestamp,
@@ -399,6 +400,92 @@ export async function getReportProject(projectId: string) {
   return rows[0] ?? null;
 }
 
+async function loadTrafficInsights(
+  projectId: string,
+  range: DateRange,
+): Promise<SectionLoadResult> {
+  const insights = await OrganicTrafficInsightsService.getInsights({
+    projectId,
+    startDate: range.periodStart,
+    endDate: range.periodEnd,
+  });
+  const nothingConnected =
+    insights.sources.ga4.status !== "connected" &&
+    insights.sources.gsc.status !== "connected" &&
+    insights.sources.rankTracking.status !== "connected";
+  if (nothingConnected) return { status: "omitted", reason: "not_configured" };
+  if (insights.rows.length === 0)
+    return { status: "omitted", reason: "no_data" };
+
+  const sessions = insights.rows.reduce<number | null>((sum, row) => {
+    if (row.sessions == null) return sum;
+    return (sum ?? 0) + row.sessions;
+  }, null);
+  const clicks = insights.rows.reduce<number | null>((sum, row) => {
+    if (row.clicks == null) return sum;
+    return (sum ?? 0) + row.clicks;
+  }, null);
+  const trackedKeywords = insights.rows.reduce<number | null>((sum, row) => {
+    if (row.keywordCount == null) return sum;
+    return (sum ?? 0) + row.keywordCount;
+  }, null);
+
+  return {
+    status: "loaded",
+    section: {
+      key: "traffic_insights",
+      data: {
+        range: insights.range,
+        sources: {
+          ga4:
+            insights.sources.ga4.status === "error"
+              ? "error"
+              : insights.sources.ga4.status === "connected"
+                ? "connected"
+                : "not_connected",
+          gsc:
+            insights.sources.gsc.status === "error"
+              ? "error"
+              : insights.sources.gsc.status === "connected"
+                ? "connected"
+                : "not_connected",
+          rankTracking:
+            insights.sources.rankTracking.status === "connected"
+              ? "connected"
+              : "not_configured",
+        },
+        summary: {
+          pageCount: insights.rows.length,
+          sessions,
+          clicks,
+          trackedKeywords,
+        },
+        pages: insights.rows.slice(0, 25).map((row) => ({
+          url: row.url,
+          sessions: row.sessions,
+          engagementRate: row.engagementRate,
+          keyEvents: row.keyEvents,
+          clicks: row.clicks,
+          impressions: row.impressions,
+          ctr: row.ctr,
+          averagePosition: row.averagePosition,
+          queries: row.queries.map((query) => query.query).join("; "),
+          keywords: row.trackedKeywords
+            .map((keyword) => keyword.keyword)
+            .join("; "),
+          keywordCount: row.keywordCount,
+          bestPosition: row.bestPosition,
+          coverage: row.coverage.join("+"),
+        })),
+        warnings: [
+          ...insights.sources.ga4.warnings,
+          ...(insights.sources.ga4.hasLimitedData ? ["ga4_limited_data"] : []),
+        ],
+      },
+    },
+  };
+}
+
 export function loadReportSection(
   key: ReportSectionKey,
   projectId: string,
@@ -413,5 +500,6 @@ export function loadReportSection(
   // Stored-only sources: these read rows the project already paid for and
   // never call a provider. See storedReportSections.ts.
   if (key === "ai_visibility") return loadAiVisibility(projectId, range);
-  return loadLocalGeoGrid(projectId, range);
+  if (key === "local_geo_grid") return loadLocalGeoGrid(projectId, range);
+  return loadTrafficInsights(projectId, range);
 }

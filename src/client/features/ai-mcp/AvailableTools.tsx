@@ -177,6 +177,12 @@ const toolCategories: ToolCategory[] = [
           "Join Search Console demand with Analytics outcomes to prioritize pages.",
       },
       {
+        name: "get_organic_traffic_insights",
+        title: "Get organic traffic insights",
+        description:
+          "See which queries and tracked keywords drove sessions to each landing page.",
+      },
+      {
         name: "get_google_analytics_traffic_acquisition",
         title: "Get traffic acquisition",
         description:

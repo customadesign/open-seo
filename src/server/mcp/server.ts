@@ -51,6 +51,7 @@ import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
+import { getOrganicTrafficInsightsTool } from "@/server/mcp/tools/traffic-insights-tools";
 import {
   getAuditIssuesTool,
   getAuditPagesTool,
@@ -184,6 +185,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getGoogleAnalyticsPagePerformanceTool);
   register(getGoogleAnalyticsKeyEventsTool);
   register(getSearchOpportunitiesTool);
+  register(getOrganicTrafficInsightsTool);
   register(getGoogleAnalyticsOrganicOverviewTool);
   register(getGoogleAnalyticsTrafficAcquisitionTool);
   register(getGoogleAnalyticsMeasurementHealthTool);

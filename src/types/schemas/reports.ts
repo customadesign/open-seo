@@ -308,6 +308,42 @@ const geoGridMetricsSchema = z.object({
   topTwentyCoverage: z.number().nullable(),
 });
 
+const trafficInsightsSectionSchema = z.object({
+  range: z.object({
+    startDate: dateField,
+    endDate: dateField,
+  }),
+  sources: z.object({
+    ga4: z.enum(["connected", "not_connected", "error"]),
+    gsc: z.enum(["connected", "not_connected", "error"]),
+    rankTracking: z.enum(["connected", "not_configured"]),
+  }),
+  summary: z.object({
+    pageCount: z.number().int(),
+    sessions: z.number().nullable(),
+    clicks: z.number().nullable(),
+    trackedKeywords: z.number().nullable(),
+  }),
+  pages: z.array(
+    z.object({
+      url: z.string(),
+      sessions: z.number().nullable(),
+      engagementRate: z.number().nullable(),
+      keyEvents: z.number().nullable(),
+      clicks: z.number().nullable(),
+      impressions: z.number().nullable(),
+      ctr: z.number().nullable(),
+      averagePosition: z.number().nullable(),
+      queries: z.string(),
+      keywords: z.string(),
+      keywordCount: z.number().nullable(),
+      bestPosition: z.number().nullable(),
+      coverage: z.string(),
+    }),
+  ),
+  warnings: z.array(z.string()),
+});
+
 const localGeoGridSectionSchema = z.object({
   configs: z.array(
     z.object({
@@ -359,6 +395,10 @@ export const reportSnapshotSchema = z.object({
       z.object({
         key: z.literal("local_geo_grid"),
         data: localGeoGridSectionSchema,
+      }),
+      z.object({
+        key: z.literal("traffic_insights"),
+        data: trafficInsightsSectionSchema,
       }),
     ]),
   ),
