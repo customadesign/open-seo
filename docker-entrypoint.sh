@@ -36,4 +36,10 @@ else
   printf '%s' "$FINGERPRINT" > "$FP_FILE"
 fi
 
+# Miniflare's local explorer (/cdn-cgi/explorer) reads and writes D1, KV, and
+# R2 with no authentication, and @cloudflare/vite-plugin turns it on by
+# default. Self-hosts run with app auth disabled, so default it off here too —
+# compose sets it as well, but a plain `docker run` would otherwise ship it on.
+export X_LOCAL_EXPLORER="${X_LOCAL_EXPLORER:-false}"
+
 exec pnpm exec vite preview --host 0.0.0.0 --port "${PORT:-3001}"
