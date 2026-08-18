@@ -143,6 +143,8 @@ const toolCategories: ToolCategory[] = [
         title: "Analyze backlinks in bulk",
         description:
           "Compare authority, backlinks, and traffic for many domains.",
+      },
+      {
         name: "estimate_keyword_gap",
         title: "Estimate keyword gap cost",
         description: "Preview the cost of a multi-domain keyword comparison.",

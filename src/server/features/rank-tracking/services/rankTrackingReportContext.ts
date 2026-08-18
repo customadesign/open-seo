@@ -61,8 +61,19 @@ export type ReportRunRow = {
   serpPruned: boolean;
 };
 
+/**
+ * The only fields the capture/retention helpers read. Narrower than
+ * `ReportSnapshotRow` on purpose, so callers and tests can pass the three
+ * fields that matter instead of a whole repository row.
+ */
+export type CapturedSnapshotRow = {
+  runId: string;
+  serpCaptured: boolean;
+  device: Device;
+};
+
 export function capturedRunIds(
-  snapshots: ReportSnapshotRow[],
+  snapshots: readonly CapturedSnapshotRow[],
   device?: Device,
 ) {
   return new Set(
@@ -84,7 +95,7 @@ export function capturedRunsForDevice(
 }
 
 export function retainedSerpRuns(
-  snapshots: ReportSnapshotRow[],
+  snapshots: readonly CapturedSnapshotRow[],
   runs: ReportRunRow[],
   device?: Device,
 ) {

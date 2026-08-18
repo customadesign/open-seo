@@ -597,7 +597,8 @@ function ReportSection({ section }: { section: SnapshotSection }) {
     return <AiVisibilitySection data={section.data} />;
   if (section.key === "local_geo_grid")
     return <LocalGeoGridSection data={section.data} />;
-  return <TrafficInsightsSection data={section.data} />;
+  if (section.key === "traffic_insights")
+    return <TrafficInsightsSection data={section.data} />;
   return <OnPageIdeasSection data={section.data} />;
 }
 

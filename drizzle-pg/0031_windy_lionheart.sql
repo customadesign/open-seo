@@ -1,1 +1,0 @@
-ALTER TABLE "rank_check_runs" ADD COLUMN "serp_pruned" boolean DEFAULT false NOT NULL;

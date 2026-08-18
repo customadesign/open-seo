@@ -11,7 +11,6 @@ import {
   Link2,
   Unlink,
   MapPinned,
-  FileBarChart,
   FileText,
   ListChecks,
   MessageSquare,
@@ -90,6 +89,8 @@ const projectNavItems = [
     to: "/p/$projectId/log-files" as const,
     label: "Log Files",
     icon: FileText,
+  },
+  {
     to: "/p/$projectId/on-page" as const,
     label: "On-page Ideas",
     icon: ListChecks,

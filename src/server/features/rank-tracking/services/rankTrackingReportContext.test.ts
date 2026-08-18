@@ -31,7 +31,7 @@ describe("retainedSerpRuns", () => {
   ];
 
   it("keeps captured unpruned checks and drops pruned or never-captured ones", () => {
-    const retained = retainedSerpRuns(snapshots as never, runs, "desktop");
+    const retained = retainedSerpRuns(snapshots, runs, "desktop");
     expect(retained.map((run) => run.id)).toEqual(["kept"]);
   });
 

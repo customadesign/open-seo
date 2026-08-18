@@ -1,1 +1,0 @@
-ALTER TABLE `audit_pages` ADD `content_length` integer;

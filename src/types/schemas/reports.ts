@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one schema per report section, kept together so the discriminated union and its members stay in one place. */
 import { z } from "zod";
 import { REPORT_SECTION_KEYS } from "@/shared/report-sections";
 import {
@@ -361,6 +362,8 @@ const trafficInsightsSectionSchema = z.object({
     }),
   ),
   warnings: z.array(z.string()),
+});
+
 const onPageIdeasSectionSchema = z.object({
   freshness: sectionFreshnessSchema,
   totalIdeas: z.number().int(),
@@ -434,6 +437,8 @@ export const reportSnapshotSchema = z.object({
       z.object({
         key: z.literal("traffic_insights"),
         data: trafficInsightsSectionSchema,
+      }),
+      z.object({
         key: z.literal("on_page_ideas"),
         data: onPageIdeasSectionSchema,
       }),
