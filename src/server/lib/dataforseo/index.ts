@@ -70,5 +70,3 @@ export type {
   BacklinksBulkBacklinksItem,
   BacklinksBulkReferringDomainsItem,
 } from "@/server/lib/dataforseo/backlinks";
-
-export type { BulkTrafficEstimationItem } from "@/server/lib/dataforseo/labs";

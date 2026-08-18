@@ -131,7 +131,9 @@ export async function fetchRelatedKeywords(input: {
   languageCode: string;
   limit: number;
   depth?: number;
+  offset?: number;
   includeClickstreamData?: boolean;
+  includeSerpInfo?: boolean;
 }): Promise<DataforseoApiResponse<RelatedKeywordItem[]>> {
   const response = await labsApi().googleRelatedKeywordsLive([
     new DataforseoLabsGoogleRelatedKeywordsLiveRequestInfo({
@@ -140,10 +142,11 @@ export async function fetchRelatedKeywords(input: {
       language_code: input.languageCode,
       limit: input.limit,
       depth: input.depth ?? 3,
+      offset: input.offset,
       // Clickstream-refined volumes DOUBLE the request cost, so they are
       // opt-in — see specs/0004-keyword-data-source-routing.md.
       include_clickstream_data: input.includeClickstreamData ?? false,
-      include_serp_info: false,
+      include_serp_info: input.includeSerpInfo ?? false,
     }),
   ]);
   const task = assertOk(response);
@@ -158,7 +161,10 @@ export async function fetchKeywordSuggestions(input: {
   locationCode: number;
   languageCode: string;
   limit: number;
+  offset?: number;
+  exactMatch?: boolean;
   includeClickstreamData?: boolean;
+  includeSerpInfo?: boolean;
 }): Promise<DataforseoApiResponse<LabsKeywordDataItem[]>> {
   const response = await labsApi().googleKeywordSuggestionsLive([
     new DataforseoLabsGoogleKeywordSuggestionsLiveRequestInfo({
@@ -166,11 +172,12 @@ export async function fetchKeywordSuggestions(input: {
       location_code: input.locationCode,
       language_code: input.languageCode,
       limit: input.limit,
+      offset: input.offset,
       include_clickstream_data: input.includeClickstreamData ?? false,
-      include_serp_info: false,
+      include_serp_info: input.includeSerpInfo ?? false,
       include_seed_keyword: true,
       ignore_synonyms: false,
-      exact_match: false,
+      exact_match: input.exactMatch ?? false,
     }),
   ]);
   const task = assertOk(response);
@@ -185,7 +192,9 @@ export async function fetchKeywordIdeas(input: {
   locationCode: number;
   languageCode: string;
   limit: number;
+  offset?: number;
   includeClickstreamData?: boolean;
+  includeSerpInfo?: boolean;
 }): Promise<DataforseoApiResponse<LabsKeywordDataItem[]>> {
   const response = await labsApi().googleKeywordIdeasLive([
     new DataforseoLabsGoogleKeywordIdeasLiveRequestInfo({
@@ -193,8 +202,9 @@ export async function fetchKeywordIdeas(input: {
       location_code: input.locationCode,
       language_code: input.languageCode,
       limit: input.limit,
+      offset: input.offset,
       include_clickstream_data: input.includeClickstreamData ?? false,
-      include_serp_info: false,
+      include_serp_info: input.includeSerpInfo ?? false,
       ignore_synonyms: false,
       closely_variants: false,
     }),
