@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "debc49b8-154a-4b0f-b3f9-3a6aca76c23f",
+  "id": "2b1355e2-e220-4e53-bf29-6c0565998f30",
   "prevId": "9db93913-9a60-43bf-a314-7a5005b1a68c",
   "tables": {
     "backlink_snapshots": {
@@ -7459,69 +7459,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "backlink_gap_links": {
-      "name": "backlink_gap_links",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "referring_domain_id": {
-          "name": "referring_domain_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "competitor_domain": {
-          "name": "competitor_domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "backlink_gap_links_ref_competitor_idx": {
-          "name": "backlink_gap_links_ref_competitor_idx",
-          "columns": [
-            "referring_domain_id",
-            "competitor_domain"
-          ],
-          "isUnique": true
-        },
-        "backlink_gap_links_referring_idx": {
-          "name": "backlink_gap_links_referring_idx",
-          "columns": [
-            "referring_domain_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "backlink_gap_links_referring_domain_id_backlink_gap_referring_domains_id_fk": {
-          "name": "backlink_gap_links_referring_domain_id_backlink_gap_referring_domains_id_fk",
-          "tableFrom": "backlink_gap_links",
-          "tableTo": "backlink_gap_referring_domains",
-          "columnsFrom": [
-            "referring_domain_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "backlink_gap_referring_domains": {
-      "name": "backlink_gap_referring_domains",
+    "keyword_magic_clusters": {
+      "name": "keyword_magic_clusters",
       "columns": {
         "id": {
           "name": "id",
@@ -7537,122 +7476,41 @@
           "notNull": true,
           "autoincrement": false
         },
-        "referring_domain": {
-          "name": "referring_domain",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "rank": {
-          "name": "rank",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "first_seen": {
-          "name": "first_seen",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "competitor_count": {
-          "name": "competitor_count",
+        "keyword_count": {
+          "name": "keyword_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "backlink_gap_referring_domains_run_domain_idx": {
-          "name": "backlink_gap_referring_domains_run_domain_idx",
-          "columns": [
-            "run_id",
-            "referring_domain"
-          ],
-          "isUnique": true
-        },
-        "backlink_gap_referring_domains_run_rank_idx": {
-          "name": "backlink_gap_referring_domains_run_rank_idx",
-          "columns": [
-            "run_id",
-            "rank"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "backlink_gap_referring_domains_run_id_backlink_gap_runs_id_fk": {
-          "name": "backlink_gap_referring_domains_run_id_backlink_gap_runs_id_fk",
-          "tableFrom": "backlink_gap_referring_domains",
-          "tableTo": "backlink_gap_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "backlink_gap_run_domains": {
-      "name": "backlink_gap_run_domains",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "domain": {
-          "name": "domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "sort_order": {
           "name": "sort_order",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         }
       },
       "indexes": {
-        "backlink_gap_run_domains_run_domain_idx": {
-          "name": "backlink_gap_run_domains_run_domain_idx",
+        "keyword_magic_clusters_run_name_idx": {
+          "name": "keyword_magic_clusters_run_name_idx",
           "columns": [
             "run_id",
-            "domain"
+            "name"
           ],
           "isUnique": true
         },
-        "backlink_gap_run_domains_run_sort_idx": {
-          "name": "backlink_gap_run_domains_run_sort_idx",
+        "keyword_magic_clusters_run_sort_idx": {
+          "name": "keyword_magic_clusters_run_sort_idx",
           "columns": [
             "run_id",
             "sort_order"
@@ -7661,10 +7519,10 @@
         }
       },
       "foreignKeys": {
-        "backlink_gap_run_domains_run_id_backlink_gap_runs_id_fk": {
-          "name": "backlink_gap_run_domains_run_id_backlink_gap_runs_id_fk",
-          "tableFrom": "backlink_gap_run_domains",
-          "tableTo": "backlink_gap_runs",
+        "keyword_magic_clusters_run_id_keyword_magic_runs_id_fk": {
+          "name": "keyword_magic_clusters_run_id_keyword_magic_runs_id_fk",
+          "tableFrom": "keyword_magic_clusters",
+          "tableTo": "keyword_magic_runs",
           "columnsFrom": [
             "run_id"
           ],
@@ -7679,85 +7537,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "backlink_gap_runs": {
-      "name": "backlink_gap_runs",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "fingerprint": {
-          "name": "fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(current_timestamp)"
-        }
-      },
-      "indexes": {
-        "backlink_gap_runs_project_fingerprint_idx": {
-          "name": "backlink_gap_runs_project_fingerprint_idx",
-          "columns": [
-            "project_id",
-            "fingerprint"
-          ],
-          "isUnique": true
-        },
-        "backlink_gap_runs_project_fetched_idx": {
-          "name": "backlink_gap_runs_project_fetched_idx",
-          "columns": [
-            "project_id",
-            "fetched_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "backlink_gap_runs_project_id_projects_id_fk": {
-          "name": "backlink_gap_runs_project_id_projects_id_fk",
-          "tableFrom": "backlink_gap_runs",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "keyword_gap_keywords": {
-      "name": "keyword_gap_keywords",
+    "keyword_magic_keywords": {
+      "name": "keyword_magic_keywords",
       "columns": {
         "id": {
           "name": "id",
@@ -7771,6 +7552,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "cluster_id": {
+          "name": "cluster_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "keyword": {
@@ -7783,6 +7571,20 @@
         "search_volume": {
           "name": "search_volume",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cpc": {
+          "name": "cpc",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "competition": {
+          "name": "competition",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -7801,44 +7603,99 @@
           "notNull": false,
           "autoincrement": false
         },
-        "cpc": {
-          "name": "cpc",
-          "type": "real",
+        "word_count": {
+          "name": "word_count",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
-        "classification": {
-          "name": "classification",
+        "is_broad": {
+          "name": "is_broad",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "is_phrase": {
+          "name": "is_phrase",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "is_exact": {
+          "name": "is_exact",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "is_question": {
+          "name": "is_question",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "source": {
+          "name": "source",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "metrics_updated_at": {
+          "name": "metrics_updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "keyword_gap_keywords_run_keyword_idx": {
-          "name": "keyword_gap_keywords_run_keyword_idx",
+        "keyword_magic_keywords_run_keyword_idx": {
+          "name": "keyword_magic_keywords_run_keyword_idx",
           "columns": [
             "run_id",
             "keyword"
           ],
           "isUnique": true
         },
-        "keyword_gap_keywords_run_class_idx": {
-          "name": "keyword_gap_keywords_run_class_idx",
+        "keyword_magic_keywords_run_cluster_idx": {
+          "name": "keyword_magic_keywords_run_cluster_idx",
           "columns": [
             "run_id",
-            "classification"
+            "cluster_id"
+          ],
+          "isUnique": false
+        },
+        "keyword_magic_keywords_run_volume_idx": {
+          "name": "keyword_magic_keywords_run_volume_idx",
+          "columns": [
+            "run_id",
+            "search_volume"
+          ],
+          "isUnique": false
+        },
+        "keyword_magic_keywords_run_word_count_idx": {
+          "name": "keyword_magic_keywords_run_word_count_idx",
+          "columns": [
+            "run_id",
+            "word_count"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "keyword_gap_keywords_run_id_keyword_gap_runs_id_fk": {
-          "name": "keyword_gap_keywords_run_id_keyword_gap_runs_id_fk",
-          "tableFrom": "keyword_gap_keywords",
-          "tableTo": "keyword_gap_runs",
+        "keyword_magic_keywords_run_id_keyword_magic_runs_id_fk": {
+          "name": "keyword_magic_keywords_run_id_keyword_magic_runs_id_fk",
+          "tableFrom": "keyword_magic_keywords",
+          "tableTo": "keyword_magic_runs",
           "columnsFrom": [
             "run_id"
           ],
@@ -7847,73 +7704,18 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "keyword_gap_positions": {
-      "name": "keyword_gap_positions",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
         },
-        "keyword_id": {
-          "name": "keyword_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "domain": {
-          "name": "domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "keyword_gap_positions_keyword_domain_idx": {
-          "name": "keyword_gap_positions_keyword_domain_idx",
-          "columns": [
-            "keyword_id",
-            "domain"
-          ],
-          "isUnique": true
-        },
-        "keyword_gap_positions_keyword_idx": {
-          "name": "keyword_gap_positions_keyword_idx",
-          "columns": [
-            "keyword_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "keyword_gap_positions_keyword_id_keyword_gap_keywords_id_fk": {
-          "name": "keyword_gap_positions_keyword_id_keyword_gap_keywords_id_fk",
-          "tableFrom": "keyword_gap_positions",
-          "tableTo": "keyword_gap_keywords",
+        "keyword_magic_keywords_cluster_id_keyword_magic_clusters_id_fk": {
+          "name": "keyword_magic_keywords_cluster_id_keyword_magic_clusters_id_fk",
+          "tableFrom": "keyword_magic_keywords",
+          "tableTo": "keyword_magic_clusters",
           "columnsFrom": [
-            "keyword_id"
+            "cluster_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -7921,84 +7723,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "keyword_gap_run_domains": {
-      "name": "keyword_gap_run_domains",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "domain": {
-          "name": "domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "keyword_gap_run_domains_run_domain_idx": {
-          "name": "keyword_gap_run_domains_run_domain_idx",
-          "columns": [
-            "run_id",
-            "domain"
-          ],
-          "isUnique": true
-        },
-        "keyword_gap_run_domains_run_sort_idx": {
-          "name": "keyword_gap_run_domains_run_sort_idx",
-          "columns": [
-            "run_id",
-            "sort_order"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "keyword_gap_run_domains_run_id_keyword_gap_runs_id_fk": {
-          "name": "keyword_gap_run_domains_run_id_keyword_gap_runs_id_fk",
-          "tableFrom": "keyword_gap_run_domains",
-          "tableTo": "keyword_gap_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "keyword_gap_runs": {
-      "name": "keyword_gap_runs",
+    "keyword_magic_runs": {
+      "name": "keyword_magic_runs",
       "columns": {
         "id": {
           "name": "id",
@@ -8014,8 +7740,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "fingerprint": {
-          "name": "fingerprint",
+        "seed": {
+          "name": "seed",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -8035,20 +7761,58 @@
           "notNull": true,
           "autoincrement": false
         },
-        "include_subdomains": {
-          "name": "include_subdomains",
+        "clickstream": {
+          "name": "clickstream",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": true
+          "default": false
         },
-        "fetched_at": {
-          "name": "fetched_at",
+        "max_keywords": {
+          "name": "max_keywords",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fingerprint": {
+          "name": "fingerprint",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ready'"
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "keyword_count": {
+          "name": "keyword_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "estimated_cost_credits": {
+          "name": "estimated_cost_credits",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -8057,30 +7821,37 @@
           "notNull": true,
           "autoincrement": false,
           "default": "(current_timestamp)"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "keyword_gap_runs_project_fingerprint_idx": {
-          "name": "keyword_gap_runs_project_fingerprint_idx",
+        "keyword_magic_runs_project_fingerprint_idx": {
+          "name": "keyword_magic_runs_project_fingerprint_idx",
           "columns": [
             "project_id",
             "fingerprint"
           ],
           "isUnique": true
         },
-        "keyword_gap_runs_project_fetched_idx": {
-          "name": "keyword_gap_runs_project_fetched_idx",
+        "keyword_magic_runs_project_created_idx": {
+          "name": "keyword_magic_runs_project_created_idx",
           "columns": [
             "project_id",
-            "fetched_at"
+            "created_at"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "keyword_gap_runs_project_id_projects_id_fk": {
-          "name": "keyword_gap_runs_project_id_projects_id_fk",
-          "tableFrom": "keyword_gap_runs",
+        "keyword_magic_runs_project_id_projects_id_fk": {
+          "name": "keyword_magic_runs_project_id_projects_id_fk",
+          "tableFrom": "keyword_magic_runs",
           "tableTo": "projects",
           "columnsFrom": [
             "project_id"
@@ -8093,6 +7864,60 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "keyword_magic_serp_features": {
+      "name": "keyword_magic_serp_features",
+      "columns": {
+        "keyword_id": {
+          "name": "keyword_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "feature": {
+          "name": "feature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "keyword_magic_serp_features_feature_idx": {
+          "name": "keyword_magic_serp_features_feature_idx",
+          "columns": [
+            "feature"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "keyword_magic_serp_features_keyword_id_keyword_magic_keywords_id_fk": {
+          "name": "keyword_magic_serp_features_keyword_id_keyword_magic_keywords_id_fk",
+          "tableFrom": "keyword_magic_serp_features",
+          "tableTo": "keyword_magic_keywords",
+          "columnsFrom": [
+            "keyword_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "keyword_magic_serp_features_keyword_id_feature_pk": {
+          "columns": [
+            "keyword_id",
+            "feature"
+          ],
+          "name": "keyword_magic_serp_features_keyword_id_feature_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     }

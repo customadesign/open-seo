@@ -17,10 +17,8 @@ import { captureClientEvent } from "@/client/lib/posthog";
 import { SerpAnalysisCard } from "@/client/features/keywords/components";
 import { FilterIntentSelect } from "./keywordResearchFilters";
 import { KeywordResearchDesktopTable } from "./KeywordResearchDesktopTable";
-import {
-  KeywordResearchPagination,
-  useKeywordResearchPagination,
-} from "./KeywordResearchPagination";
+import { KeywordResearchPagination } from "./KeywordResearchPagination";
+import { useKeywordSearchParams } from "@/client/features/keywords/state/keywordControllerInternals";
 import type { KeywordResearchControllerState } from "./types";
 import {
   TableBulkActionBar,
@@ -33,7 +31,7 @@ type Props = {
 };
 
 export function KeywordResearchMobileResults({ controller }: Props) {
-  const { filteredRows, mobileTab } = controller;
+  const { mobileTab } = controller;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden md:hidden">
@@ -46,7 +44,7 @@ export function KeywordResearchMobileResults({ controller }: Props) {
           }`}
           onClick={() => controller.setMobileTab("keywords")}
         >
-          Keywords ({filteredRows.length})
+          Keywords ({controller.totalCount.toLocaleString()})
         </button>
         <button
           className={`flex-1 py-2 text-sm font-medium text-center border-b-2 transition-colors ${
@@ -84,20 +82,20 @@ function MobileKeywordResults({ controller }: Props) {
   const {
     activeFilterCount,
     filteredRows,
-    rows,
     selectedRows,
     sheetsExportRows,
     showFilters,
+    totalCount,
+    page,
+    pageSize,
   } = controller;
-  const { page, pageSize, pageRows, setPage, setPageSize } =
-    useKeywordResearchPagination(filteredRows);
+  const setSearchParams = useKeywordSearchParams();
+  const pageRows = filteredRows;
 
   const keywordCountLabel =
     selectedRows.size > 0
       ? `${selectedRows.size} selected`
-      : activeFilterCount > 0
-        ? `Showing ${filteredRows.length} of ${rows.length}`
-        : `Showing ${filteredRows.length} keywords`;
+      : `Showing ${filteredRows.length} of ${totalCount.toLocaleString()}`;
 
   const canExport = filteredRows.length > 0;
   const selectedExportRows = filteredRows
@@ -229,13 +227,15 @@ function MobileKeywordResults({ controller }: Props) {
         resetFilters={controller.resetFilters}
         handleRowClick={controller.handleRowClick}
       />
-      {filteredRows.length > 0 ? (
+      {totalCount > 0 ? (
         <KeywordResearchPagination
           page={page}
           pageSize={pageSize}
-          totalCount={filteredRows.length}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          totalCount={totalCount}
+          onPageChange={(nextPage) => setSearchParams({ page: nextPage })}
+          onPageSizeChange={(nextSize) =>
+            setSearchParams({ size: nextSize, page: undefined })
+          }
         />
       ) : null}
     </div>

@@ -145,7 +145,127 @@ export const deleteSavedKeywordTagSchema = z.object({
 
 export const refreshSavedKeywordMetricsSchema = z.object({
   projectId: z.string().min(1),
+  keywords: z.array(z.string().min(1)).max(2000).optional(),
 });
+
+const keywordMagicMatchTypes = [
+  "all",
+  "broad",
+  "phrase",
+  "exact",
+  "related",
+  "questions",
+] as const;
+
+const keywordMagicSortFields = [
+  "keyword",
+  "searchVolume",
+  "cpc",
+  "competition",
+  "keywordDifficulty",
+  "wordCount",
+  "metricsUpdatedAt",
+] as const;
+
+const keywordMagicScaleSchema = z.union([
+  z.literal(1000),
+  z.literal(5000),
+  z.literal(10000),
+  z.literal(20000),
+]);
+
+export const estimateKeywordMagicSchema = z.object({
+  projectId: z.string().min(1),
+  seed: z.string().min(1),
+  locationCode: z.number().int().positive().optional(),
+  languageCode: z.string().min(2).max(8).optional(),
+  clickstream: z.boolean().optional().default(false),
+  maxKeywords: keywordMagicScaleSchema.optional(),
+});
+
+export const runKeywordMagicSchema = estimateKeywordMagicSchema.extend({
+  maxCostCredits: z.number().int().positive().max(1_000_000).optional(),
+});
+
+const keywordMagicFilterFields = {
+  matchType: z.enum(keywordMagicMatchTypes).optional(),
+  clusterId: z.string().min(1).optional(),
+  includeTerms: z.array(z.string().trim().min(1)).max(20).optional(),
+  excludeTerms: z.array(z.string().trim().min(1)).max(20).optional(),
+  minVolume: z.number().int().nonnegative().nullable().optional(),
+  maxVolume: z.number().int().nonnegative().nullable().optional(),
+  minCpc: z.number().nonnegative().nullable().optional(),
+  maxCpc: z.number().nonnegative().nullable().optional(),
+  minDifficulty: z.number().int().min(0).max(100).nullable().optional(),
+  maxDifficulty: z.number().int().min(0).max(100).nullable().optional(),
+  minWordCount: z.number().int().min(1).nullable().optional(),
+  maxWordCount: z.number().int().min(1).nullable().optional(),
+  intents: z
+    .array(
+      z.enum([
+        "informational",
+        "commercial",
+        "transactional",
+        "navigational",
+        "unknown",
+      ]),
+    )
+    .optional(),
+  serpFeatures: z.array(z.string().min(1).max(64)).max(20).optional(),
+};
+
+export const getKeywordMagicPageSchema = z.object({
+  projectId: z.string().min(1),
+  runId: z.string().min(1),
+  ...keywordMagicFilterFields,
+  page: z.number().int().positive().default(1),
+  pageSize: z
+    .union([z.literal(50), z.literal(100), z.literal(300), z.literal(500)])
+    .default(50),
+  sort: z.enum(keywordMagicSortFields).default("searchVolume"),
+  order: z.enum(sortDirs).default("desc"),
+});
+
+export const exportKeywordMagicSchema = getKeywordMagicPageSchema.omit({
+  page: true,
+  pageSize: true,
+});
+
+export const listKeywordMagicHistorySchema = z.object({
+  projectId: z.string().min(1),
+});
+
+export const saveKeywordMagicSelectionSchema = z.object({
+  projectId: z.string().min(1),
+  runId: z.string().min(1),
+  keywords: z.array(z.string().min(1)).min(1).max(500),
+  tags: z.array(savedKeywordTagSchema).max(20).optional(),
+  locationCode: z.number().int().positive().optional(),
+  languageCode: z.string().min(2).max(8).optional(),
+});
+
+export const refreshKeywordMagicMetricsSchema = z.object({
+  projectId: z.string().min(1),
+  runId: z.string().min(1),
+  keywords: z.array(z.string().min(1)).min(1).max(500),
+  locationCode: z.number().int().positive().optional(),
+  languageCode: z.string().min(2).max(8).optional(),
+});
+
+export type EstimateKeywordMagicInput = z.infer<
+  typeof estimateKeywordMagicSchema
+>;
+export type RunKeywordMagicInput = z.infer<typeof runKeywordMagicSchema>;
+export type GetKeywordMagicPageInput = z.infer<
+  typeof getKeywordMagicPageSchema
+>;
+export type ExportKeywordMagicInput = z.infer<typeof exportKeywordMagicSchema>;
+export type SaveKeywordMagicSelectionInput = z.infer<
+  typeof saveKeywordMagicSelectionSchema
+>;
+export type RefreshKeywordMagicMetricsInput = z.infer<
+  typeof refreshKeywordMagicMetricsSchema
+>;
 
 export type ResearchKeywordsInput = z.infer<typeof researchKeywordsSchema>;
 export type SaveKeywordsInput = z.infer<typeof saveKeywordsSchema>;
@@ -197,6 +317,8 @@ const keywordSortFields = [
   "cpc",
   "competition",
   "keywordDifficulty",
+  "wordCount",
+  "metricsUpdatedAt",
 ] as const;
 
 const keywordModes = ["auto", "related", "suggestions", "ideas"] as const;
@@ -217,4 +339,24 @@ export const keywordsSearchSchema = z.object({
   maxKd: z.string().optional(),
   include: z.string().optional(),
   exclude: z.string().optional(),
+  match: z
+    .enum(["all", "broad", "phrase", "exact", "related", "questions"])
+    .optional(),
+  cluster: z.string().optional(),
+  page: z.coerce.number().int().positive().optional(),
+  size: z
+    .union([z.literal(50), z.literal(100), z.literal(300), z.literal(500)])
+    .optional(),
+  scale: z
+    .union([
+      z.literal(1000),
+      z.literal(5000),
+      z.literal(10000),
+      z.literal(20000),
+    ])
+    .optional(),
+  minWords: z.string().optional(),
+  maxWords: z.string().optional(),
+  serp: z.string().optional(),
+  run: z.string().optional(),
 });

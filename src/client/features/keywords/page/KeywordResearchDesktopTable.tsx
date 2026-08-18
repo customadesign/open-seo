@@ -21,6 +21,16 @@ import { formatNumber } from "@/client/features/keywords/utils";
 import type { KeywordResearchRow } from "@/types/keywords";
 import { EmptyFilterResults } from "./keywordResearchFilters";
 
+function formatMetricsAge(value: string | null): string {
+  if (!value) return "-";
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return value;
+  const days = Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
+  if (days === 0) return "today";
+  if (days === 1) return "1 day";
+  return `${days} days`;
+}
+
 type Props = {
   activeFilterCount: number;
   filteredRows: KeywordResearchRow[];
@@ -126,8 +136,8 @@ export function KeywordResearchDesktopTable({
       keywordColumnHelper.accessor("competition", {
         header: () => (
           <SortHeader
-            label="Comp."
-            helpText="Paid-search competition from Google Ads (0-1): higher means more advertisers bidding."
+            label="Density"
+            helpText="Competitive density from paid search (0-1): higher means more advertisers bidding."
             field="competition"
             current={sortField}
             dir={sortDir}
@@ -148,7 +158,7 @@ export function KeywordResearchDesktopTable({
       keywordColumnHelper.accessor("keywordDifficulty", {
         header: () => (
           <SortHeader
-            label="Score"
+            label="KD%"
             helpText="Organic ranking difficulty (0-100): higher means harder to reach Google's top 10."
             field="keywordDifficulty"
             current={sortField}
@@ -166,6 +176,43 @@ export function KeywordResearchDesktopTable({
         meta: {
           headerClassName: "text-center",
           cellClassName: "whitespace-nowrap text-center",
+        },
+      }),
+      keywordColumnHelper.accessor("serpFeatures", {
+        header: "SERP features",
+        cell: ({ getValue }) => {
+          const features = getValue() ?? [];
+          return features.length === 0 ? (
+            "-"
+          ) : (
+            <span
+              className="block max-w-48 truncate"
+              title={features.join(", ")}
+            >
+              {features.join(", ")}
+            </span>
+          );
+        },
+        meta: {
+          headerClassName: "min-w-32",
+          cellClassName: "text-base-content/70",
+        },
+      }),
+      keywordColumnHelper.accessor("metricsUpdatedAt", {
+        header: () => (
+          <SortHeader
+            label="Age"
+            helpText="When the provider last refreshed these metrics."
+            field="metricsUpdatedAt"
+            current={sortField}
+            dir={sortDir}
+            onToggle={toggleSort}
+          />
+        ),
+        cell: ({ getValue }) => formatMetricsAge(getValue() ?? null),
+        meta: {
+          headerClassName: "text-right",
+          cellClassName: "whitespace-nowrap text-right text-base-content/70",
         },
       }),
     ],

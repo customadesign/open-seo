@@ -18,3 +18,4 @@ export * from "../local-seo.schema";
 export * from "../ai-visibility.schema";
 export * from "../rank-tracking.schema";
 export * from "../gap.schema";
+export * from "../keyword-magic.schema";

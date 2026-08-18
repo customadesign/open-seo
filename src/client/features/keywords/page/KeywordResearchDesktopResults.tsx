@@ -1,13 +1,23 @@
+/* eslint-disable max-lines */
 import {
   ChevronDown,
   Download,
   FileDown,
   Globe,
+  RefreshCw,
   RotateCcw,
   Save,
   Sheet,
   SlidersHorizontal,
 } from "lucide-react";
+import { toast } from "sonner";
+import { getStandardErrorMessage } from "@/client/lib/error-messages";
+import {
+  exportKeywordMagic,
+  refreshKeywordMagicMetrics,
+} from "@/serverFunctions/keywords";
+import { parseIntentFilter } from "@/client/features/keywords/keywordResearchTypes";
+import { parseTerms } from "@/client/features/keywords/utils";
 import {
   downloadKeywordResearchCsv,
   KEYWORD_RESEARCH_HEADERS,
@@ -28,10 +38,12 @@ import {
   FilterTextInput,
 } from "./keywordResearchFilters";
 import { KeywordResearchDesktopTable } from "./KeywordResearchDesktopTable";
+import { KeywordResearchPagination } from "./KeywordResearchPagination";
 import {
-  KeywordResearchPagination,
-  useKeywordResearchPagination,
-} from "./KeywordResearchPagination";
+  KEYWORD_MAGIC_MATCH_TYPES,
+  KEYWORD_MAGIC_MATCH_TYPE_LABELS,
+} from "@/shared/keyword-magic";
+import { useKeywordSearchParams } from "@/client/features/keywords/state/keywordControllerInternals";
 import {
   TableBulkActionBar,
   TableBulkActionButton,
@@ -124,20 +136,23 @@ function DesktopTableCard({ controller }: Props) {
   const {
     activeFilterCount,
     filteredRows,
-    rows,
     selectedRows,
     sheetsExportRows,
     showFilters,
+    clusters,
+    totalCount,
+    matchType,
+    clusterId,
+    page,
+    pageSize,
   } = controller;
-  const { page, pageSize, pageRows, setPage, setPageSize } =
-    useKeywordResearchPagination(filteredRows);
+  const setSearchParams = useKeywordSearchParams();
+  const pageRows = filteredRows;
 
   const keywordCountLabel =
     selectedRows.size > 0
-      ? `${selectedRows.size} of ${filteredRows.length} selected`
-      : activeFilterCount > 0
-        ? `Showing ${filteredRows.length} of ${rows.length} keywords`
-        : `Showing ${filteredRows.length} keywords`;
+      ? `${selectedRows.size} of ${totalCount.toLocaleString()} selected`
+      : `Showing ${filteredRows.length.toLocaleString()} of ${totalCount.toLocaleString()} keywords`;
 
   const canExport = filteredRows.length > 0;
   const selectedExportRows = filteredRows
@@ -168,6 +183,43 @@ function DesktopTableCard({ controller }: Props) {
 
   return (
     <div className="flex-1 flex flex-col min-w-0 border border-base-300 rounded-xl bg-base-100 overflow-hidden">
+      <div className="shrink-0 flex flex-wrap gap-1 px-4 py-2 border-b border-base-300">
+        {KEYWORD_MAGIC_MATCH_TYPES.map((type) => (
+          <button
+            key={type}
+            type="button"
+            className={`btn btn-xs ${matchType === type ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setSearchParams({ match: type, page: undefined })}
+          >
+            {KEYWORD_MAGIC_MATCH_TYPE_LABELS[type]}
+          </button>
+        ))}
+      </div>
+      {clusters.length > 0 ? (
+        <div className="shrink-0 flex flex-wrap gap-1 px-4 py-2 border-b border-base-300">
+          <button
+            type="button"
+            className={`btn btn-xs ${clusterId ? "btn-ghost" : "btn-active"}`}
+            onClick={() =>
+              setSearchParams({ cluster: undefined, page: undefined })
+            }
+          >
+            All topics
+          </button>
+          {clusters.map((cluster) => (
+            <button
+              key={cluster.id}
+              type="button"
+              className={`btn btn-xs ${clusterId === cluster.id ? "btn-primary" : "btn-ghost"}`}
+              onClick={() =>
+                setSearchParams({ cluster: cluster.id, page: undefined })
+              }
+            >
+              {cluster.name} ({cluster.keywordCount})
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-base-300">
         <button
           className={`btn btn-ghost btn-sm gap-1.5 ${showFilters ? "btn-active" : ""}`}
@@ -207,7 +259,37 @@ function DesktopTableCard({ controller }: Props) {
               </button>
             </li>
             <li>
-              <button onClick={controller.exportCsv} disabled={!canExport}>
+              <button
+                onClick={() => {
+                  if (!controller.runId) return;
+                  void exportKeywordMagic({
+                    data: {
+                      projectId: controller.projectId,
+                      runId: controller.runId,
+                      matchType: controller.matchType,
+                      clusterId: controller.clusterId,
+                      includeTerms: parseTerms(controller.filterValues.include),
+                      excludeTerms: parseTerms(controller.filterValues.exclude),
+                      intents: parseIntentFilter(
+                        controller.filterValues.intents,
+                      ),
+                      sort: controller.sortField,
+                      order: controller.sortDir,
+                    },
+                  }).then((result) => {
+                    downloadKeywordResearchCsv(
+                      result.rows.map((row) =>
+                        keywordResearchExportRow({ ...row, trend: [] }),
+                      ),
+                    );
+                    captureClientEvent("data:export", {
+                      source_feature: "keyword_research",
+                      result_count: result.rows.length,
+                    });
+                  });
+                }}
+                disabled={!canExport}
+              >
                 <FileDown className="size-4" />
                 Export CSV
               </button>
@@ -226,6 +308,29 @@ function DesktopTableCard({ controller }: Props) {
               onClick={controller.handleSaveKeywords}
             >
               Save Keywords
+            </TableBulkActionButton>
+            <TableBulkActionButton
+              icon={<RefreshCw className="size-3.5" />}
+              onClick={() => {
+                if (!controller.runId) return;
+                void refreshKeywordMagicMetrics({
+                  data: {
+                    projectId: controller.projectId,
+                    runId: controller.runId,
+                    keywords: [...selectedRows],
+                  },
+                })
+                  .then((result) => {
+                    toast.success(`Refreshed ${result.updated} keywords`);
+                  })
+                  .catch((error: unknown) => {
+                    toast.error(
+                      getStandardErrorMessage(error, "Refresh failed."),
+                    );
+                  });
+              }}
+            >
+              Refresh metrics
             </TableBulkActionButton>
             <TableBulkExportMenu
               actions={[
@@ -258,13 +363,15 @@ function DesktopTableCard({ controller }: Props) {
         resetFilters={controller.resetFilters}
         handleRowClick={controller.handleRowClick}
       />
-      {filteredRows.length > 0 ? (
+      {totalCount > 0 ? (
         <KeywordResearchPagination
           page={page}
           pageSize={pageSize}
-          totalCount={filteredRows.length}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          totalCount={totalCount}
+          onPageChange={(nextPage) => setSearchParams({ page: nextPage })}
+          onPageSizeChange={(nextSize) =>
+            setSearchParams({ size: nextSize, page: undefined })
+          }
         />
       ) : null}
     </div>
@@ -273,6 +380,7 @@ function DesktopTableCard({ controller }: Props) {
 
 function DesktopFilters({ controller }: Props) {
   const { activeFilterCount, filtersForm } = controller;
+  const setSearchParams = useKeywordSearchParams();
 
   return (
     <div className="shrink-0 border-b border-base-300 bg-gradient-to-b from-base-100 to-base-200/30 px-4 py-3 space-y-3">
@@ -333,6 +441,56 @@ function DesktopFilters({ controller }: Props) {
       </div>
 
       <FilterIntentSelect form={filtersForm} />
+
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <label className="form-control gap-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60">
+            Word count
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              className="input input-bordered input-xs bg-base-100"
+              placeholder="Min"
+              type="number"
+              defaultValue={controller.minWordCount ?? ""}
+              onBlur={(event) =>
+                setSearchParams({
+                  minWords: event.target.value || undefined,
+                  page: undefined,
+                })
+              }
+            />
+            <input
+              className="input input-bordered input-xs bg-base-100"
+              placeholder="Max"
+              type="number"
+              defaultValue={controller.maxWordCount ?? ""}
+              onBlur={(event) =>
+                setSearchParams({
+                  maxWords: event.target.value || undefined,
+                  page: undefined,
+                })
+              }
+            />
+          </div>
+        </label>
+        <label className="form-control gap-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60">
+            SERP features
+          </span>
+          <input
+            className="input input-bordered input-sm bg-base-100"
+            placeholder="featured_snippet, people_also_ask"
+            defaultValue={controller.serpFeatures ?? ""}
+            onBlur={(event) =>
+              setSearchParams({
+                serp: event.target.value || undefined,
+                page: undefined,
+              })
+            }
+          />
+        </label>
+      </div>
     </div>
   );
 }

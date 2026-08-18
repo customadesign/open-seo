@@ -21,6 +21,12 @@ const toolCategories: ToolCategory[] = [
         description: "Get keyword ideas with volume, difficulty, and CPC.",
       },
       {
+        name: "research_keyword_clusters",
+        title: "Research clustered keywords",
+        description:
+          "Expand a seed into topic clusters with volume, KD, and CPC.",
+      },
+      {
         name: "get_rank_tracker",
         title: "Get rank tracking positions",
         description: "Read tracked keyword positions.",

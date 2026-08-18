@@ -3,6 +3,7 @@ import type {
   KeywordMode,
   ResultLimit,
 } from "@/client/features/keywords/keywordResearchTypes";
+import type { KeywordMagicMatchType } from "@/shared/keyword-magic";
 
 type KeywordSearchParams = {
   q?: string;
@@ -87,7 +88,20 @@ export function normalizeSortField(value: string): SortField {
   if (value === "cpc") return "cpc";
   if (value === "competition") return "competition";
   if (value === "keywordDifficulty") return "keywordDifficulty";
+  if (value === "wordCount") return "wordCount";
+  if (value === "metricsUpdatedAt") return "metricsUpdatedAt";
   return "searchVolume";
+}
+
+export function normalizeMatchType(
+  value: string | undefined,
+): KeywordMagicMatchType {
+  if (value === "broad") return "broad";
+  if (value === "phrase") return "phrase";
+  if (value === "exact") return "exact";
+  if (value === "related") return "related";
+  if (value === "questions") return "questions";
+  return "all";
 }
 
 export function normalizeSortDir(value: string): SortDir {

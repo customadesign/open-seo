@@ -24,6 +24,7 @@ import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as sqliteRankTracking from "./rank-tracking.schema";
 import * as sqliteChangeEvents from "./change-events.schema";
 import * as sqliteGap from "./gap.schema";
+import * as sqliteKeywordMagic from "./keyword-magic.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -41,6 +42,7 @@ import * as pgAiVisibility from "./pg/ai-visibility.schema";
 import * as pgRankTracking from "./pg/rank-tracking.schema";
 import * as pgChangeEvents from "./pg/change-events.schema";
 import * as pgGap from "./pg/gap.schema";
+import * as pgKeywordMagic from "./pg/keyword-magic.schema";
 
 // Guards the ONE structural artifact `db:generate` does not regenerate: the
 // hand-written Postgres schema. The provider-aware `db`/`@/db/schema` barrel
@@ -179,6 +181,7 @@ const sqliteAppTables = tablesFrom(
   sqliteRankTracking,
   sqliteChangeEvents,
   sqliteGap,
+  sqliteKeywordMagic,
 );
 const pgAppTables = tablesFrom(
   pgApp,
@@ -197,6 +200,7 @@ const pgAppTables = tablesFrom(
   pgRankTracking,
   pgChangeEvents,
   pgGap,
+  pgKeywordMagic,
 );
 const sqliteAuthTables = tablesFrom(sqliteAuth);
 const pgAuthTables = tablesFrom(pgAuth);
