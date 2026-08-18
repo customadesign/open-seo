@@ -13,6 +13,7 @@ import {
   MapPinned,
   FileBarChart,
   FileText,
+  ListChecks,
   MessageSquare,
   Search,
   Sparkles,
@@ -89,6 +90,9 @@ const projectNavItems = [
     to: "/p/$projectId/log-files" as const,
     label: "Log Files",
     icon: FileText,
+    to: "/p/$projectId/on-page" as const,
+    label: "On-page Ideas",
+    icon: ListChecks,
   },
   {
     to: "/p/$projectId/reports" as const,
@@ -171,6 +175,7 @@ export function getProjectNavGroups(
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
         byPath("/p/$projectId/log-files"),
+        byPath("/p/$projectId/on-page"),
         byPath("/p/$projectId/ai-visibility"),
         byPath("/p/$projectId/reports"),
       ],
@@ -193,6 +198,7 @@ export function getProjectNavGroups(
                 item.to === "/p/$projectId/saved" ||
                 item.to === "/p/$projectId/audit" ||
                 item.to === "/p/$projectId/log-files" ||
+                item.to === "/p/$projectId/on-page" ||
                 item.to === "/p/$projectId/reports",
             ),
           }

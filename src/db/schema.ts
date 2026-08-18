@@ -18,6 +18,7 @@ import * as sqliteChangeEvents from "./change-events.schema";
 import * as sqliteGap from "./gap.schema";
 import * as sqliteKeywordMagic from "./keyword-magic.schema";
 import * as sqliteLogFiles from "./log-files.schema";
+import * as sqliteOnPage from "./on-page.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -37,6 +38,7 @@ import * as pgChangeEvents from "./pg/change-events.schema";
 import * as pgGap from "./pg/gap.schema";
 import * as pgKeywordMagic from "./pg/keyword-magic.schema";
 import * as pgLogFiles from "./pg/log-files.schema";
+import * as pgOnPage from "./pg/on-page.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -66,7 +68,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteChangeEvents &
   typeof sqliteGap &
   typeof sqliteKeywordMagic &
-  typeof sqliteLogFiles;
+  typeof sqliteLogFiles &
+  typeof sqliteOnPage;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -90,6 +93,7 @@ const runtimeSchema =
         ...pgGap,
         ...pgKeywordMagic,
         ...pgLogFiles,
+        ...pgOnPage,
       }
     : {
         ...sqliteApp,
@@ -111,6 +115,7 @@ const runtimeSchema =
         ...sqliteGap,
         ...sqliteKeywordMagic,
         ...sqliteLogFiles,
+        ...sqliteOnPage,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -199,4 +204,9 @@ export const {
   keywordMagicClusters,
   keywordMagicKeywords,
   keywordMagicSerpFeatures,
+  onPageTargetPages,
+  onPageTargetKeywords,
+  onPageIdeas,
+  onPageSerpCache,
+  onPageRuns,
 } = schema;

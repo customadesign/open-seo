@@ -27,6 +27,7 @@ import {
   isoEndTimestamp,
   loadAiVisibility,
   loadLocalGeoGrid,
+  loadOnPageIdeas,
   type DateRange,
   type SectionLoadResult,
 } from "./storedReportSections";
@@ -529,4 +530,5 @@ export function loadReportSection(
   if (key === "ai_visibility") return loadAiVisibility(projectId, range);
   if (key === "local_geo_grid") return loadLocalGeoGrid(projectId, range);
   return loadTrafficInsights(projectId, range);
+  return loadOnPageIdeas(projectId, range);
 }

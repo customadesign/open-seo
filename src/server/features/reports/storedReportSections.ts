@@ -18,6 +18,9 @@ import {
   geoGridConfigs,
   geoGridRuns,
   localBusinessProfiles,
+  onPageIdeas,
+  onPageRuns,
+  onPageTargetPages,
 } from "@/db/schema";
 import type { ReportSnapshot } from "@/types/schemas/reports";
 
@@ -336,4 +339,94 @@ export async function loadLocalGeoGrid(
           data: { configs: loaded, unavailable },
         },
       };
+}
+
+export async function loadOnPageIdeas(
+  projectId: string,
+  range: DateRange,
+): Promise<SectionLoadResult> {
+  const pages = await db
+    .select({
+      id: onPageTargetPages.id,
+      url: onPageTargetPages.url,
+    })
+    .from(onPageTargetPages)
+    .where(eq(onPageTargetPages.projectId, projectId));
+  if (pages.length === 0)
+    return { status: "omitted", reason: "not_configured" };
+
+  const cutoff = isoEndTimestamp(range.periodEnd);
+  const [ideas, latestRun] = await Promise.all([
+    db
+      .select({
+        targetPageId: onPageIdeas.targetPageId,
+        bucket: onPageIdeas.bucket,
+        resolvedAt: onPageIdeas.resolvedAt,
+        lastSeenAt: onPageIdeas.lastSeenAt,
+      })
+      .from(onPageIdeas)
+      .where(
+        and(
+          eq(onPageIdeas.projectId, projectId),
+          lte(onPageIdeas.detectedAt, cutoff),
+        ),
+      ),
+    db
+      .select({
+        completedAt: onPageRuns.completedAt,
+        startedAt: onPageRuns.startedAt,
+      })
+      .from(onPageRuns)
+      .where(
+        and(
+          eq(onPageRuns.projectId, projectId),
+          eq(onPageRuns.status, "completed"),
+          isNotNull(onPageRuns.completedAt),
+          lte(onPageRuns.completedAt, cutoff),
+        ),
+      )
+      .orderBy(desc(onPageRuns.completedAt))
+      .limit(1),
+  ]);
+
+  const capturedAt = latestRun[0]?.completedAt ?? latestRun[0]?.startedAt;
+  if (!capturedAt && ideas.length === 0) {
+    return { status: "omitted", reason: "no_data" };
+  }
+
+  const byBucket = new Map<string, number>();
+  const byPage = new Map<string, number>();
+  let unresolvedIdeas = 0;
+  for (const idea of ideas) {
+    if (idea.resolvedAt && idea.resolvedAt <= cutoff) continue;
+    unresolvedIdeas += 1;
+    byBucket.set(idea.bucket, (byBucket.get(idea.bucket) ?? 0) + 1);
+    byPage.set(idea.targetPageId, (byPage.get(idea.targetPageId) ?? 0) + 1);
+  }
+
+  const urlById = new Map(pages.map((page) => [page.id, page.url]));
+  const topPages = [...byPage.entries()]
+    .map(([pageId, ideaCount]) => ({
+      url: urlById.get(pageId) ?? pageId,
+      ideaCount,
+    }))
+    .toSorted((a, b) => b.ideaCount - a.ideaCount)
+    .slice(0, 8);
+
+  return {
+    status: "loaded",
+    section: {
+      key: "on_page_ideas",
+      data: {
+        freshness: freshness(capturedAt ?? range.periodEnd, range),
+        totalIdeas: ideas.length,
+        unresolvedIdeas,
+        byBucket: [...byBucket.entries()].map(([bucket, count]) => ({
+          bucket,
+          count,
+        })),
+        topPages,
+      },
+    },
+  };
 }

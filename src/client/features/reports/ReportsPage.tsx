@@ -598,6 +598,48 @@ function ReportSection({ section }: { section: SnapshotSection }) {
   if (section.key === "local_geo_grid")
     return <LocalGeoGridSection data={section.data} />;
   return <TrafficInsightsSection data={section.data} />;
+  return <OnPageIdeasSection data={section.data} />;
+}
+
+function OnPageIdeasSection({
+  data,
+}: {
+  data: Extract<SnapshotSection, { key: "on_page_ideas" }>["data"];
+}) {
+  return (
+    <SectionShell title="On-page ideas">
+      <p className="text-xs text-base-content/50">
+        {freshnessLabel(data.freshness)}
+      </p>
+      <MetricGrid
+        metrics={[
+          { label: "Unresolved ideas", current: data.unresolvedIdeas },
+          { label: "Ideas recorded", current: data.totalIdeas },
+        ]}
+      />
+      <ul className="space-y-1 text-sm">
+        {data.byBucket.map((row) => (
+          <li key={row.bucket}>
+            {row.bucket}: {row.count}
+          </li>
+        ))}
+      </ul>
+      {data.topPages.length > 0 ? (
+        <div>
+          <p className="text-xs font-semibold uppercase text-base-content/60">
+            Top pages
+          </p>
+          <ul className="mt-1 space-y-1 text-sm">
+            {data.topPages.map((page) => (
+              <li key={page.url}>
+                {page.url} — {page.ideaCount}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </SectionShell>
+  );
 }
 
 function UnavailableList({

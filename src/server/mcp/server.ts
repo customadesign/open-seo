@@ -65,6 +65,7 @@ import {
   getAuditStatusTool,
   runSiteAuditTool,
 } from "@/server/mcp/tools/site-audit-tools";
+import { getOnPageIdeasTool } from "@/server/mcp/tools/get-on-page-ideas";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 import {
   getCitationAuditsTool,
@@ -222,6 +223,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getAuditIssuesTool);
   register(getAuditPagesTool);
   register(getCrawlBudgetTool);
+  register(getOnPageIdeasTool);
 
   return server;
 }

@@ -361,6 +361,22 @@ const trafficInsightsSectionSchema = z.object({
     }),
   ),
   warnings: z.array(z.string()),
+const onPageIdeasSectionSchema = z.object({
+  freshness: sectionFreshnessSchema,
+  totalIdeas: z.number().int(),
+  unresolvedIdeas: z.number().int(),
+  byBucket: z.array(
+    z.object({
+      bucket: z.string(),
+      count: z.number().int(),
+    }),
+  ),
+  topPages: z.array(
+    z.object({
+      url: z.string(),
+      ideaCount: z.number().int(),
+    }),
+  ),
 });
 
 const localGeoGridSectionSchema = z.object({
@@ -418,6 +434,8 @@ export const reportSnapshotSchema = z.object({
       z.object({
         key: z.literal("traffic_insights"),
         data: trafficInsightsSectionSchema,
+        key: z.literal("on_page_ideas"),
+        data: onPageIdeasSectionSchema,
       }),
     ]),
   ),

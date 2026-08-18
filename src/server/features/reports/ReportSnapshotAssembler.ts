@@ -205,6 +205,14 @@ function buildEvidence(
         direction: withRank.length === 0 ? "neutral" : direction(change),
       });
     }
+    if (section.key === "on_page_ideas") {
+      evidence.push({
+        key: "on_page_ideas.unresolved",
+        label: "Unresolved on-page ideas",
+        value: formatNumber(section.data.unresolvedIdeas),
+        direction: section.data.unresolvedIdeas === 0 ? "positive" : "negative",
+      });
+    }
   }
   return evidence.slice(0, 12);
 }

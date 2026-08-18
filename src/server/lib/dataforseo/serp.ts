@@ -107,6 +107,7 @@ export async function fetchLiveSerp(input: {
   keyword: string;
   locationCode: number;
   languageCode: string;
+  depth?: number;
 }): Promise<DataforseoApiResponse<SerpLiveItem[]>> {
   const response = await serpApi().googleOrganicLiveAdvanced([
     new SerpGoogleOrganicLiveAdvancedRequestInfo({
@@ -115,7 +116,7 @@ export async function fetchLiveSerp(input: {
       language_code: input.languageCode,
       device: "desktop",
       os: "windows",
-      depth: 100,
+      depth: clampSerpDepth(input.depth ?? 100),
     }),
   ]);
   const task = assertOk(response);

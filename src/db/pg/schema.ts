@@ -17,3 +17,4 @@ export * from "./rank-tracking.schema";
 export * from "./gap.schema";
 export * from "./keyword-magic.schema";
 export * from "./log-files.schema";
+export * from "./on-page.schema";

@@ -41,23 +41,20 @@ import { Route as ApiGscOauthCallbackRouteImport } from './routes/api/gsc/oauth/
 import { Route as ApiGoogleAdsOauthCallbackRouteImport } from './routes/api/google-ads/oauth/callback'
 import { Route as ApiGa4OauthCallbackRouteImport } from './routes/api/ga4/oauth/callback'
 import { Route as ProjectPProjectIdSettingsRouteImport } from './routes/_project/p/$projectId/settings'
-import { Route as ProjectPProjectIdTrafficInsightsRouteImport } from './routes/_project/p/$projectId/traffic-insights'
 import { Route as ProjectPProjectIdSearchPerformanceRouteImport } from './routes/_project/p/$projectId/search-performance'
 import { Route as ProjectPProjectIdSavedRouteImport } from './routes/_project/p/$projectId/saved'
 import { Route as ProjectPProjectIdSamRouteImport } from './routes/_project/p/$projectId/sam'
 import { Route as ProjectPProjectIdReportsRouteImport } from './routes/_project/p/$projectId/reports'
-import { Route as ProjectPProjectIdLogFilesRouteImport } from './routes/_project/p/$projectId/log-files'
 import { Route as ProjectPProjectIdRankTrackingRouteImport } from './routes/_project/p/$projectId/rank-tracking'
 import { Route as ProjectPProjectIdPromptExplorerRouteImport } from './routes/_project/p/$projectId/prompt-explorer'
 import { Route as ProjectPProjectIdLocalSeoRouteImport } from './routes/_project/p/$projectId/local-seo'
 import { Route as ProjectPProjectIdKeywordsRouteImport } from './routes/_project/p/$projectId/keywords'
 import { Route as ProjectPProjectIdDomainRouteImport } from './routes/_project/p/$projectId/domain'
-import { Route as ProjectPProjectIdKeywordGapRouteImport } from './routes/_project/p/$projectId/keyword-gap'
 import { Route as ProjectPProjectIdBrandLookupRouteImport } from './routes/_project/p/$projectId/brand-lookup'
 import { Route as ProjectPProjectIdBacklinksRouteImport } from './routes/_project/p/$projectId/backlinks'
-import { Route as ProjectPProjectIdBacklinkGapRouteImport } from './routes/_project/p/$projectId/backlink-gap'
 import { Route as ProjectPProjectIdAuditRouteImport } from './routes/_project/p/$projectId/audit'
 import { Route as ProjectPProjectIdAiVisibilityRouteImport } from './routes/_project/p/$projectId/ai-visibility'
+import { Route as ProjectPProjectIdOnPageRouteImport } from './routes/_project/p/$projectId/on-page'
 import { Route as ProjectPProjectIdRankTrackingIndexRouteImport } from './routes/_project/p/$projectId/rank-tracking/index'
 import { Route as ProjectPProjectIdAuditIndexRouteImport } from './routes/_project/p/$projectId/audit/index'
 import { Route as ProjectPProjectIdRankTrackingConfigIdRouteImport } from './routes/_project/p/$projectId/rank-tracking/$configId'
@@ -225,12 +222,6 @@ const ProjectPProjectIdSettingsRoute =
     path: '/settings',
     getParentRoute: () => ProjectPProjectIdRouteRoute,
   } as any)
-const ProjectPProjectIdTrafficInsightsRoute =
-  ProjectPProjectIdTrafficInsightsRouteImport.update({
-    id: '/traffic-insights',
-    path: '/traffic-insights',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
 const ProjectPProjectIdSearchPerformanceRoute =
   ProjectPProjectIdSearchPerformanceRouteImport.update({
     id: '/search-performance',
@@ -251,12 +242,6 @@ const ProjectPProjectIdReportsRoute =
   ProjectPProjectIdReportsRouteImport.update({
     id: '/reports',
     path: '/reports',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
-const ProjectPProjectIdLogFilesRoute =
-  ProjectPProjectIdLogFilesRouteImport.update({
-    id: '/log-files',
-    path: '/log-files',
     getParentRoute: () => ProjectPProjectIdRouteRoute,
   } as any)
 const ProjectPProjectIdRankTrackingRoute =
@@ -288,12 +273,6 @@ const ProjectPProjectIdDomainRoute = ProjectPProjectIdDomainRouteImport.update({
   path: '/domain',
   getParentRoute: () => ProjectPProjectIdRouteRoute,
 } as any)
-const ProjectPProjectIdKeywordGapRoute =
-  ProjectPProjectIdKeywordGapRouteImport.update({
-    id: '/keyword-gap',
-    path: '/keyword-gap',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
 const ProjectPProjectIdBrandLookupRoute =
   ProjectPProjectIdBrandLookupRouteImport.update({
     id: '/brand-lookup',
@@ -304,12 +283,6 @@ const ProjectPProjectIdBacklinksRoute =
   ProjectPProjectIdBacklinksRouteImport.update({
     id: '/backlinks',
     path: '/backlinks',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
-const ProjectPProjectIdBacklinkGapRoute =
-  ProjectPProjectIdBacklinkGapRouteImport.update({
-    id: '/backlink-gap',
-    path: '/backlink-gap',
     getParentRoute: () => ProjectPProjectIdRouteRoute,
   } as any)
 const ProjectPProjectIdAuditRoute = ProjectPProjectIdAuditRouteImport.update({
@@ -323,6 +296,11 @@ const ProjectPProjectIdAiVisibilityRoute =
     path: '/ai-visibility',
     getParentRoute: () => ProjectPProjectIdRouteRoute,
   } as any)
+const ProjectPProjectIdOnPageRoute = ProjectPProjectIdOnPageRouteImport.update({
+  id: '/on-page',
+  path: '/on-page',
+  getParentRoute: () => ProjectPProjectIdRouteRoute,
+} as any)
 const ProjectPProjectIdRankTrackingIndexRoute =
   ProjectPProjectIdRankTrackingIndexRouteImport.update({
     id: '/',
@@ -372,15 +350,13 @@ export interface FileRoutesByFullPath {
   '/api/autumn/$': typeof ApiAutumnSplatRoute
   '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/p/$projectId/ai-visibility': typeof ProjectPProjectIdAiVisibilityRoute
+  '/p/$projectId/on-page': typeof ProjectPProjectIdOnPageRoute
   '/p/$projectId/audit': typeof ProjectPProjectIdAuditRouteWithChildren
-  '/p/$projectId/backlink-gap': typeof ProjectPProjectIdBacklinkGapRoute
   '/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
   '/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
   '/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/p/$projectId/keyword-gap': typeof ProjectPProjectIdKeywordGapRoute
   '/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/p/$projectId/local-seo': typeof ProjectPProjectIdLocalSeoRoute
-  '/p/$projectId/log-files': typeof ProjectPProjectIdLogFilesRoute
   '/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingRouteWithChildren
   '/p/$projectId/reports': typeof ProjectPProjectIdReportsRoute
@@ -388,7 +364,6 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
   '/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
-  '/p/$projectId/traffic-insights': typeof ProjectPProjectIdTrafficInsightsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
@@ -422,21 +397,18 @@ export interface FileRoutesByTo {
   '/api/autumn/$': typeof ApiAutumnSplatRoute
   '/onboarding': typeof AuthenticatedOnboardingIndexRoute
   '/p/$projectId/ai-visibility': typeof ProjectPProjectIdAiVisibilityRoute
-  '/p/$projectId/backlink-gap': typeof ProjectPProjectIdBacklinkGapRoute
+  '/p/$projectId/on-page': typeof ProjectPProjectIdOnPageRoute
   '/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
   '/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
   '/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/p/$projectId/keyword-gap': typeof ProjectPProjectIdKeywordGapRoute
   '/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/p/$projectId/local-seo': typeof ProjectPProjectIdLocalSeoRoute
-  '/p/$projectId/log-files': typeof ProjectPProjectIdLogFilesRoute
   '/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/p/$projectId/reports': typeof ProjectPProjectIdReportsRoute
   '/p/$projectId/sam': typeof ProjectPProjectIdSamRoute
   '/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
   '/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
-  '/p/$projectId/traffic-insights': typeof ProjectPProjectIdTrafficInsightsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
@@ -476,15 +448,13 @@ export interface FileRoutesById {
   '/api/autumn/$': typeof ApiAutumnSplatRoute
   '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/_project/p/$projectId/ai-visibility': typeof ProjectPProjectIdAiVisibilityRoute
+  '/_project/p/$projectId/on-page': typeof ProjectPProjectIdOnPageRoute
   '/_project/p/$projectId/audit': typeof ProjectPProjectIdAuditRouteWithChildren
-  '/_project/p/$projectId/backlink-gap': typeof ProjectPProjectIdBacklinkGapRoute
   '/_project/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
   '/_project/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
   '/_project/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/_project/p/$projectId/keyword-gap': typeof ProjectPProjectIdKeywordGapRoute
   '/_project/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/_project/p/$projectId/local-seo': typeof ProjectPProjectIdLocalSeoRoute
-  '/_project/p/$projectId/log-files': typeof ProjectPProjectIdLogFilesRoute
   '/_project/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/_project/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingRouteWithChildren
   '/_project/p/$projectId/reports': typeof ProjectPProjectIdReportsRoute
@@ -492,7 +462,6 @@ export interface FileRoutesById {
   '/_project/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
   '/_project/p/$projectId/search-performance': typeof ProjectPProjectIdSearchPerformanceRoute
   '/_project/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
-  '/_project/p/$projectId/traffic-insights': typeof ProjectPProjectIdTrafficInsightsRoute
   '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/google-ads/oauth/callback': typeof ApiGoogleAdsOauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
@@ -529,15 +498,13 @@ export interface FileRouteTypes {
     | '/api/autumn/$'
     | '/onboarding/'
     | '/p/$projectId/ai-visibility'
+    | '/p/$projectId/on-page'
     | '/p/$projectId/audit'
-    | '/p/$projectId/backlink-gap'
     | '/p/$projectId/backlinks'
     | '/p/$projectId/brand-lookup'
     | '/p/$projectId/domain'
-    | '/p/$projectId/keyword-gap'
     | '/p/$projectId/keywords'
     | '/p/$projectId/local-seo'
-    | '/p/$projectId/log-files'
     | '/p/$projectId/prompt-explorer'
     | '/p/$projectId/rank-tracking'
     | '/p/$projectId/reports'
@@ -545,7 +512,6 @@ export interface FileRouteTypes {
     | '/p/$projectId/saved'
     | '/p/$projectId/search-performance'
     | '/p/$projectId/settings'
-    | '/p/$projectId/traffic-insights'
     | '/api/ga4/oauth/callback'
     | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
@@ -579,21 +545,18 @@ export interface FileRouteTypes {
     | '/api/autumn/$'
     | '/onboarding'
     | '/p/$projectId/ai-visibility'
-    | '/p/$projectId/backlink-gap'
+    | '/p/$projectId/on-page'
     | '/p/$projectId/backlinks'
     | '/p/$projectId/brand-lookup'
     | '/p/$projectId/domain'
-    | '/p/$projectId/keyword-gap'
     | '/p/$projectId/keywords'
     | '/p/$projectId/local-seo'
-    | '/p/$projectId/log-files'
     | '/p/$projectId/prompt-explorer'
     | '/p/$projectId/reports'
     | '/p/$projectId/sam'
     | '/p/$projectId/saved'
     | '/p/$projectId/search-performance'
     | '/p/$projectId/settings'
-    | '/p/$projectId/traffic-insights'
     | '/api/ga4/oauth/callback'
     | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
@@ -632,15 +595,13 @@ export interface FileRouteTypes {
     | '/api/autumn/$'
     | '/_authenticated/onboarding/'
     | '/_project/p/$projectId/ai-visibility'
+    | '/_project/p/$projectId/on-page'
     | '/_project/p/$projectId/audit'
-    | '/_project/p/$projectId/backlink-gap'
     | '/_project/p/$projectId/backlinks'
     | '/_project/p/$projectId/brand-lookup'
     | '/_project/p/$projectId/domain'
-    | '/_project/p/$projectId/keyword-gap'
     | '/_project/p/$projectId/keywords'
     | '/_project/p/$projectId/local-seo'
-    | '/_project/p/$projectId/log-files'
     | '/_project/p/$projectId/prompt-explorer'
     | '/_project/p/$projectId/rank-tracking'
     | '/_project/p/$projectId/reports'
@@ -648,7 +609,6 @@ export interface FileRouteTypes {
     | '/_project/p/$projectId/saved'
     | '/_project/p/$projectId/search-performance'
     | '/_project/p/$projectId/settings'
-    | '/_project/p/$projectId/traffic-insights'
     | '/api/ga4/oauth/callback'
     | '/api/google-ads/oauth/callback'
     | '/api/gsc/oauth/callback'
@@ -911,13 +871,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectPProjectIdSearchPerformanceRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
-    '/_project/p/$projectId/traffic-insights': {
-      id: '/_project/p/$projectId/traffic-insights'
-      path: '/traffic-insights'
-      fullPath: '/p/$projectId/traffic-insights'
-      preLoaderRoute: typeof ProjectPProjectIdTrafficInsightsRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
     '/_project/p/$projectId/saved': {
       id: '/_project/p/$projectId/saved'
       path: '/saved'
@@ -937,13 +890,6 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/p/$projectId/reports'
       preLoaderRoute: typeof ProjectPProjectIdReportsRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
-    '/_project/p/$projectId/log-files': {
-      id: '/_project/p/$projectId/log-files'
-      path: '/log-files'
-      fullPath: '/p/$projectId/log-files'
-      preLoaderRoute: typeof ProjectPProjectIdLogFilesRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
     '/_project/p/$projectId/rank-tracking': {
@@ -981,13 +927,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectPProjectIdDomainRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
-    '/_project/p/$projectId/keyword-gap': {
-      id: '/_project/p/$projectId/keyword-gap'
-      path: '/keyword-gap'
-      fullPath: '/p/$projectId/keyword-gap'
-      preLoaderRoute: typeof ProjectPProjectIdKeywordGapRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
     '/_project/p/$projectId/brand-lookup': {
       id: '/_project/p/$projectId/brand-lookup'
       path: '/brand-lookup'
@@ -1002,13 +941,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectPProjectIdBacklinksRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
-    '/_project/p/$projectId/backlink-gap': {
-      id: '/_project/p/$projectId/backlink-gap'
-      path: '/backlink-gap'
-      fullPath: '/p/$projectId/backlink-gap'
-      preLoaderRoute: typeof ProjectPProjectIdBacklinkGapRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
     '/_project/p/$projectId/audit': {
       id: '/_project/p/$projectId/audit'
       path: '/audit'
@@ -1021,6 +953,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-visibility'
       fullPath: '/p/$projectId/ai-visibility'
       preLoaderRoute: typeof ProjectPProjectIdAiVisibilityRouteImport
+      parentRoute: typeof ProjectPProjectIdRouteRoute
+    }
+    '/_project/p/$projectId/on-page': {
+      id: '/_project/p/$projectId/on-page'
+      path: '/on-page'
+      fullPath: '/p/$projectId/on-page'
+      preLoaderRoute: typeof ProjectPProjectIdOnPageRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
     '/_project/p/$projectId/rank-tracking/': {
@@ -1117,15 +1056,13 @@ const ProjectPProjectIdRankTrackingRouteWithChildren =
 
 interface ProjectPProjectIdRouteRouteChildren {
   ProjectPProjectIdAiVisibilityRoute: typeof ProjectPProjectIdAiVisibilityRoute
+  ProjectPProjectIdOnPageRoute: typeof ProjectPProjectIdOnPageRoute
   ProjectPProjectIdAuditRoute: typeof ProjectPProjectIdAuditRouteWithChildren
-  ProjectPProjectIdBacklinkGapRoute: typeof ProjectPProjectIdBacklinkGapRoute
   ProjectPProjectIdBacklinksRoute: typeof ProjectPProjectIdBacklinksRoute
   ProjectPProjectIdBrandLookupRoute: typeof ProjectPProjectIdBrandLookupRoute
   ProjectPProjectIdDomainRoute: typeof ProjectPProjectIdDomainRoute
-  ProjectPProjectIdKeywordGapRoute: typeof ProjectPProjectIdKeywordGapRoute
   ProjectPProjectIdKeywordsRoute: typeof ProjectPProjectIdKeywordsRoute
   ProjectPProjectIdLocalSeoRoute: typeof ProjectPProjectIdLocalSeoRoute
-  ProjectPProjectIdLogFilesRoute: typeof ProjectPProjectIdLogFilesRoute
   ProjectPProjectIdPromptExplorerRoute: typeof ProjectPProjectIdPromptExplorerRoute
   ProjectPProjectIdRankTrackingRoute: typeof ProjectPProjectIdRankTrackingRouteWithChildren
   ProjectPProjectIdReportsRoute: typeof ProjectPProjectIdReportsRoute
@@ -1133,22 +1070,19 @@ interface ProjectPProjectIdRouteRouteChildren {
   ProjectPProjectIdSavedRoute: typeof ProjectPProjectIdSavedRoute
   ProjectPProjectIdSearchPerformanceRoute: typeof ProjectPProjectIdSearchPerformanceRoute
   ProjectPProjectIdSettingsRoute: typeof ProjectPProjectIdSettingsRoute
-  ProjectPProjectIdTrafficInsightsRoute: typeof ProjectPProjectIdTrafficInsightsRoute
   ProjectPProjectIdIndexRoute: typeof ProjectPProjectIdIndexRoute
 }
 
 const ProjectPProjectIdRouteRouteChildren: ProjectPProjectIdRouteRouteChildren =
   {
     ProjectPProjectIdAiVisibilityRoute: ProjectPProjectIdAiVisibilityRoute,
+    ProjectPProjectIdOnPageRoute: ProjectPProjectIdOnPageRoute,
     ProjectPProjectIdAuditRoute: ProjectPProjectIdAuditRouteWithChildren,
-    ProjectPProjectIdBacklinkGapRoute: ProjectPProjectIdBacklinkGapRoute,
     ProjectPProjectIdBacklinksRoute: ProjectPProjectIdBacklinksRoute,
     ProjectPProjectIdBrandLookupRoute: ProjectPProjectIdBrandLookupRoute,
     ProjectPProjectIdDomainRoute: ProjectPProjectIdDomainRoute,
-    ProjectPProjectIdKeywordGapRoute: ProjectPProjectIdKeywordGapRoute,
     ProjectPProjectIdKeywordsRoute: ProjectPProjectIdKeywordsRoute,
     ProjectPProjectIdLocalSeoRoute: ProjectPProjectIdLocalSeoRoute,
-    ProjectPProjectIdLogFilesRoute: ProjectPProjectIdLogFilesRoute,
     ProjectPProjectIdPromptExplorerRoute: ProjectPProjectIdPromptExplorerRoute,
     ProjectPProjectIdRankTrackingRoute:
       ProjectPProjectIdRankTrackingRouteWithChildren,
@@ -1158,7 +1092,6 @@ const ProjectPProjectIdRouteRouteChildren: ProjectPProjectIdRouteRouteChildren =
     ProjectPProjectIdSearchPerformanceRoute:
       ProjectPProjectIdSearchPerformanceRoute,
     ProjectPProjectIdSettingsRoute: ProjectPProjectIdSettingsRoute,
-    ProjectPProjectIdTrafficInsightsRoute: ProjectPProjectIdTrafficInsightsRoute,
     ProjectPProjectIdIndexRoute: ProjectPProjectIdIndexRoute,
   }
 
