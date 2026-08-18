@@ -19,7 +19,7 @@ describe("runSitewideChecks", () => {
           allowed: false,
         },
       ],
-      llmsTxt: { available: false, statusCode: 404 },
+      llmsTxt: { available: false, statusCode: 404, text: null },
     });
 
     expect(issues).toMatchObject([
@@ -57,7 +57,11 @@ describe("runSitewideChecks", () => {
             allowed: true,
           },
         ],
-        llmsTxt: { available: true, statusCode: 200 },
+        llmsTxt: {
+          available: true,
+          statusCode: 200,
+          text: "# Site\n\n- [Home](/)",
+        },
       }),
     ).toEqual([]);
   });
@@ -66,7 +70,11 @@ describe("runSitewideChecks", () => {
     const issues = runSitewideChecks({
       origin: "https://example.com",
       aiCrawlerAccess: [],
-      llmsTxt: { available: true, statusCode: 200 },
+      llmsTxt: {
+        available: true,
+        statusCode: 200,
+        text: "# Site\n\n- [Home](/)",
+      },
       siteFiles: {
         robots: {
           found: true,
@@ -112,7 +120,11 @@ describe("runSitewideChecks", () => {
     const issues = runSitewideChecks({
       origin: "https://example.com",
       aiCrawlerAccess: [],
-      llmsTxt: { available: true, statusCode: 200 },
+      llmsTxt: {
+        available: true,
+        statusCode: 200,
+        text: "# Site\n\n- [Home](/)",
+      },
       siteFiles: {
         robots: {
           found: false,
@@ -141,5 +153,22 @@ describe("runSitewideChecks", () => {
       "robots-missing",
       "sitemap-missing",
     ]);
+  });
+
+  it("flags an available llms.txt that is not a usable text map", () => {
+    const issues = runSitewideChecks({
+      origin: "https://example.com",
+      aiCrawlerAccess: [],
+      llmsTxt: {
+        available: true,
+        statusCode: 200,
+        text: "<!DOCTYPE html><html><body>nope</body></html>",
+      },
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.issueType).toBe("llms-txt-formatting");
+    expect(issues[0]?.details?.problems).toEqual(
+      expect.arrayContaining(["html-document"]),
+    );
   });
 });

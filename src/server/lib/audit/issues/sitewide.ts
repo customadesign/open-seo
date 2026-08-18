@@ -58,6 +58,16 @@ export function runSitewideChecks(input: {
       pageUrl: `${input.origin}/llms.txt`,
       details: { statusCode: input.llmsTxt.statusCode },
     });
+  } else {
+    const formatIssues = llmsTxtFormatIssues(input.llmsTxt.text);
+    if (formatIssues.length > 0) {
+      issues.push({
+        issueType: "llms-txt-formatting",
+        pageId: null,
+        pageUrl: `${input.origin}/llms.txt`,
+        details: { problems: formatIssues },
+      });
+    }
   }
 
   if (input.siteFiles) {
@@ -65,6 +75,30 @@ export function runSitewideChecks(input: {
   }
 
   return issues;
+}
+
+/**
+ * llms.txt should be a short markdown-like map: a heading plus at least
+ * one markdown link, and not an HTML document. Presence is already
+ * checked separately.
+ */
+export function llmsTxtFormatIssues(text: string | null | undefined): string[] {
+  const problems: string[] = [];
+  const body = text?.trim() ?? "";
+  if (!body) {
+    problems.push("empty");
+    return problems;
+  }
+  if (/^<!doctype html|<html[\s>]/i.test(body)) {
+    problems.push("html-document");
+  }
+  if (!/^#\s+\S/m.test(body)) {
+    problems.push("missing-heading");
+  }
+  if (!/\[[^\]]+\]\([^)]+\)/.test(body)) {
+    problems.push("missing-markdown-link");
+  }
+  return problems;
 }
 
 function defaultSitemapUrl(origin: string): string {

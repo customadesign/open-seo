@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- per-check reporters share one page-result entry point */
 /**
  * Per-page issue reporters.
  *
@@ -11,8 +12,16 @@
 import type { AuditIssueType } from "@/shared/audit-issues";
 import type { CrawledPageResult } from "@/server/lib/audit/types";
 import {
+  CONTENT_OPTIMISATION_MAX_WORDS,
+  CONTENT_OPTIMISATION_MIN_WORDS,
   HTML_SIZE_TOO_LARGE_BYTES,
+  LINK_URL_TOO_LONG_CHARS,
+  LOW_SEMANTIC_HTML_MIN_ELEMENTS,
   LOW_TEXT_TO_HTML_RATIO,
+  OUTDATED_CONTENT_MAX_AGE_DAYS,
+  TOO_MANY_ON_PAGE_LINKS,
+  TOO_MANY_PAGE_ASSETS,
+  TOO_MUCH_CONTENT_WORDS,
   URL_TOO_LONG_CHARS,
   URL_TOO_MANY_PARAMETERS,
 } from "@/server/lib/audit/issues/thresholds";
@@ -94,6 +103,23 @@ const ENTITY_SCHEMA_TYPES = new Set([
   "restaurant",
   "travelagency",
 ]);
+const RESOURCE_LINK_EXTENSIONS = new Set([
+  "css",
+  "js",
+  "mjs",
+  "cjs",
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "svg",
+  "ico",
+  "avif",
+  "woff",
+  "woff2",
+]);
+
 const SOCIAL_SOURCE_HOSTS = [
   "facebook.com",
   "instagram.com",
@@ -250,6 +276,200 @@ function reportTechnicalReadiness(
   if (!page.htmlLang) report("missing-html-lang");
 }
 
+function linkPathExtension(targetUrl: string): string | null {
+  try {
+    const pathname = new URL(targetUrl).pathname;
+    const dot = pathname.lastIndexOf(".");
+    if (dot < 0) return null;
+    return pathname.slice(dot + 1).toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function reportLinkSignals(page: CrawledPageResult, report: ReportIssue) {
+  if (page.links.length > TOO_MANY_ON_PAGE_LINKS) {
+    report("too-many-on-page-links", { linkCount: page.links.length });
+  }
+
+  const longLinks = page.links.filter(
+    (link) => link.targetUrl.length > LINK_URL_TOO_LONG_CHARS,
+  );
+  if (longLinks.length > 0) {
+    report("link-url-too-long", {
+      count: longLinks.length,
+      examples: longLinks.slice(0, 5).map((link) => link.targetUrl),
+    });
+  }
+
+  const internalNofollow = page.links.filter(
+    (link) => link.isInternal && link.isNofollow,
+  );
+  if (internalNofollow.length > 0) {
+    report("internal-nofollow-outgoing", {
+      count: internalNofollow.length,
+      targetUrls: internalNofollow.slice(0, 5).map((link) => link.targetUrl),
+    });
+  }
+
+  const externalNofollow = page.links.filter(
+    (link) => !link.isInternal && link.isNofollow,
+  );
+  if (externalNofollow.length > 0) {
+    report("external-nofollow-outgoing", {
+      count: externalNofollow.length,
+      targetUrls: externalNofollow.slice(0, 5).map((link) => link.targetUrl),
+    });
+  }
+
+  const resourceLinks = page.links.filter((link) => {
+    const ext = linkPathExtension(link.targetUrl);
+    return ext !== null && RESOURCE_LINK_EXTENSIONS.has(ext);
+  });
+  if (resourceLinks.length > 0) {
+    report("resource-as-page-link", {
+      count: resourceLinks.length,
+      targetUrls: resourceLinks.slice(0, 5).map((link) => link.targetUrl),
+    });
+  }
+
+  if (page.malformedLinkHrefs.length > 0) {
+    report("malformed-link-url", {
+      count: page.malformedLinkHrefs.length,
+      hrefs: page.malformedLinkHrefs.slice(0, 5),
+    });
+  }
+}
+
+const HREFLANG_CODE =
+  /^(x-default|[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?)$/i;
+
+export function isValidHreflangCode(value: string): boolean {
+  return HREFLANG_CODE.test(value.trim());
+}
+
+function languagePrefix(value: string): string {
+  return value.trim().toLowerCase().split("-", 1)[0] ?? "";
+}
+
+function reportHreflangSignals(page: CrawledPageResult, report: ReportIssue) {
+  const links =
+    page.hreflangLinks.length > 0
+      ? page.hreflangLinks
+      : page.hreflangTags.map((lang) => ({ lang, href: null }));
+  if (links.length === 0) return;
+
+  const invalid = links.filter((link) => !isValidHreflangCode(link.lang));
+  if (invalid.length > 0) {
+    report("hreflang-value-error", {
+      values: invalid.map((link) => link.lang).slice(0, 8),
+    });
+  }
+
+  const byLang = new Map<string, Set<string>>();
+  const byHref = new Map<string, Set<string>>();
+  for (const link of links) {
+    const lang = link.lang.trim().toLowerCase();
+    const href = link.href;
+    const langHrefs = byLang.get(lang) ?? new Set<string>();
+    langHrefs.add(href ?? "");
+    byLang.set(lang, langHrefs);
+    if (href) {
+      const hrefLangs = byHref.get(href) ?? new Set<string>();
+      hrefLangs.add(lang);
+      byHref.set(href, hrefLangs);
+    }
+  }
+  const conflictingLangs = Array.from(byLang.entries())
+    .filter(([, hrefs]) => hrefs.size > 1)
+    .map(([lang]) => lang);
+  if (conflictingLangs.length > 0) {
+    report("hreflang-conflict", { languages: conflictingLangs });
+  }
+
+  const selfLangs = links
+    .filter((link) => link.href && link.href === page.url)
+    .map((link) => languagePrefix(link.lang))
+    .filter((lang) => lang && lang !== "x");
+  const htmlLang = page.htmlLang ? languagePrefix(page.htmlLang) : "";
+  if (htmlLang && selfLangs.length > 0 && !selfLangs.includes(htmlLang)) {
+    report("hreflang-language-mismatch", {
+      htmlLang: page.htmlLang,
+      hreflang: selfLangs,
+    });
+  }
+}
+
+function reportContentQuality(page: CrawledPageResult, report: ReportIssue) {
+  const title = page.title.trim().toLowerCase().replace(/\s+/g, " ");
+  const h1 = (page.h1Text ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (title && h1 && title === h1) {
+    report("duplicate-h1-title");
+  }
+
+  if (page.wordCount > TOO_MUCH_CONTENT_WORDS) {
+    report("too-much-content", { wordCount: page.wordCount });
+  }
+
+  /**
+   * Mid-length indexable pages whose on-page package is still incomplete.
+   * Distinct from thin-content (too few words) and too-much-content (too
+   * many). Fires when at least two structure gaps are present.
+   */
+  if (
+    page.isIndexable &&
+    page.wordCount >= CONTENT_OPTIMISATION_MIN_WORDS &&
+    page.wordCount <= CONTENT_OPTIMISATION_MAX_WORDS
+  ) {
+    const gaps = [
+      page.h1Count === 0 && "missing-h1",
+      page.h2Count === 0 && "missing-h2",
+      !page.metaDescription && "missing-meta-description",
+      page.listCount === 0 && page.tableCount === 0 && "no-list-or-table",
+    ].filter((gap): gap is string => Boolean(gap));
+    if (gaps.length >= 2) {
+      report("content-optimisation-needed", {
+        wordCount: page.wordCount,
+        gaps,
+      });
+    }
+  }
+
+  if (page.contentDate) {
+    const ageMs = Date.now() - Date.parse(`${page.contentDate}T00:00:00Z`);
+    const ageDays = ageMs / (24 * 60 * 60 * 1000);
+    if (Number.isFinite(ageDays) && ageDays > OUTDATED_CONTENT_MAX_AGE_DAYS) {
+      report("outdated-content", {
+        contentDate: page.contentDate,
+        ageDays: Math.floor(ageDays),
+      });
+    }
+  }
+
+  if (
+    page.isIndexable &&
+    page.semanticElementCount < LOW_SEMANTIC_HTML_MIN_ELEMENTS
+  ) {
+    report("low-semantic-html", {
+      semanticElementCount: page.semanticElementCount,
+    });
+  }
+}
+
+function reportAssetCounts(page: CrawledPageResult, report: ReportIssue) {
+  const fileCount = page.scriptUrls.length + page.stylesheetUrls.length;
+  if (fileCount > TOO_MANY_PAGE_ASSETS) {
+    report("too-many-page-assets", { fileCount });
+  }
+}
+
+function reportHsts(page: CrawledPageResult, report: ReportIssue) {
+  if (!page.url.toLowerCase().startsWith("https://")) return;
+  if (!page.responseHeaders.strictTransportSecurity) {
+    report("missing-hsts");
+  }
+}
+
 function reportSemanticReadiness(page: CrawledPageResult, report: ReportIssue) {
   const schemaTypes = normalizedSchemaTypes(page);
   if (page.invalidStructuredDataCount > 0) {
@@ -332,6 +552,11 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
     return issues;
   }
   if (page.fetchClass === "error") {
+    if (page.fetchErrorKind === "dns") {
+      report("dns-resolution-failure");
+    } else if (page.fetchErrorKind === "malformed") {
+      report("malformed-url-failure");
+    }
     return issues;
   }
 
@@ -343,8 +568,19 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
     report("broken-page", { statusCode: page.statusCode });
     return issues;
   }
-  // Redirects are normal on their own; chains/loops are flagged in multipage.
+  // Redirects are inventoried here; chains/loops are flagged in multipage.
   if (page.statusCode >= 300) {
+    if (page.statusCode === 301 || page.statusCode === 308) {
+      report("permanent-redirect", {
+        statusCode: page.statusCode,
+        redirectUrl: page.redirectUrl,
+      });
+    } else {
+      report("temporary-redirect", {
+        statusCode: page.statusCode,
+        redirectUrl: page.redirectUrl,
+      });
+    }
     return issues;
   }
 
@@ -433,6 +669,11 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
   }
 
   reportSemanticReadiness(page, report);
+  reportLinkSignals(page, report);
+  reportHreflangSignals(page, report);
+  reportContentQuality(page, report);
+  reportAssetCounts(page, report);
+  reportHsts(page, report);
 
   // Structure
   if (page.isIndexable && page.links.length === 0) {
