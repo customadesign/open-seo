@@ -1,3 +1,4 @@
+export * from "./ai-visibility.schema";
 export * from "./app.schema";
 export * from "./audit.schema";
 export * from "./sam.schema";
@@ -6,6 +7,7 @@ export * from "./billing.schema";
 export * from "./ga4.schema";
 export * from "./gsc.schema";
 export * from "./google-ads.schema";
+export * from "./local-seo.schema";
 export * from "./report.schema";
 export * from "./disavow.schema";
 export * from "./backlink-toxicity.schema";

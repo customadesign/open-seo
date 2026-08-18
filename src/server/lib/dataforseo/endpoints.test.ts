@@ -12,6 +12,7 @@ import {
   fetchLlmResponse,
   fetchLlmTopPages,
 } from "@/server/lib/dataforseo/ai";
+import { DataforseoChargedTaskError } from "@/server/lib/dataforseo/envelope";
 import { buildLlmTarget } from "@/server/lib/dataforseo/shared";
 
 function parseDataforseoRequestBody(init: RequestInit | undefined): unknown {
@@ -377,4 +378,52 @@ describe("fetchLlmResponse model_name validation", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
+});
+
+describe("fetchLlmResponse charged parse failures", () => {
+  it.each([
+    {
+      modelSlug: "chat_gpt" as const,
+      modelName: "gpt-5",
+      path: ["v3", "ai_optimization", "chat_gpt", "llm_responses", "live"],
+    },
+    {
+      modelSlug: "gemini" as const,
+      modelName: "gemini-2.5-pro",
+      path: ["v3", "ai_optimization", "gemini", "llm_responses", "live"],
+    },
+  ])(
+    "preserves billing when $modelSlug returns an invalid result shape",
+    async ({ modelSlug, modelName, path }) => {
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 20000,
+              path,
+              cost: 0.0031,
+              result_count: 1,
+              result: [{ items: "not-an-array" }],
+            },
+          ],
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const rejection = fetchLlmResponse({
+        userPrompt: "What is OpenSEO?",
+        modelSlug,
+        modelName,
+      });
+
+      await expect(rejection).rejects.toBeInstanceOf(
+        DataforseoChargedTaskError,
+      );
+      await expect(rejection).rejects.toMatchObject({
+        message: "DataForSEO llm_responses returned an invalid response shape",
+        billing: { path, costUsd: 0.0031 },
+      });
+    },
+  );
 });

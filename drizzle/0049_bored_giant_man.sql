@@ -159,7 +159,7 @@ CREATE TABLE `project_change_events` (
 CREATE UNIQUE INDEX `project_change_events_project_source_dedupe_idx` ON `project_change_events` (`project_id`,`source`,`dedupe_key`);--> statement-breakpoint
 CREATE INDEX `project_change_events_project_occurred_idx` ON `project_change_events` (`project_id`,`occurred_at`);--> statement-breakpoint
 CREATE INDEX `project_change_events_project_source_occurred_idx` ON `project_change_events` (`project_id`,`source`,`occurred_at`);--> statement-breakpoint
-CREATE TABLE `ai_visibility_citations` (
+CREATE TABLE IF NOT EXISTS `ai_visibility_citations` (
 	`id` text PRIMARY KEY NOT NULL,
 	`observation_id` text NOT NULL,
 	`url` text NOT NULL,
@@ -169,8 +169,8 @@ CREATE TABLE `ai_visibility_citations` (
 	FOREIGN KEY (`observation_id`) REFERENCES `ai_visibility_observations`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `ai_visibility_citations_observation_url_idx` ON `ai_visibility_citations` (`observation_id`,`url`);--> statement-breakpoint
-CREATE TABLE `ai_visibility_config_providers` (
+CREATE UNIQUE INDEX IF NOT EXISTS `ai_visibility_citations_observation_url_idx` ON `ai_visibility_citations` (`observation_id`,`url`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `ai_visibility_config_providers` (
 	`id` text PRIMARY KEY NOT NULL,
 	`config_id` text NOT NULL,
 	`provider` text NOT NULL,
@@ -178,8 +178,8 @@ CREATE TABLE `ai_visibility_config_providers` (
 	FOREIGN KEY (`config_id`) REFERENCES `ai_visibility_configs`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `ai_visibility_config_providers_config_provider_idx` ON `ai_visibility_config_providers` (`config_id`,`provider`);--> statement-breakpoint
-CREATE TABLE `ai_visibility_configs` (
+CREATE UNIQUE INDEX IF NOT EXISTS `ai_visibility_config_providers_config_provider_idx` ON `ai_visibility_config_providers` (`config_id`,`provider`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `ai_visibility_configs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
 	`brand_name` text NOT NULL,
@@ -197,9 +197,9 @@ CREATE TABLE `ai_visibility_configs` (
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `ai_visibility_configs_project_brand_location_idx` ON `ai_visibility_configs` (`project_id`,`brand_name`,`location_code`);--> statement-breakpoint
-CREATE INDEX `ai_visibility_configs_due_idx` ON `ai_visibility_configs` (`is_active`,`next_run_at`);--> statement-breakpoint
-CREATE TABLE `ai_visibility_observations` (
+CREATE UNIQUE INDEX IF NOT EXISTS `ai_visibility_configs_project_brand_location_idx` ON `ai_visibility_configs` (`project_id`,`brand_name`,`location_code`);--> statement-breakpoint
+CREATE NoneINDEX IF NOT EXISTS `ai_visibility_configs_due_idx` ON `ai_visibility_configs` (`is_active`,`next_run_at`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `ai_visibility_observations` (
 	`id` text PRIMARY KEY NOT NULL,
 	`run_id` text NOT NULL,
 	`tracking_prompt_id` text NOT NULL,
@@ -218,9 +218,9 @@ CREATE TABLE `ai_visibility_observations` (
 	FOREIGN KEY (`run_id`) REFERENCES `ai_visibility_runs`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `ai_visibility_observations_prompt_provider_idx` ON `ai_visibility_observations` (`tracking_prompt_id`,`provider`,`checked_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `ai_visibility_observations_run_prompt_provider_idx` ON `ai_visibility_observations` (`run_id`,`tracking_prompt_id`,`provider`);--> statement-breakpoint
-CREATE TABLE `ai_visibility_prompts` (
+CREATE NoneINDEX IF NOT EXISTS `ai_visibility_observations_prompt_provider_idx` ON `ai_visibility_observations` (`tracking_prompt_id`,`provider`,`checked_at`);--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `ai_visibility_observations_run_prompt_provider_idx` ON `ai_visibility_observations` (`run_id`,`tracking_prompt_id`,`provider`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `ai_visibility_prompts` (
 	`id` text PRIMARY KEY NOT NULL,
 	`config_id` text NOT NULL,
 	`prompt` text NOT NULL,
@@ -229,8 +229,8 @@ CREATE TABLE `ai_visibility_prompts` (
 	FOREIGN KEY (`config_id`) REFERENCES `ai_visibility_configs`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `ai_visibility_prompts_config_prompt_idx` ON `ai_visibility_prompts` (`config_id`,`prompt`);--> statement-breakpoint
-CREATE TABLE `ai_visibility_runs` (
+CREATE UNIQUE INDEX IF NOT EXISTS `ai_visibility_prompts_config_prompt_idx` ON `ai_visibility_prompts` (`config_id`,`prompt`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `ai_visibility_runs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`config_id` text NOT NULL,
 	`project_id` text NOT NULL,
@@ -247,9 +247,9 @@ CREATE TABLE `ai_visibility_runs` (
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `ai_visibility_runs_config_idx` ON `ai_visibility_runs` (`config_id`,`started_at`);--> statement-breakpoint
-CREATE INDEX `ai_visibility_runs_project_idx` ON `ai_visibility_runs` (`project_id`,`started_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `ai_visibility_runs_one_active_per_config_idx` ON `ai_visibility_runs` (`config_id`) WHERE "ai_visibility_runs"."status" IN ('pending', 'running');--> statement-breakpoint
+CREATE NoneINDEX IF NOT EXISTS `ai_visibility_runs_config_idx` ON `ai_visibility_runs` (`config_id`,`started_at`);--> statement-breakpoint
+CREATE NoneINDEX IF NOT EXISTS `ai_visibility_runs_project_idx` ON `ai_visibility_runs` (`project_id`,`started_at`);--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `ai_visibility_runs_one_active_per_config_idx` ON `ai_visibility_runs` (`config_id`) WHERE "ai_visibility_runs"."status" IN ('pending', 'running');--> statement-breakpoint
 DROP INDEX `rank_tracking_configs_national_idx`;--> statement-breakpoint
 DROP INDEX `rank_tracking_configs_local_idx`;--> statement-breakpoint
 ALTER TABLE `rank_tracking_configs` ADD `engine` text DEFAULT 'google' NOT NULL;--> statement-breakpoint

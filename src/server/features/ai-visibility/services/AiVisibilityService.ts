@@ -1,8 +1,15 @@
+/* eslint-disable max-lines -- Config management and the dashboard baseline share one run-guard and cost-ceiling model; splitting them would duplicate the spend rules that keep both paths honest. */
 import {
+  checkUsageCreditsDepleted,
   customerHasPaidPlan,
+  getOrCreateOrganizationCustomer,
   type BillingCustomerContext,
 } from "@/server/billing/subscription";
 import { AiVisibilityRepository } from "@/server/features/ai-visibility/repositories/AiVisibilityRepository";
+import {
+  summarizeAiVisibilityRun,
+  type AiVisibilityRunSummary,
+} from "@/server/features/ai-visibility/services/aiVisibilityObservations";
 import {
   beginAiVisibilityRun,
   reconcileActiveAiVisibilityRun,
@@ -13,11 +20,15 @@ import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import {
   aiVisibilityCostApprovalError,
   aiVisibilityPromptLimitError,
+  buildDefaultAiVisibilityPrompts,
+  DEFAULT_AI_VISIBILITY_PROVIDERS,
+  deriveBrandName,
   estimateAiVisibilityRunCredits,
   MAX_AI_VISIBILITY_CONFIGS_PER_PROJECT,
   MAX_PROMPTS_PER_CONFIG,
   type AiVisibilityProvider,
 } from "@/shared/ai-visibility";
+import { parseDbTimestampMs } from "@/shared/db-timestamps";
 import {
   computeNextCheckAt,
   isScheduledRankTrackingInterval,
@@ -431,6 +442,271 @@ function normalizeDomain(domain: string): string {
   return normalized;
 }
 
+// ---------------------------------------------------------------------------
+// Dashboard baseline
+//
+// The project dashboard shows two AI cards without ever calling a provider
+// while rendering: `getState` reads persisted runs, and `ensureBaselineRun`
+// opens a run when one is due. Collection itself goes through the same queued
+// workflow as every other AI visibility run — the dashboard does not have a
+// second, live-endpoint collection path of its own.
+// ---------------------------------------------------------------------------
+
+/** At most one baseline run per config per day. */
+const BASELINE_MIN_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+type BaselineSkipReason =
+  | "no_domain"
+  | "not_due"
+  | "already_running"
+  | "plan_required"
+  | "insufficient_credits"
+  | "cost_ceiling";
+
+export interface AiVisibilityState {
+  configured: boolean;
+  /** A run is open right now, so the cards should read as "collecting". */
+  running: boolean;
+  /**
+   * Why the last refresh attempt collected nothing, straight off the config —
+   * so the read path can explain an empty card without re-running the billing
+   * checks on every render.
+   */
+  skipReason: string | null;
+  latest: {
+    status: "completed" | "failed";
+    summary: AiVisibilityRunSummary;
+    capturedAt: string;
+  } | null;
+  previous: { summary: AiVisibilityRunSummary } | null;
+}
+
+type BaselineProjectInput = {
+  projectId: string;
+  projectName: string;
+  domain: string | null;
+  locationCode: number;
+  languageCode: string;
+};
+
+/** Read path: persisted rows only, no provider calls and no spend. */
+async function getState(projectId: string): Promise<AiVisibilityState> {
+  const config =
+    await AiVisibilityRepository.getPrimaryConfigForProject(projectId);
+  if (!config) {
+    return {
+      configured: false,
+      running: false,
+      skipReason: null,
+      latest: null,
+      previous: null,
+    };
+  }
+
+  const [activeRun, finishedRuns] = await Promise.all([
+    AiVisibilityRepository.getActiveRunForConfig(config.id),
+    AiVisibilityRepository.getRecentFinishedRuns(config.id, 3),
+  ]);
+
+  const [latestRun] = finishedRuns;
+  const previousRun = finishedRuns.find(
+    (run) => run.status === "completed" && run.id !== latestRun?.id,
+  );
+  const observations = await AiVisibilityRepository.getObservationsForRuns(
+    finishedRuns.map((run) => run.id),
+  );
+  const byRun = (runId: string) =>
+    observations.filter((observation) => observation.runId === runId);
+
+  return {
+    configured: true,
+    running: activeRun !== null,
+    skipReason: config.lastSkipReason,
+    latest: latestRun
+      ? {
+          status: latestRun.status,
+          summary: summarizeAiVisibilityRun(byRun(latestRun.id)),
+          capturedAt: latestRun.completedAt ?? latestRun.startedAt,
+        }
+      : null,
+    previous: previousRun
+      ? { summary: summarizeAiVisibilityRun(byRun(previousRun.id)) }
+      : null,
+  };
+}
+
+/**
+ * Idempotent seed: creates the project's config on first call and tops up the
+ * default providers and prompts. Never removes a provider or prompt, so a user
+ * who trimmed the defaults does not get them back on the next visit.
+ */
+async function ensureBaselineSeed(
+  input: BaselineProjectInput & { domain: string },
+) {
+  const brandName = deriveBrandName({
+    projectName: input.projectName,
+    domain: input.domain,
+  });
+  if (!brandName) return null;
+
+  const existing = await AiVisibilityRepository.getPrimaryConfigForProject(
+    input.projectId,
+  );
+  if (!existing) {
+    await AiVisibilityRepository.createConfig({
+      id: crypto.randomUUID(),
+      projectId: input.projectId,
+      brandName,
+      domain: input.domain,
+      locationCode: input.locationCode,
+      languageCode: input.languageCode,
+      // The dashboard's first baseline is explicitly visit-triggered. Do not
+      // silently opt a new project into recurring provider spend.
+      scheduleInterval: "manual",
+      isActive: false,
+      maxCostCredits: null,
+      nextRunAt: null,
+    });
+  }
+
+  const config = await AiVisibilityRepository.getPrimaryConfigForProject(
+    input.projectId,
+  );
+  if (!config) return null;
+
+  // The tracked domain follows the project's domain; the brand string does not,
+  // because a user may have corrected it.
+  if (config.domain !== input.domain) {
+    await AiVisibilityRepository.updateConfig(config.id, input.projectId, {
+      domain: input.domain,
+    });
+  }
+
+  await AiVisibilityRepository.addProviders(
+    config.id,
+    DEFAULT_AI_VISIBILITY_PROVIDERS,
+  );
+  await AiVisibilityRepository.addPrompts(
+    buildDefaultAiVisibilityPrompts(config.brandName).map((prompt) => ({
+      id: crypto.randomUUID(),
+      configId: config.id,
+      prompt,
+    })),
+  );
+
+  return { ...config, domain: input.domain };
+}
+
+async function baselineEligibility(
+  billingCustomer: BillingCustomerContext,
+): Promise<"plan_required" | "insufficient_credits" | null> {
+  // Self-hosted deployments bring their own DataForSEO account: no plan or
+  // credit pool to gate against.
+  if (!(await isHostedServerAuthMode())) return null;
+
+  const customer = await getOrCreateOrganizationCustomer(billingCustomer);
+  if (!(await customerHasPaidPlan(customer.id))) return "plan_required";
+
+  const { depleted } = await checkUsageCreditsDepleted(billingCustomer);
+  return depleted ? "insufficient_credits" : null;
+}
+
+function isBaselineStale(timestamp: string, maxAgeMs: number): boolean {
+  const ms = parseDbTimestampMs(timestamp);
+  return ms === null || Date.now() - ms >= maxAgeMs;
+}
+
+/**
+ * Open a baseline run when one is due, or say why not. Fast: DB reads plus the
+ * billing checks only — collection happens in the AI visibility workflow that
+ * `beginAiVisibilityRun` starts.
+ */
+async function ensureBaselineRun(
+  input: BaselineProjectInput & { billingCustomer: BillingCustomerContext },
+): Promise<
+  | { queued: true; runId: string }
+  | { queued: false; reason: BaselineSkipReason }
+> {
+  if (!input.domain) return { queued: false, reason: "no_domain" };
+
+  const config = await ensureBaselineSeed({ ...input, domain: input.domain });
+  if (!config) return { queued: false, reason: "no_domain" };
+
+  const completed = await AiVisibilityRepository.getRecentCompletedRuns(
+    config.id,
+    1,
+  );
+  if (
+    completed[0] &&
+    !isBaselineStale(completed[0].startedAt, BASELINE_MIN_INTERVAL_MS)
+  ) {
+    return { queued: false, reason: "not_due" };
+  }
+  // `lastRunAt` is written when a run is claimed, so a failed attempt consumes
+  // the same daily baseline slot as a completed attempt. This prevents a
+  // provider outage from being re-spent on every manager dashboard visit.
+  if (
+    config.lastRunAt &&
+    !isBaselineStale(config.lastRunAt, BASELINE_MIN_INTERVAL_MS)
+  ) {
+    return { queued: false, reason: "not_due" };
+  }
+
+  const skipReason = await baselineEligibility(input.billingCustomer);
+  if (skipReason) {
+    await AiVisibilityRepository.updateConfig(config.id, input.projectId, {
+      lastSkipReason: skipReason,
+    });
+    return { queued: false, reason: skipReason };
+  }
+
+  const [prompts, providers] = await Promise.all([
+    AiVisibilityRepository.getActivePromptsForConfig(config.id),
+    AiVisibilityRepository.getProvidersForConfig(config.id),
+  ]);
+  const activePrompts = prompts.slice(0, MAX_PROMPTS_PER_CONFIG);
+  if (activePrompts.length === 0 || providers.length === 0) {
+    return { queued: false, reason: "not_due" };
+  }
+
+  const estimate = estimateAiVisibilityRunCredits({
+    promptCount: activePrompts.length,
+    providers,
+  });
+  if (
+    config.maxCostCredits != null &&
+    estimate.costCredits > config.maxCostCredits
+  ) {
+    await AiVisibilityRepository.updateConfig(config.id, input.projectId, {
+      lastSkipReason: "cost_ceiling",
+    });
+    return { queued: false, reason: "cost_ceiling" };
+  }
+
+  const started = await beginAiVisibilityRun({
+    configId: config.id,
+    projectId: input.projectId,
+    billingCustomer: input.billingCustomer,
+    brandName: config.brandName,
+    domain: config.domain,
+    locationCode: config.locationCode,
+    languageCode: config.languageCode,
+    providers,
+    observationsTotal: estimate.observations,
+    maxCostCredits: config.maxCostCredits ?? null,
+    trigger: "manual",
+  });
+  // Lost the race against a concurrent visit; the winner's run is the one.
+  if (!started.ok) return { queued: false, reason: "already_running" };
+
+  await AiVisibilityRepository.updateConfig(config.id, input.projectId, {
+    lastRunAt: new Date().toISOString(),
+    lastSkipReason: null,
+  });
+
+  return { queued: true, runId: started.runId };
+}
+
 export const AiVisibilityService = {
   createConfig,
   updateConfig,
@@ -444,4 +720,6 @@ export const AiVisibilityService = {
   getLatestRun,
   getRunResults,
   requireAiVisibilityAccess,
+  getState,
+  ensureBaselineRun,
 };

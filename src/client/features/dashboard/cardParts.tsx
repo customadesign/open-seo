@@ -89,6 +89,39 @@ export function PercentDelta({
   );
 }
 
+/**
+ * Same visual language as PercentDelta, for deltas the server already
+ * computed. The unit matters: a percentage-valued metric moving 12% → 15% is
+ * "+3 pp", and printing that as "+25%" would overstate it.
+ */
+export function DeltaValue({
+  delta,
+  kind,
+}: {
+  delta: number | null;
+  kind: "percentage_points" | "percent" | "absolute";
+}) {
+  if (delta === null || !Number.isFinite(delta)) return null;
+  const rounded = kind === "absolute" ? Math.round(delta) : roundToTenth(delta);
+  const tone = rounded > 0 ? "text-success" : rounded < 0 ? "text-error" : "";
+  const magnitude = Math.abs(rounded);
+  const formatted =
+    kind === "percent"
+      ? `${magnitude}%`
+      : kind === "percentage_points"
+        ? `${magnitude} pp`
+        : magnitude.toLocaleString();
+  return (
+    <p className={`text-xs tabular-nums ${tone}`}>
+      {rounded > 0 ? "▲" : rounded < 0 ? "▼" : ""} {formatted}
+    </p>
+  );
+}
+
+function roundToTenth(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 export const moreDetailsClass = "btn btn-ghost btn-xs";
 
 export function newLost(value: number | null): string {

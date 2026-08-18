@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Loader2, MapPinned, Network, Play } from "lucide-react";
 import { toast } from "sonner";
 import { SafeExternalLink } from "@/client/components/SafeExternalLink";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 import { IntegrationConnectionCard } from "@/client/features/integrations/IntegrationConnectionCard";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
@@ -85,9 +86,11 @@ function Field({
 function BusinessProfileEditor({
   projectId,
   profile,
+  canManage,
 }: {
   projectId: string;
   profile: LocalBusinessProfile | null;
+  canManage: boolean;
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(() => ({
@@ -162,91 +165,93 @@ function BusinessProfileEditor({
         </div>
       </div>
       <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
-        <Field
-          label="Business name"
-          value={form.name}
-          onChange={(value) => set("name", value)}
-        />
-        <Field
-          label="Phone"
-          type="tel"
-          value={form.phone}
-          onChange={(value) => set("phone", value)}
-        />
-        <Field
-          label="Address"
-          value={form.addressLine1}
-          onChange={(value) => set("addressLine1", value)}
-        />
-        <Field
-          label="Suite or unit"
-          required={false}
-          value={form.addressLine2}
-          onChange={(value) => set("addressLine2", value)}
-        />
-        <Field
-          label="City"
-          value={form.locality}
-          onChange={(value) => set("locality", value)}
-        />
-        <Field
-          label="State or region"
-          value={form.region}
-          onChange={(value) => set("region", value)}
-        />
-        <Field
-          label="Postal code"
-          value={form.postalCode}
-          onChange={(value) => set("postalCode", value)}
-        />
-        <Field
-          label="Country code"
-          value={form.countryCode}
-          onChange={(value) => set("countryCode", value.toUpperCase())}
-        />
-        <Field
-          label="Website"
-          type="url"
-          value={form.websiteUrl}
-          onChange={(value) => set("websiteUrl", value)}
-          placeholder="https://example.com"
-        />
-        <div className="grid grid-cols-2 gap-3">
+        <fieldset className="contents" disabled={!canManage}>
           <Field
-            label="Latitude"
-            type="number"
-            value={form.latitude}
-            onChange={(value) => set("latitude", value)}
+            label="Business name"
+            value={form.name}
+            onChange={(value) => set("name", value)}
           />
           <Field
-            label="Longitude"
-            type="number"
-            value={form.longitude}
-            onChange={(value) => set("longitude", value)}
+            label="Phone"
+            type="tel"
+            value={form.phone}
+            onChange={(value) => set("phone", value)}
           />
-        </div>
-        <Field
-          label="Google Place ID"
-          required={false}
-          value={form.googlePlaceId}
-          onChange={(value) => set("googlePlaceId", value)}
-        />
-        <Field
-          label="Google CID"
-          required={false}
-          value={form.googleCid}
-          onChange={(value) => set("googleCid", value)}
-        />
-        <div className="md:col-span-2">
-          <button
-            className="btn btn-primary"
-            type="submit"
-            disabled={save.isPending}
-          >
-            {save.isPending && <Loader2 className="size-4 animate-spin" />}
-            {profile ? "Update profile" : "Save profile"}
-          </button>
-        </div>
+          <Field
+            label="Address"
+            value={form.addressLine1}
+            onChange={(value) => set("addressLine1", value)}
+          />
+          <Field
+            label="Suite or unit"
+            required={false}
+            value={form.addressLine2}
+            onChange={(value) => set("addressLine2", value)}
+          />
+          <Field
+            label="City"
+            value={form.locality}
+            onChange={(value) => set("locality", value)}
+          />
+          <Field
+            label="State or region"
+            value={form.region}
+            onChange={(value) => set("region", value)}
+          />
+          <Field
+            label="Postal code"
+            value={form.postalCode}
+            onChange={(value) => set("postalCode", value)}
+          />
+          <Field
+            label="Country code"
+            value={form.countryCode}
+            onChange={(value) => set("countryCode", value.toUpperCase())}
+          />
+          <Field
+            label="Website"
+            type="url"
+            value={form.websiteUrl}
+            onChange={(value) => set("websiteUrl", value)}
+            placeholder="https://example.com"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Latitude"
+              type="number"
+              value={form.latitude}
+              onChange={(value) => set("latitude", value)}
+            />
+            <Field
+              label="Longitude"
+              type="number"
+              value={form.longitude}
+              onChange={(value) => set("longitude", value)}
+            />
+          </div>
+          <Field
+            label="Google Place ID"
+            required={false}
+            value={form.googlePlaceId}
+            onChange={(value) => set("googlePlaceId", value)}
+          />
+          <Field
+            label="Google CID"
+            required={false}
+            value={form.googleCid}
+            onChange={(value) => set("googleCid", value)}
+          />
+          <div className="md:col-span-2">
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={save.isPending}
+            >
+              {save.isPending && <Loader2 className="size-4 animate-spin" />}
+              {profile ? "Update profile" : "Save profile"}
+            </button>
+          </div>
+        </fieldset>
       </form>
     </section>
   );
@@ -256,10 +261,12 @@ function ListingsConnection({
   projectId,
   profile,
   connection,
+  canManage,
 }: {
   projectId: string;
   profile: LocalBusinessProfile;
   connection: LocalListingConnection | null;
+  canManage: boolean;
 }) {
   const queryClient = useQueryClient();
   const [ghlLocationId, setGhlLocationId] = useState(
@@ -326,86 +333,88 @@ function ListingsConnection({
           save.mutate();
         }}
       >
-        <Field
-          label="GHL location ID"
-          value={ghlLocationId}
-          onChange={setGhlLocationId}
-        />
-        <Field
-          label="Listings management URL"
-          type="url"
-          value={managementUrl}
-          onChange={setManagementUrl}
-        />
-        <label className="form-control">
-          <span className="label-text mb-1 text-sm font-medium">
-            Syndication engine
-          </span>
-          <select
-            className="select select-bordered"
-            value={engine}
-            onChange={(event) => {
-              const value = event.target.value;
-              if (
-                value === "yext" ||
-                value === "uberall" ||
-                value === "unknown"
-              ) {
-                setEngine(value);
-              }
-            }}
-          >
-            <option value="yext">Yext</option>
-            <option value="uberall">Uberall</option>
-            <option value="unknown">Unknown</option>
-          </select>
-        </label>
-        <label className="form-control">
-          <span className="label-text mb-1 text-sm font-medium">
-            Stored status
-          </span>
-          <select
-            className="select select-bordered"
-            value={status}
-            onChange={(event) => {
-              const value = event.target.value;
-              if (
-                value === "setup_required" ||
-                value === "provisioning" ||
-                value === "active" ||
-                value === "attention_required" ||
-                value === "canceled" ||
-                value === "unavailable"
-              ) {
-                setStatus(value);
-              }
-            }}
-          >
-            <option value="setup_required">Setup required</option>
-            <option value="provisioning">Provisioning</option>
-            <option value="active">Active</option>
-            <option value="attention_required">Attention required</option>
-            <option value="canceled">Canceled</option>
-            <option value="unavailable">Unavailable</option>
-          </select>
-        </label>
-        <div className="flex flex-wrap gap-2 md:col-span-2">
-          <button
-            className="btn btn-primary"
-            type="submit"
-            disabled={save.isPending}
-          >
-            {save.isPending && <Loader2 className="size-4 animate-spin" />}
-            Save connection
-          </button>
-          {connection?.managementUrl && (
-            <SafeExternalLink
-              className="btn btn-outline"
-              url={connection.managementUrl}
-              label="Open in GoHighLevel"
-            />
-          )}
-        </div>
+        <fieldset className="contents" disabled={!canManage}>
+          <Field
+            label="GHL location ID"
+            value={ghlLocationId}
+            onChange={setGhlLocationId}
+          />
+          <Field
+            label="Listings management URL"
+            type="url"
+            value={managementUrl}
+            onChange={setManagementUrl}
+          />
+          <label className="form-control">
+            <span className="label-text mb-1 text-sm font-medium">
+              Syndication engine
+            </span>
+            <select
+              className="select select-bordered"
+              value={engine}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (
+                  value === "yext" ||
+                  value === "uberall" ||
+                  value === "unknown"
+                ) {
+                  setEngine(value);
+                }
+              }}
+            >
+              <option value="yext">Yext</option>
+              <option value="uberall">Uberall</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
+          <label className="form-control">
+            <span className="label-text mb-1 text-sm font-medium">
+              Stored status
+            </span>
+            <select
+              className="select select-bordered"
+              value={status}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (
+                  value === "setup_required" ||
+                  value === "provisioning" ||
+                  value === "active" ||
+                  value === "attention_required" ||
+                  value === "canceled" ||
+                  value === "unavailable"
+                ) {
+                  setStatus(value);
+                }
+              }}
+            >
+              <option value="setup_required">Setup required</option>
+              <option value="provisioning">Provisioning</option>
+              <option value="active">Active</option>
+              <option value="attention_required">Attention required</option>
+              <option value="canceled">Canceled</option>
+              <option value="unavailable">Unavailable</option>
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-2 md:col-span-2">
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={save.isPending}
+            >
+              {save.isPending && <Loader2 className="size-4 animate-spin" />}
+              Save connection
+            </button>
+            {connection?.managementUrl && (
+              <SafeExternalLink
+                className="btn btn-outline"
+                url={connection.managementUrl}
+                label="Open in GoHighLevel"
+              />
+            )}
+          </div>
+        </fieldset>
       </form>
       <p className="mt-4 text-xs text-base-content/50">
         Status is stored evidence. OpenSEO does not claim a live GHL or Yext
@@ -473,9 +482,11 @@ function GeoGridPanel({
   profile,
   configs,
   runs,
+  canManage,
 }: {
   projectId: string;
   profile: LocalBusinessProfile;
+  canManage: boolean;
   configs: GeoGridConfig[];
   runs: Array<{
     id: string;
@@ -558,80 +569,84 @@ function GeoGridPanel({
           create.mutate();
         }}
       >
-        <div className="md:col-span-2">
-          <Field
-            label="Keyword"
-            value={keyword}
-            onChange={setKeyword}
-            placeholder="commercial electrician"
-          />
-        </div>
-        <label className="form-control">
-          <span className="label-text mb-1 text-sm font-medium">Grid</span>
-          <select
-            className="select select-bordered"
-            value={gridSize}
-            onChange={(event) => setGridSize(Number(event.target.value))}
-          >
-            <option value={3}>3 × 3 (9 lookups)</option>
-            <option value={5}>5 × 5 (25 lookups)</option>
-            <option value={7}>7 × 7 (49 lookups)</option>
-          </select>
-        </label>
-        <Field
-          label="Radius in meters"
-          type="number"
-          value={String(radiusMeters)}
-          onChange={(value) => setRadiusMeters(Number(value))}
-        />
-        <label className="form-control md:col-span-2">
-          <span className="label-text mb-1 text-sm font-medium">Schedule</span>
-          <select
-            className="select select-bordered"
-            value={scheduleInterval}
-            onChange={(event) => {
-              const value = event.target.value;
-              if (
-                value === "manual" ||
-                value === "weekly" ||
-                value === "monthly"
-              ) {
-                setScheduleInterval(value);
-              }
-            }}
-          >
-            <option value="manual">Manual only</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </label>
-        <div className="rounded-lg bg-base-200/50 px-3 py-2.5 text-xs text-base-content/70 md:col-span-2">
-          <div>
-            One {gridSize} × {gridSize} check uses {runEstimate.cells} live Maps
-            lookups and is estimated at ${runEstimate.costUsd.toFixed(3)}
-            {hosted ? ` (${runEstimate.costCredits} credits)` : ""}.
+        <fieldset className="contents" disabled={!canManage}>
+          <div className="md:col-span-2">
+            <Field
+              label="Keyword"
+              value={keyword}
+              onChange={setKeyword}
+              placeholder="commercial electrician"
+            />
           </div>
-          {scheduledEstimate && (
-            <div className="mt-1 font-medium text-warning">
-              {scheduleInterval === "weekly" ? "Weekly" : "Monthly"} approval:
-              about ${scheduledEstimate.monthlyCostUsd.toFixed(3)}
-              {hosted
-                ? ` (${scheduledEstimate.monthlyCostCredits} credits)`
-                : ""}{" "}
-              per month.
+          <label className="form-control">
+            <span className="label-text mb-1 text-sm font-medium">Grid</span>
+            <select
+              className="select select-bordered"
+              value={gridSize}
+              onChange={(event) => setGridSize(Number(event.target.value))}
+            >
+              <option value={3}>3 × 3 (9 lookups)</option>
+              <option value={5}>5 × 5 (25 lookups)</option>
+              <option value={7}>7 × 7 (49 lookups)</option>
+            </select>
+          </label>
+          <Field
+            label="Radius in meters"
+            type="number"
+            value={String(radiusMeters)}
+            onChange={(value) => setRadiusMeters(Number(value))}
+          />
+          <label className="form-control md:col-span-2">
+            <span className="label-text mb-1 text-sm font-medium">
+              Schedule
+            </span>
+            <select
+              className="select select-bordered"
+              value={scheduleInterval}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (
+                  value === "manual" ||
+                  value === "weekly" ||
+                  value === "monthly"
+                ) {
+                  setScheduleInterval(value);
+                }
+              }}
+            >
+              <option value="manual">Manual only</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
+          <div className="rounded-lg bg-base-200/50 px-3 py-2.5 text-xs text-base-content/70 md:col-span-2">
+            <div>
+              One {gridSize} × {gridSize} check uses {runEstimate.cells} live
+              Maps lookups and is estimated at ${runEstimate.costUsd.toFixed(3)}
+              {hosted ? ` (${runEstimate.costCredits} credits)` : ""}.
             </div>
-          )}
-        </div>
-        <div className="flex items-end md:col-span-2">
-          <button
-            className="btn btn-primary"
-            type="submit"
-            disabled={create.isPending}
-          >
-            {create.isPending && <Loader2 className="size-4 animate-spin" />}
-            Add tracker
-          </button>
-        </div>
+            {scheduledEstimate && (
+              <div className="mt-1 font-medium text-warning">
+                {scheduleInterval === "weekly" ? "Weekly" : "Monthly"} approval:
+                about ${scheduledEstimate.monthlyCostUsd.toFixed(3)}
+                {hosted
+                  ? ` (${scheduledEstimate.monthlyCostCredits} credits)`
+                  : ""}{" "}
+                per month.
+              </div>
+            )}
+          </div>
+          <div className="flex items-end md:col-span-2">
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={create.isPending}
+            >
+              {create.isPending && <Loader2 className="size-4 animate-spin" />}
+              Add tracker
+            </button>
+          </div>
+        </fieldset>
       </form>
       <p className="mt-3 text-xs text-warning">
         Each grid cell is one metered live DataForSEO Maps lookup. New trackers
@@ -664,7 +679,7 @@ function GeoGridPanel({
                 <button
                   className="btn btn-outline btn-sm"
                   type="button"
-                  disabled={run.isPending}
+                  disabled={!canManage || run.isPending}
                   onClick={() => run.mutate(config.id)}
                 >
                   {run.isPending ? (
@@ -728,6 +743,10 @@ export function LocalSeoPage({ projectId }: { projectId: string }) {
     queryKey: ["local-seo", "grids", projectId],
     queryFn: () => getGeoGridConfigs({ data: { projectId } }),
   });
+  // Client accounts can read Local SEO but never trigger metered work; the
+  // server enforces the same split (requireProjectContext vs requireProjectUse).
+  const accessQuery = useWorkspaceAccess();
+  const canManage = accessQuery.data?.canUseProjectTools === true;
   const history = useQuery({
     queryKey: ["local-seo", "grid-history", projectId],
     queryFn: () => getGeoGridHistory({ data: { projectId, limit: 50 } }),
@@ -796,11 +815,18 @@ export function LocalSeoPage({ projectId }: { projectId: string }) {
             Track Maps visibility, audit citation evidence, and connect the
             client's GoHighLevel Listings account.
           </p>
+          {!canManage && accessQuery.isSuccess ? (
+            <p className="mt-2 text-xs text-base-content/55">
+              This is a read-only client view. Your SEO team manages profiles,
+              trackers, and paid checks.
+            </p>
+          ) : null}
         </header>
         <BusinessProfileEditor
           key={profile?.id ?? "new-profile"}
           projectId={projectId}
           profile={profile}
+          canManage={canManage}
         />
         {profile && (
           <>
@@ -809,12 +835,14 @@ export function LocalSeoPage({ projectId }: { projectId: string }) {
               projectId={projectId}
               profile={profile}
               connection={listing.data?.connection ?? null}
+              canManage={canManage}
             />
             <GeoGridPanel
               projectId={projectId}
               profile={profile}
               configs={grids.data ?? []}
               runs={history.data?.runs ?? []}
+              canManage={canManage}
             />
             <section className="rounded-xl border border-base-300 bg-base-100 p-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -829,7 +857,7 @@ export function LocalSeoPage({ projectId }: { projectId: string }) {
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
-                  disabled={citationRun.isPending}
+                  disabled={!canManage || citationRun.isPending}
                   onClick={() => citationRun.mutate()}
                 >
                   {citationRun.isPending ? (

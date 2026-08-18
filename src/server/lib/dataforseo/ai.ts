@@ -32,6 +32,7 @@ import type { LlmPlatform, LlmTarget } from "@/server/lib/dataforseo/shared";
 import {
   assertOk,
   buildTaskBilling,
+  DataforseoChargedTaskError,
   isRecord,
   type DataforseoApiResponse,
   type DataforseoTaskLike,
@@ -365,13 +366,18 @@ export async function fetchLlmResponse(
     response,
     assertOptions(`/v3/ai_optimization/${input.modelSlug}/llm_responses/live`),
   );
+  // The task has already succeeded (and therefore may already be billed) by
+  // the time we inspect its result. Capture billing before parsing so a
+  // ChatGPT/Gemini payload regression cannot turn a charged call into an
+  // unmetered generic error.
+  const billing = buildTaskBilling(task);
 
   const result = llmResponseResultSchema.safeParse(firstResult(task) ?? {});
   if (!result.success) {
-    throw new AppError(
-      "INTERNAL_ERROR",
+    throw new DataforseoChargedTaskError(
       "DataForSEO llm_responses returned an invalid response shape",
+      billing,
     );
   }
-  return { data: result.data, billing: buildTaskBilling(task) };
+  return { data: result.data, billing };
 }

@@ -111,3 +111,49 @@ export function shapeUnavailableObservation(
     citations: [],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Run-level aggregation for the dashboard baseline cards.
+// ---------------------------------------------------------------------------
+
+export interface AiVisibilityRunSummary {
+  /** Share of readable observations that named the brand (0–100). */
+  visibilityPercent: number | null;
+  /** Total brand mentions across the run's readable observations. */
+  mentions: number;
+  readableObservations: number;
+  unavailableObservations: number;
+}
+
+/**
+ * Aggregate one run. Unavailable observations are excluded from the
+ * denominator: including them would report a provider outage as lost
+ * visibility, which is the one mistake this whole data model exists to avoid.
+ */
+export function summarizeAiVisibilityRun(
+  observations: readonly {
+    status: "completed" | "failed";
+    outcome: "brand_mentioned" | "brand_absent" | "unavailable";
+    mentionCount: number;
+  }[],
+): AiVisibilityRunSummary {
+  const readable = observations.filter(
+    (observation) =>
+      observation.status === "completed" &&
+      observation.outcome !== "unavailable",
+  );
+  const mentioned = readable.filter(
+    (observation) => observation.outcome === "brand_mentioned",
+  ).length;
+
+  return {
+    visibilityPercent:
+      readable.length > 0 ? (mentioned / readable.length) * 100 : null,
+    mentions: readable.reduce(
+      (total, observation) => total + observation.mentionCount,
+      0,
+    ),
+    readableObservations: readable.length,
+    unavailableObservations: observations.length - readable.length,
+  };
+}

@@ -40,7 +40,7 @@ export function RankTrackingOverview({
   projectId: string;
   configId: string;
 }) {
-  const [sinceDays, setSinceDays] = useState(730);
+  const [sinceDays, setSinceDays] = useState<number | undefined>(undefined);
 
   const { data: trend, isLoading: trendLoading } = useQuery({
     queryKey: ["rankConfigTrend", projectId, configId, device, sinceDays],
@@ -86,6 +86,11 @@ export function RankTrackingOverview({
               {b.label}
             </span>
           ))}
+          {(trend ?? []).some((point) => point.sourceProvider === "semrush") ? (
+            <span className="badge badge-outline badge-xs">
+              SEMrush history
+            </span>
+          ) : null}
         </div>
 
         {trendLoading ? (

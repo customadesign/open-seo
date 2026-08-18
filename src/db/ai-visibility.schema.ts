@@ -24,8 +24,11 @@ import { projects } from "./app.schema";
 // limited to observable facts (mention counts, cited sources, cost).
 // ============================================================================
 
-/** Providers we can observe. Values match the DataForSEO endpoint families. */
-export const AI_VISIBILITY_PROVIDERS = [
+/** Providers we can observe. Values match the DataForSEO endpoint families.
+ * Kept local to the schema file (mirrored in the Postgres schema) so the table
+ * definitions never depend on a non-schema module during drizzle generation.
+ * Application code imports the exported list from "@/shared/ai-visibility". */
+const AI_VISIBILITY_PROVIDERS = [
   "chatgpt_search",
   "gemini",
   "google_ai_mode",
@@ -55,8 +58,10 @@ export const aiVisibilityConfigs = sqliteTable(
       .notNull()
       .default(false),
     /**
-     * Approval ceiling in credits for a single run. Runs refuse to start —
-     * and stop mid-flight — once the estimate exceeds it.
+     * Approval ceiling in credits for a single run. The estimate is checked
+     * when the run is triggered and again when the workflow starts, so a
+     * prompt list that grew after approval is refused before any provider
+     * task is dispatched.
      */
     maxCostCredits: integer("max_cost_credits"),
     lastRunAt: text("last_run_at"),

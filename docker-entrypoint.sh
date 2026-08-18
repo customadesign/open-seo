@@ -21,6 +21,7 @@ CI=true pnpm run db:migrate:local
 # fingerprint marker beside the output it describes.
 if [ "${POSTHOG_SOURCEMAPS:-}" = "true" ]; then OUT_DIR=dist-sourcemaps; else OUT_DIR=dist; fi
 FP_FILE="$OUT_DIR/.openseo-build-env"
+PREVIEW_CONFIG=".wrangler/deploy/config.json"
 
 # Everything that changes build output: the envPrefix prefixes from
 # vite.config.ts (keep in sync) plus POSTHOG_SOURCEMAPS.
@@ -32,11 +33,17 @@ test -n "$FINGERPRINT"
 # Vite preview also needs the Wrangler deployment pointer. It lives on the
 # persistent .wrangler volume, not in dist, so a fresh volume paired with a
 # prebuilt image can have a matching fingerprint but still be unstartable.
-# Rebuild in that case; Vite recreates the missing metadata alongside dist.
-if [ -f "$FP_FILE" ] && [ -f .wrangler/deploy/config.json ] && [ "$(cat "$FP_FILE")" = "$FINGERPRINT" ]; then
+# The fingerprint alone cannot see that, so also require the server bundle it
+# points at; when only the pointer is missing, write it instead of paying for a
+# full rebuild.
+if [ -f "$FP_FILE" ] && [ "$(cat "$FP_FILE")" = "$FINGERPRINT" ] && [ -f "$OUT_DIR/server/wrangler.json" ]; then
+  if [ ! -f "$PREVIEW_CONFIG" ]; then
+    mkdir -p "$(dirname "$PREVIEW_CONFIG")"
+    printf '{"configPath":"../../%s/server/wrangler.json","auxiliaryWorkers":[]}\n' "$OUT_DIR" > "$PREVIEW_CONFIG"
+  fi
   echo "Reusing existing build (build-relevant env unchanged)."
 else
-  echo "Building client + server (first start, changed build env, or new image)..."
+  echo "Building client + server (first start, changed build env, incomplete build, or new image)..."
   rm -f "$FP_FILE"
   pnpm run build
   printf '%s' "$FINGERPRINT" > "$FP_FILE"

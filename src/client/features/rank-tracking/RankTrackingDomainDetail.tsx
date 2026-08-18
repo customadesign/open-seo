@@ -42,6 +42,7 @@ import { CheckConfirmModal } from "./CheckConfirmModal";
 import { useMetricsRefresh } from "./useMetricsRefresh";
 import { useRankCheckTrigger } from "./useRankCheckTrigger";
 import { useRankRunPolling } from "./useRankRunPolling";
+import { ImportedRankHistory } from "./ImportedRankHistory";
 
 function deviceVisibility(
   devices: RankTrackingConfig["devices"],
@@ -267,6 +268,8 @@ export function RankTrackingDomainDetail({
           onChange={setViewMode}
           historyAvailable={historyAvailable}
         />
+
+        <ImportedRankHistory projectId={projectId} configId={config.id} />
 
         {/* Table toolbar */}
         <RankTrackingTableToolbar

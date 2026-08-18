@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- One SQL boundary for configs, providers, prompts, runs, observations, citations, and the project-scoped dashboard baseline reads. */
 import { and, asc, desc, eq, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 import { db } from "@/db";
@@ -413,10 +414,116 @@ async function claimDueConfig(input: {
   return claimed.length > 0;
 }
 
+// ---------------------------------------------------------------------------
+// Dashboard baseline reads
+//
+// The dashboard tracks ONE config per project (the oldest), so these are
+// project-scoped rather than config-scoped like the rest of the repository.
+// ---------------------------------------------------------------------------
+
+type AiVisibilityRun = typeof aiVisibilityRuns.$inferSelect;
+type AiVisibilityFinishedRun = Omit<AiVisibilityRun, "status"> & {
+  status: "completed" | "failed";
+};
+type AiVisibilityObservation = typeof aiVisibilityObservations.$inferSelect;
+
+/** The project's baseline config: oldest wins, so it is stable across visits. */
+async function getPrimaryConfigForProject(projectId: string) {
+  const rows = await db
+    .select()
+    .from(aiVisibilityConfigs)
+    .where(eq(aiVisibilityConfigs.projectId, projectId))
+    .orderBy(asc(aiVisibilityConfigs.createdAt), asc(aiVisibilityConfigs.id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Additive: never removes a provider a user deliberately turned off. */
+async function addProviders(
+  configId: string,
+  providers: readonly AiVisibilityProvider[],
+) {
+  if (providers.length === 0) return;
+  await executeInBatches(
+    providers.map((provider) => ({
+      id: crypto.randomUUID(),
+      configId,
+      provider,
+    })),
+    (tx, row) =>
+      tx
+        .insert(aiVisibilityConfigProviders)
+        .values(row)
+        .onConflictDoNothing({
+          target: [
+            aiVisibilityConfigProviders.configId,
+            aiVisibilityConfigProviders.provider,
+          ],
+        }),
+  );
+}
+
+/**
+ * Includes failed runs on purpose: a failed first baseline must read as
+ * unavailable rather than looking like it is still collecting forever.
+ */
+async function getRecentFinishedRuns(
+  configId: string,
+  limit: number,
+): Promise<AiVisibilityFinishedRun[]> {
+  const rows = await db
+    .select()
+    .from(aiVisibilityRuns)
+    .where(
+      and(
+        eq(aiVisibilityRuns.configId, configId),
+        inArray(aiVisibilityRuns.status, ["completed", "failed"]),
+      ),
+    )
+    .orderBy(desc(aiVisibilityRuns.startedAt), desc(aiVisibilityRuns.id))
+    .limit(limit);
+  return rows.filter(
+    (run): run is AiVisibilityFinishedRun =>
+      run.status === "completed" || run.status === "failed",
+  );
+}
+
+async function getRecentCompletedRuns(
+  configId: string,
+  limit: number,
+): Promise<AiVisibilityRun[]> {
+  return db
+    .select()
+    .from(aiVisibilityRuns)
+    .where(
+      and(
+        eq(aiVisibilityRuns.configId, configId),
+        eq(aiVisibilityRuns.status, "completed"),
+      ),
+    )
+    .orderBy(desc(aiVisibilityRuns.startedAt), desc(aiVisibilityRuns.id))
+    .limit(limit);
+}
+
+async function getObservationsForRuns(
+  runIds: string[],
+): Promise<AiVisibilityObservation[]> {
+  if (runIds.length === 0) return [];
+  return db
+    .select()
+    .from(aiVisibilityObservations)
+    .where(inArray(aiVisibilityObservations.runId, runIds));
+}
+
 export const AiVisibilityRepository = {
   getConfigsForProject,
   getConfigById,
   getConfigByBrand,
+  getPrimaryConfigForProject,
+  addProviders,
+  getRecentFinishedRuns,
+  getRecentCompletedRuns,
+  getObservationsForRuns,
   createConfig,
   updateConfig,
   deleteConfig,

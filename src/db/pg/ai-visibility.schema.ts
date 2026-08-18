@@ -17,7 +17,7 @@ import { projects } from "./app.schema";
 const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 const timestampColumn = (name: string) => text(name);
 
-export const AI_VISIBILITY_PROVIDERS = [
+const AI_VISIBILITY_PROVIDERS = [
   "chatgpt_search",
   "gemini",
   "google_ai_mode",

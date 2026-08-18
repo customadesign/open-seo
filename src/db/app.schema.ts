@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- the D1 schema catalog stays in one file for Drizzle generation and SQLite/Postgres parity review. */
 import {
   sqliteTable,
   text,
@@ -315,6 +316,36 @@ export const backlinkSnapshots = sqliteTable(
   },
   (table) => [
     index("backlink_snapshots_project_captured_idx").on(
+      table.projectId,
+      table.capturedAt,
+    ),
+  ],
+);
+
+// Daily history of the DataForSEO domain overview (estimated organic traffic and
+// ranked-keyword count). Normalized rather than a JSON blob so trends can be
+// queried, and persisted rather than read from the R2 response cache so the
+// dashboard can show a delta without re-paying for yesterday's numbers.
+export const domainOverviewSnapshots = sqliteTable(
+  "domain_overview_snapshots",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    locationCode: integer("location_code").notNull(),
+    languageCode: text("language_code").notNull(),
+    /** DataForSEO `metrics.organic.etv`, rounded. */
+    organicTraffic: integer("organic_traffic"),
+    /** DataForSEO `metrics.organic.count`, rounded. */
+    organicKeywords: integer("organic_keywords"),
+    capturedAt: text("captured_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    index("domain_overview_snapshots_project_captured_idx").on(
       table.projectId,
       table.capturedAt,
     ),

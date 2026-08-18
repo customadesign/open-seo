@@ -35,6 +35,39 @@ export const getDashboardOverview = createServerFn({ method: "POST" })
     return overview;
   });
 
+// Read-only: the seven summary cards render from persisted snapshots, so this
+// is safe for every role and never spends credits.
+export const getDashboardMetrics = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(dashboardProjectInputSchema)
+  .handler(({ context }) =>
+    DashboardService.getMetrics({
+      projectId: context.projectId,
+      domain: context.project.domain,
+    }),
+  );
+
+// Visit-triggered snapshot top-up for the summary cards. `requireProjectUse`
+// keeps client-role accounts read-only: they see whatever data exists but never
+// trigger metered provider calls. The service re-checks freshness server-side,
+// so a stray double-fire costs nothing.
+export const refreshDashboardMetrics = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(dashboardProjectInputSchema)
+  .handler(async ({ context }) =>
+    // No waitUntil: a queued baseline is collected by the AI visibility
+    // workflow, which outlives this request. The dashboard shows "collecting"
+    // until that run lands.
+    DashboardService.refreshMetricSnapshots({
+      projectId: context.projectId,
+      projectName: context.project.name,
+      domain: context.project.domain,
+      locationCode: context.project.locationCode,
+      languageCode: context.project.languageCode,
+      billingCustomer: context,
+    }),
+  );
+
 // Visit-triggered: the client calls this when the overview reports a missing
 // or stale backlink snapshot. Metered against org credits at most once per
 // project per day (the service re-checks freshness server-side).

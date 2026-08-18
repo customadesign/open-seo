@@ -196,6 +196,7 @@ export function getProjectNavGroups(
                 item.to === "/p/$projectId/search-performance" ||
                 item.to === "/p/$projectId/traffic-insights" ||
                 item.to === "/p/$projectId/rank-tracking" ||
+                item.to === "/p/$projectId/local-seo" ||
                 item.to === "/p/$projectId/saved" ||
                 item.to === "/p/$projectId/audit" ||
                 item.to === "/p/$projectId/log-files" ||

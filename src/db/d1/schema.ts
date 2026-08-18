@@ -1,6 +1,7 @@
 // Raw SQLite schema for the D1 client. Imported directly (not via ../schema,
 // which is the provider-aware barrel) so the D1 client always binds to the
 // SQLite tables regardless of DATABASE_PROVIDER.
+export * from "../ai-visibility.schema";
 export * from "../app.schema";
 export * from "../audit.schema";
 export * from "../sam.schema";
@@ -9,6 +10,7 @@ export * from "../billing.schema";
 export * from "../ga4.schema";
 export * from "../gsc.schema";
 export * from "../google-ads.schema";
+export * from "../local-seo.schema";
 export * from "../report.schema";
 export * from "../disavow.schema";
 export * from "../backlink-toxicity.schema";

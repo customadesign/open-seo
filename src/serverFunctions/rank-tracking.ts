@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- One server-function barrel per feature: rank config, keywords, runs, reports, and imported history entry points stay together. */
 import { createServerFn } from "@tanstack/react-start";
 import { waitUntil } from "cloudflare:workers";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
@@ -26,12 +27,17 @@ import {
   getPositionMatrixSchema,
   getRankReportSchema,
   tagTrackingKeywordsSchema,
+  getRankHistorySourcesSchema,
+  getRankHistorySourceMovementSchema,
 } from "@/types/schemas/rank-tracking";
 
 export interface RankKeywordHistoryPoint {
   device: "desktop" | "mobile";
   checkedAt: string;
   position: number | null;
+  serpDepth: number | null;
+  sourceProvider: "semrush" | null;
+  sourceEngine: string | null;
 }
 
 interface RankConfigTrendPoint {
@@ -44,6 +50,7 @@ interface RankConfigTrendPoint {
   notInTop100: number;
   /** @deprecated use notInTop100 — kept so the overview chart can migrate. */
   notRanking: number;
+  sourceProvider: "semrush" | null;
 }
 
 export interface RankPositionMatrixCell {
@@ -51,6 +58,7 @@ export interface RankPositionMatrixCell {
   checkedAt: string;
   trackingKeywordId: string;
   position: number | null;
+  sourceProvider: "semrush" | null;
 }
 
 async function requireConfig(configId: string, projectId: string) {
@@ -325,8 +333,28 @@ export const getRankConfigTrend = createServerFn({ method: "POST" })
         top21to100,
         notInTop100,
         notRanking: notInTop100,
+        sourceProvider: row.sourceProvider,
       };
     });
+  });
+
+export const getRankHistorySources = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankHistorySourcesSchema)
+  .handler(async ({ data, context }) => {
+    await requireConfig(data.configId, context.projectId);
+    return RankTrackingRepository.getHistorySourceSummaries(data.configId);
+  });
+
+export const getRankHistorySourceMovement = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankHistorySourceMovementSchema)
+  .handler(async ({ data, context }) => {
+    await requireConfig(data.configId, context.projectId);
+    return RankTrackingRepository.getHistorySourceMovement(
+      data.configId,
+      data.sourceId,
+    );
   });
 
 export const getRankPositionMatrix = createServerFn({ method: "POST" })

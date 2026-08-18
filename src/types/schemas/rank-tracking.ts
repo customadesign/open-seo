@@ -142,7 +142,9 @@ export const refreshMetricsSchema = z.object({
 });
 
 const deviceEnum = z.enum(["desktop", "mobile"]);
-const sinceDaysField = z.number().int().positive().max(730).default(365);
+// Omitted means all retained history. Keeping the numeric form preserves
+// compatibility with existing clients while removing the former 730-day cap.
+const sinceDaysField = z.number().int().positive().max(3650).optional();
 
 export const getKeywordHistorySchema = z.object({
   projectId: z.string().uuid(),
@@ -176,4 +178,15 @@ export const tagTrackingKeywordsSchema = z.object({
   configId: z.string().uuid(),
   keywordIds: z.array(z.string().uuid()).min(1).max(2000),
   tags: z.array(z.string().trim().min(1).max(64)).min(1).max(20),
+});
+
+export const getRankHistorySourcesSchema = z.object({
+  projectId: z.string().uuid(),
+  configId: z.string().uuid(),
+});
+
+export const getRankHistorySourceMovementSchema = z.object({
+  projectId: z.string().uuid(),
+  configId: z.string().uuid(),
+  sourceId: z.string().uuid(),
 });

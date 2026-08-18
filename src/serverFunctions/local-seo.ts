@@ -3,7 +3,10 @@ import { LocalSeoRepository } from "@/server/features/local-seo/repositories/Loc
 import { CitationAuditService } from "@/server/features/local-seo/services/CitationAuditService";
 import { GeoGridService } from "@/server/features/local-seo/services/GeoGridService";
 import { LocalListingService } from "@/server/features/local-seo/services/LocalListingService";
-import { requireProjectUse } from "@/serverFunctions/middleware";
+import {
+  requireProjectContext,
+  requireProjectUse,
+} from "@/serverFunctions/middleware";
 import {
   createGeoGridConfigSchema,
   getCitationAuditsSchema,
@@ -18,7 +21,7 @@ import {
 } from "@/types/schemas/local-seo";
 
 export const getLocalBusinessProfiles = createServerFn({ method: "POST" })
-  .middleware(requireProjectUse)
+  .middleware(requireProjectContext)
   .validator(getLocalBusinessProfilesSchema)
   .handler(async ({ context }) =>
     LocalSeoRepository.getProfilesForProject(context.projectId),
@@ -32,7 +35,7 @@ export const saveLocalBusinessProfile = createServerFn({ method: "POST" })
   );
 
 export const getLocalListingStatus = createServerFn({ method: "POST" })
-  .middleware(requireProjectUse)
+  .middleware(requireProjectContext)
   .validator(getLocalListingStatusSchema)
   .handler(async ({ data, context }) =>
     LocalListingService.getListingStatus(context.projectId, data.profileId),
@@ -49,7 +52,7 @@ export const saveLocalListingConnection = createServerFn({ method: "POST" })
   );
 
 export const getGeoGridConfigs = createServerFn({ method: "POST" })
-  .middleware(requireProjectUse)
+  .middleware(requireProjectContext)
   .validator(getGeoGridConfigsSchema)
   .handler(async ({ context }) =>
     LocalSeoRepository.getGeoGridConfigs(context.projectId),
@@ -63,7 +66,7 @@ export const createGeoGridConfig = createServerFn({ method: "POST" })
   );
 
 export const getGeoGridHistory = createServerFn({ method: "POST" })
-  .middleware(requireProjectUse)
+  .middleware(requireProjectContext)
   .validator(getGeoGridHistorySchema)
   .handler(async ({ data, context }) =>
     GeoGridService.getHistory({ ...data, projectId: context.projectId }),
@@ -92,7 +95,7 @@ export const runCitationAudit = createServerFn({ method: "POST" })
   );
 
 export const getCitationAudits = createServerFn({ method: "POST" })
-  .middleware(requireProjectUse)
+  .middleware(requireProjectContext)
   .validator(getCitationAuditsSchema)
   .handler(async ({ data, context }) =>
     CitationAuditService.getAudits({ ...data, projectId: context.projectId }),

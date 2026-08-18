@@ -7,6 +7,7 @@ import {
   PgDialect,
 } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
+import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as sqliteApp from "./app.schema";
 import * as sqliteAudit from "./audit.schema";
 import * as sqliteSam from "./sam.schema";
@@ -20,7 +21,6 @@ import * as sqliteGoogleAds from "./google-ads.schema";
 import * as sqliteReports from "./report.schema";
 import * as sqliteDisavow from "./disavow.schema";
 import * as sqliteBacklinkToxicity from "./backlink-toxicity.schema";
-import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as sqliteRankTracking from "./rank-tracking.schema";
 import * as sqliteChangeEvents from "./change-events.schema";
 import * as sqliteGap from "./gap.schema";
@@ -28,6 +28,7 @@ import * as sqliteKeywordMagic from "./keyword-magic.schema";
 import * as sqliteLogFiles from "./log-files.schema";
 import * as sqliteOnPage from "./on-page.schema";
 import * as sqliteDomainResearch from "./domain-research.schema";
+import * as pgAiVisibility from "./pg/ai-visibility.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -41,7 +42,6 @@ import * as pgGoogleAds from "./pg/google-ads.schema";
 import * as pgReports from "./pg/report.schema";
 import * as pgDisavow from "./pg/disavow.schema";
 import * as pgBacklinkToxicity from "./pg/backlink-toxicity.schema";
-import * as pgAiVisibility from "./pg/ai-visibility.schema";
 import * as pgRankTracking from "./pg/rank-tracking.schema";
 import * as pgChangeEvents from "./pg/change-events.schema";
 import * as pgGap from "./pg/gap.schema";
@@ -171,6 +171,7 @@ function checkNames(table: Table, dialect: Dialect): string[] {
 }
 
 const sqliteAppTables = tablesFrom(
+  sqliteAiVisibility,
   sqliteApp,
   sqliteAudit,
   sqliteSam,
@@ -183,7 +184,6 @@ const sqliteAppTables = tablesFrom(
   sqliteReports,
   sqliteDisavow,
   sqliteBacklinkToxicity,
-  sqliteAiVisibility,
   sqliteRankTracking,
   sqliteChangeEvents,
   sqliteGap,
@@ -193,6 +193,7 @@ const sqliteAppTables = tablesFrom(
   sqliteDomainResearch,
 );
 const pgAppTables = tablesFrom(
+  pgAiVisibility,
   pgApp,
   pgAudit,
   pgSam,
@@ -205,7 +206,6 @@ const pgAppTables = tablesFrom(
   pgReports,
   pgDisavow,
   pgBacklinkToxicity,
-  pgAiVisibility,
   pgRankTracking,
   pgChangeEvents,
   pgGap,

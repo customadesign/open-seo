@@ -130,6 +130,17 @@ export const rankCheckRuns = sqliteTable(
     isSubsetRun: integer("is_subset_run", { mode: "boolean" })
       .notNull()
       .default(false),
+    /** Set only on runs backfilled from an imported history source. */
+    historySourceId: text("history_source_id").references(
+      () => rankHistorySources.id,
+      { onDelete: "cascade" },
+    ),
+    // Immutable measurement context. Configs are editable, so reading these
+    // values from the current config would silently relabel older results.
+    targetLocationCode: integer("target_location_code"),
+    targetLocationName: text("target_location_name"),
+    targetLanguageCode: text("target_language_code"),
+    targetSerpDepth: integer("target_serp_depth"),
     errorMessage: text("error_message"),
     startedAt: text("started_at")
       .notNull()
@@ -147,6 +158,10 @@ export const rankCheckRuns = sqliteTable(
   (table) => [
     index("rank_check_runs_config_idx").on(table.configId, table.startedAt),
     index("rank_check_runs_project_idx").on(table.projectId, table.startedAt),
+    uniqueIndex("rank_check_runs_import_source_date_idx").on(
+      table.historySourceId,
+      table.startedAt,
+    ),
     uniqueIndex("rank_check_runs_one_active_per_config_idx")
       .on(table.configId)
       .where(sql`${table.status} IN ('pending', 'running')`),
@@ -239,5 +254,48 @@ export const rankSerpEntries = sqliteTable(
       table.rowKind,
       table.device,
     ),
+  ],
+);
+
+// Provenance for rank history imported from an outside tool. One row per
+// distinct SEMrush campaign/engine/location/device series, so imported
+// snapshots stay attributable after the source subscription ends.
+export const rankHistorySources = sqliteTable(
+  "rank_history_sources",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    configId: text("config_id")
+      .notNull()
+      .references(() => rankTrackingConfigs.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: ["semrush"] }).notNull(),
+    externalCampaignId: text("external_campaign_id").notNull(),
+    searchEngine: text("search_engine").notNull(),
+    sourceLocationCode: integer("source_location_code"),
+    sourceLocationName: text("source_location_name").notNull(),
+    sourceLocationType: text("source_location_type"),
+    languageCode: text("language_code").notNull(),
+    device: text("device", { enum: ["desktop", "mobile"] }).notNull(),
+    continuity: text("continuity", { enum: ["continuous", "legacy"] })
+      .notNull()
+      .default("legacy"),
+    firstObservedAt: text("first_observed_at"),
+    lastObservedAt: text("last_observed_at"),
+    importedAt: text("imported_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("rank_history_sources_provider_campaign_idx").on(
+      table.provider,
+      table.externalCampaignId,
+    ),
+    index("rank_history_sources_config_idx").on(
+      table.configId,
+      table.importedAt,
+    ),
+    index("rank_history_sources_project_idx").on(table.projectId),
   ],
 );

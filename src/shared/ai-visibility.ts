@@ -121,3 +121,46 @@ export const aiVisibilityCostApprovalError = (
 
 export const aiVisibilityPromptLimitError = (requested: number) =>
   `A config can track at most ${MAX_PROMPTS_PER_CONFIG} prompts (requested ${requested}).`;
+
+// ---------------------------------------------------------------------------
+// Auto-seeded baseline configs
+// ---------------------------------------------------------------------------
+
+/** Providers enabled on an auto-seeded project config. */
+export const DEFAULT_AI_VISIBILITY_PROVIDERS: readonly AiVisibilityProvider[] =
+  AI_VISIBILITY_PROVIDERS;
+
+/**
+ * Baseline prompts for a newly seeded config. Deliberately few: a run costs
+ * prompts × providers metered upstream calls, and the dashboard only needs a
+ * stable mention baseline, not prompt-level coverage.
+ */
+export function buildDefaultAiVisibilityPrompts(brandName: string): string[] {
+  const brand = brandName.trim();
+  if (!brand) return [];
+  return [
+    `What is ${brand}?`,
+    `What do people say about ${brand}?`,
+    `What are the best alternatives to ${brand}?`,
+  ].map((prompt) => prompt.slice(0, MAX_AI_VISIBILITY_PROMPT_LENGTH));
+}
+
+/**
+ * Brand string for a project. The project name is what a user would type into
+ * an AI assistant; the domain's registrable label is the fallback when a
+ * project was never named.
+ */
+export function deriveBrandName(input: {
+  projectName: string | null;
+  domain: string | null;
+}): string | null {
+  const name = input.projectName?.trim();
+  if (name) return name;
+  const host = input.domain
+    ?.trim()
+    .toLowerCase()
+    .replace(/^www\./, "");
+  if (!host) return null;
+  const label = host.split(".")[0];
+  return label.length > 0 ? label : null;
+}

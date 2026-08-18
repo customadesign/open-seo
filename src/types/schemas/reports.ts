@@ -102,8 +102,27 @@ const rankingsSectionSchema = z.object({
           previousPosition: z.number().nullable(),
           change: z.number().nullable(),
           rankingUrl: z.string().nullable(),
+          baselinePosition: z.number().nullable().optional(),
+          baselineDate: z.string().nullable().optional(),
+          lifetimeChange: z.number().nullable().optional(),
+          baselineSource: z.enum(["openseo", "semrush"]).optional(),
         }),
       ),
+      legacySources: z
+        .array(
+          z.object({
+            sourceId: z.string(),
+            searchEngine: z.string(),
+            locationName: z.string(),
+            device: z.enum(["desktop", "mobile"]),
+            firstObservedAt: z.string().nullable(),
+            lastObservedAt: z.string().nullable(),
+            tracked: z.number().int(),
+            improved: z.number().int(),
+            declined: z.number().int(),
+          }),
+        )
+        .optional(),
       trend: z.array(
         z.object({
           checkedAt: z.string(),

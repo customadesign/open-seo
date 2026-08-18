@@ -184,15 +184,15 @@ export function useChartWidth() {
 const TREND_RANGES = [
   { label: "30d", sinceDays: 30 },
   { label: "90d", sinceDays: 90 },
-  { label: "All", sinceDays: 730 },
+  { label: "All", sinceDays: undefined },
 ] as const;
 
 export function TrendRangeToggle({
   value,
   onChange,
 }: {
-  value: number;
-  onChange: (sinceDays: number) => void;
+  value: number | undefined;
+  onChange: (sinceDays: number | undefined) => void;
 }) {
   return (
     <div className="join">
