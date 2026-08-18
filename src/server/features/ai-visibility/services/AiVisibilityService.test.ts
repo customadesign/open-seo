@@ -11,8 +11,10 @@ const mocks = vi.hoisted(() => ({
   getProvidersForConfig: vi.fn(),
   tryCreateRun: vi.fn(),
   updateRun: vi.fn(),
+  markRunFailed: vi.fn(),
   getActiveRunForConfig: vi.fn(),
   getRecentCompletedRuns: vi.fn(),
+  getRecentFinishedRuns: vi.fn(),
   insertObservations: vi.fn(),
   getObservationsForRuns: vi.fn(),
   isHostedServerAuthMode: vi.fn(),
@@ -68,6 +70,7 @@ describe("AiVisibilityService.ensureBaselineRun", () => {
   beforeEach(() => {
     mocks.getPrimaryConfigForProject.mockResolvedValue(config);
     mocks.getRecentCompletedRuns.mockResolvedValue([]);
+    mocks.getRecentFinishedRuns.mockResolvedValue([]);
     mocks.getActiveRunForConfig.mockResolvedValue(null);
     mocks.getActivePromptsForConfig.mockResolvedValue([
       { id: "prompt_1", prompt: "What is Acme?" },
@@ -133,6 +136,30 @@ describe("AiVisibilityService.ensureBaselineRun", () => {
     expect(mocks.tryCreateRun).not.toHaveBeenCalled();
   });
 
+  it("does not retry a failed baseline within its 24-hour window", async () => {
+    mocks.getPrimaryConfigForProject.mockResolvedValue({
+      ...config,
+      lastRunAt: new Date().toISOString(),
+    });
+
+    await expect(
+      AiVisibilityService.ensureBaselineRun(projectInput),
+    ).resolves.toEqual({ queued: false, reason: "not_due" });
+    expect(mocks.tryCreateRun).not.toHaveBeenCalled();
+  });
+
+  it("allows a failed baseline to retry after 24 hours", async () => {
+    mocks.getPrimaryConfigForProject.mockResolvedValue({
+      ...config,
+      lastRunAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    });
+
+    await expect(
+      AiVisibilityService.ensureBaselineRun(projectInput),
+    ).resolves.toMatchObject({ queued: true });
+    expect(mocks.tryCreateRun).toHaveBeenCalledTimes(1);
+  });
+
   it("yields to a run that is already in flight", async () => {
     mocks.getActiveRunForConfig.mockResolvedValue({
       id: "run_1",
@@ -192,6 +219,40 @@ describe("AiVisibilityService.ensureBaselineRun", () => {
   });
 });
 
+describe("AiVisibilityService.getState", () => {
+  beforeEach(() => {
+    mocks.getPrimaryConfigForProject.mockResolvedValue(config);
+    mocks.getActiveRunForConfig.mockResolvedValue(null);
+    mocks.getRecentFinishedRuns.mockResolvedValue([
+      {
+        id: "run_failed",
+        status: "failed",
+        startedAt: "2026-08-18T00:00:00.000Z",
+        completedAt: "2026-08-18T00:01:00.000Z",
+      },
+    ]);
+    mocks.getObservationsForRuns.mockResolvedValue([]);
+  });
+
+  it("surfaces a failed first baseline as an explicit terminal state", async () => {
+    await expect(
+      AiVisibilityService.getState("project_1"),
+    ).resolves.toMatchObject({
+      configured: true,
+      running: false,
+      latest: {
+        status: "failed",
+        capturedAt: "2026-08-18T00:01:00.000Z",
+        summary: {
+          visibilityPercent: null,
+          readableObservations: 0,
+        },
+      },
+    });
+    expect(mocks.getRecentFinishedRuns).toHaveBeenCalledWith("config_1", 3);
+  });
+});
+
 const plan = {
   runId: "run_1",
   configId: "config_1",
@@ -217,6 +278,7 @@ describe("AiVisibilityService.executeRun", () => {
   beforeEach(() => {
     mocks.insertObservations.mockReset();
     mocks.updateRun.mockReset();
+    mocks.markRunFailed.mockReset();
     mocks.answer.mockReset();
   });
 
@@ -321,6 +383,54 @@ describe("AiVisibilityService.executeRun", () => {
         status: "failed",
         errorMessage: "Run exceeds the approved credit ceiling",
       }),
+    );
+  });
+
+  it("marks the run failed when observation persistence rejects", async () => {
+    mocks.answer.mockResolvedValue({
+      text: "Acme",
+      modelName: null,
+      references: [],
+    });
+    mocks.insertObservations.mockRejectedValue(
+      new Error("observation write down"),
+    );
+
+    await expect(
+      AiVisibilityService.executeRun(
+        { ...plan, providers: [...plan.providers] },
+        billingCustomer,
+      ),
+    ).rejects.toThrow("observation write down");
+
+    expect(mocks.markRunFailed).toHaveBeenCalledTimes(1);
+    expect(mocks.markRunFailed).toHaveBeenCalledWith(
+      "run_1",
+      "observation write down",
+    );
+  });
+
+  it("marks the run failed when the final summary update rejects", async () => {
+    mocks.answer.mockResolvedValue({
+      text: "Acme",
+      modelName: null,
+      references: [],
+    });
+    mocks.updateRun
+      .mockRejectedValueOnce(new Error("summary write down"))
+      .mockResolvedValue(undefined);
+
+    await expect(
+      AiVisibilityService.executeRun(
+        { ...plan, providers: [...plan.providers] },
+        billingCustomer,
+      ),
+    ).rejects.toThrow("summary write down");
+
+    expect(mocks.markRunFailed).toHaveBeenCalledTimes(1);
+    expect(mocks.markRunFailed).toHaveBeenCalledWith(
+      "run_1",
+      "summary write down",
     );
   });
 });

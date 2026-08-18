@@ -67,7 +67,7 @@ export interface DashboardMetric {
   unit: DashboardMetricUnit;
   delta: number | null;
   deltaKind: DashboardMetricDeltaKind;
-  /** When the underlying snapshot was taken; null when there is no value. */
+  /** When the underlying snapshot/attempt happened; null when none exists. */
   capturedAt: string | null;
   sourceLabel: string;
   /** True when the number is a modelled estimate, not a measurement. */

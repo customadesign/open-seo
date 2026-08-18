@@ -15,6 +15,10 @@ const REFRESHABLE_KEYS = new Set<DashboardMetricKey>([
   "organic_traffic",
   "organic_keywords",
 ]);
+const AI_METRIC_KEYS = new Set<DashboardMetricKey>([
+  "ai_visibility",
+  "mentions",
+]);
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -29,13 +33,22 @@ const READ_ONLY_COLLECTION_NOTE =
  * True when a snapshot-backed card has nothing yet or its snapshot is over a day
  * old.
  *
- * Deliberately ignores `unavailable` and `setup`: a plan block, a credit block or
- * a missing domain would otherwise put every page view into a refresh call
- * against a gate that will keep refusing.
+ * Deliberately ignores most `unavailable` and all `setup` states: a plan block,
+ * a credit block or a missing domain would otherwise put every page view into a
+ * refresh call against a gate that will keep refusing. AI failures are the
+ * exception when they carry an attempt timestamp; those may retry once the
+ * daily bound expires.
  */
 export function needsMetricRefresh(metrics: DashboardMetric[]): boolean {
   return metrics.some((metric) => {
     if (!REFRESHABLE_KEYS.has(metric.key)) return false;
+    if (metric.status === "unavailable") {
+      if (!AI_METRIC_KEYS.has(metric.key) || metric.capturedAt === null) {
+        return false;
+      }
+      const capturedMs = parseDbTimestampMs(metric.capturedAt);
+      return capturedMs === null || Date.now() - capturedMs >= ONE_DAY_MS;
+    }
     if (metric.status === "collecting") return true;
     if (metric.status !== "ready" || metric.capturedAt === null) return false;
     const capturedMs = parseDbTimestampMs(metric.capturedAt);
@@ -53,7 +66,13 @@ export function metricForViewer(
   metric: DashboardMetric,
   canUseProjectTools: boolean,
 ): DashboardMetric {
-  if (canUseProjectTools || metric.status !== "collecting") return metric;
+  if (
+    canUseProjectTools ||
+    metric.status !== "collecting" ||
+    !REFRESHABLE_KEYS.has(metric.key)
+  ) {
+    return metric;
+  }
   return { ...metric, note: READ_ONLY_COLLECTION_NOTE };
 }
 

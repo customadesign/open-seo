@@ -92,6 +92,7 @@ describe("buildDashboardMetrics", () => {
           running: false,
           skipReason: null,
           latest: {
+            status: "completed",
             capturedAt: "2026-08-18T00:00:00.000Z",
             summary: {
               visibilityPercent: 50,
@@ -132,6 +133,7 @@ describe("buildDashboardMetrics", () => {
           ...emptyAi,
           configured: true,
           latest: {
+            status: "failed",
             capturedAt: "2026-08-18T00:00:00.000Z",
             summary: {
               visibilityPercent: null,
@@ -145,6 +147,35 @@ describe("buildDashboardMetrics", () => {
     );
     expect(metrics.get("ai_visibility")?.status).toBe("unavailable");
     expect(metrics.get("ai_visibility")?.value).toBeNull();
+  });
+
+  it("keeps a failed baseline unavailable even when it has partial observations", () => {
+    const metrics = byKey(
+      sources({
+        aiVisibility: {
+          ...emptyAi,
+          configured: true,
+          latest: {
+            status: "failed",
+            capturedAt: "2026-08-18T00:00:00.000Z",
+            summary: {
+              visibilityPercent: 50,
+              mentions: 3,
+              readableObservations: 2,
+              unavailableObservations: 1,
+            },
+          },
+        },
+      }),
+    );
+
+    expect(metrics.get("ai_visibility")).toMatchObject({
+      status: "unavailable",
+      value: null,
+      note: "The last AI visibility baseline was temporarily unavailable.",
+      capturedAt: "2026-08-18T00:00:00.000Z",
+    });
+    expect(metrics.get("mentions")?.status).toBe("unavailable");
   });
 
   it("labels domain overview numbers as estimates and traffic delta as a percent", () => {

@@ -63,6 +63,29 @@ describe("needsMetricRefresh", () => {
     ).toBe(false);
   });
 
+  it("retries a failed AI attempt only after its daily window", () => {
+    expect(
+      needsMetricRefresh([
+        metric({
+          key: "ai_visibility",
+          status: "unavailable",
+          value: null,
+          capturedAt: new Date().toISOString(),
+        }),
+      ]),
+    ).toBe(false);
+    expect(
+      needsMetricRefresh([
+        metric({
+          key: "ai_visibility",
+          status: "unavailable",
+          value: null,
+          capturedAt: "2020-01-01T00:00:00.000Z",
+        }),
+      ]),
+    ).toBe(true);
+  });
+
   it("ignores cards the refresh path cannot fill in", () => {
     // Site health only moves when the user runs an audit, and the Backlink pulse
     // card owns the backlink snapshot — a stale value on either must not trigger
@@ -99,6 +122,30 @@ describe("metricForViewer", () => {
     });
 
     expect(metricForViewer(collecting, true)).toBe(collecting);
+  });
+
+  it("uses manager copy for a snapshot refresh the client cannot trigger", () => {
+    const collecting = metric({
+      key: "organic_traffic",
+      status: "collecting",
+      value: null,
+      note: "Taking your first domain snapshot…",
+    });
+
+    expect(metricForViewer(collecting, false).note).toBe(
+      "Waiting for a workspace manager to start collection.",
+    );
+  });
+
+  it("preserves truthful copy for async non-manager collection", () => {
+    const collecting = metric({
+      key: "visibility",
+      status: "collecting",
+      value: null,
+      note: "Waiting on search volume for your tracked keywords.",
+    });
+
+    expect(metricForViewer(collecting, false)).toBe(collecting);
   });
 });
 

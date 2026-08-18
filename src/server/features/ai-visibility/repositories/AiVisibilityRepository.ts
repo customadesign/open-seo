@@ -16,6 +16,9 @@ import type { AiVisibilityProvider } from "@/shared/ai-visibility";
 // SQLite and Postgres through the provider-aware `db` barrel.
 
 type AiVisibilityRun = typeof aiVisibilityRuns.$inferSelect;
+type AiVisibilityFinishedRun = Omit<AiVisibilityRun, "status"> & {
+  status: "completed" | "failed";
+};
 type AiVisibilityObservation = typeof aiVisibilityObservations.$inferSelect;
 
 type ObservationInsert = InferInsertModel<typeof aiVisibilityObservations>;
@@ -162,6 +165,27 @@ async function updateRun(
     .where(eq(aiVisibilityRuns.id, runId));
 }
 
+/**
+ * Fail an unfinished run without changing one that a concurrent worker already
+ * finalized. The conditional update keeps an uncertain write failure from
+ * turning a successfully completed run back into a failure.
+ */
+async function markRunFailed(runId: string, errorMessage: string) {
+  await db
+    .update(aiVisibilityRuns)
+    .set({
+      status: "failed",
+      errorMessage,
+      completedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(aiVisibilityRuns.id, runId),
+        inArray(aiVisibilityRuns.status, ["pending", "running"]),
+      ),
+    );
+}
+
 async function getActiveRunForConfig(
   configId: string,
 ): Promise<AiVisibilityRun | null> {
@@ -194,6 +218,28 @@ async function getRecentCompletedRuns(
     )
     .orderBy(desc(aiVisibilityRuns.startedAt), desc(aiVisibilityRuns.id))
     .limit(limit);
+}
+
+/** Newest terminal runs, including failures, scoped to one config. */
+async function getRecentFinishedRuns(
+  configId: string,
+  limit: number,
+): Promise<AiVisibilityFinishedRun[]> {
+  const rows = await db
+    .select()
+    .from(aiVisibilityRuns)
+    .where(
+      and(
+        eq(aiVisibilityRuns.configId, configId),
+        inArray(aiVisibilityRuns.status, ["completed", "failed"]),
+      ),
+    )
+    .orderBy(desc(aiVisibilityRuns.startedAt), desc(aiVisibilityRuns.id))
+    .limit(limit);
+  return rows.filter(
+    (run): run is AiVisibilityFinishedRun =>
+      run.status === "completed" || run.status === "failed",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -274,8 +320,10 @@ export const AiVisibilityRepository = {
   addPrompts,
   tryCreateRun,
   updateRun,
+  markRunFailed,
   getActiveRunForConfig,
   getRecentCompletedRuns,
+  getRecentFinishedRuns,
   insertObservations,
   getObservationsForRuns,
 };

@@ -78,6 +78,7 @@ export interface AiVisibilityState {
    */
   skipReason: string | null;
   latest: {
+    status: "completed" | "failed";
     summary: AiVisibilityRunSummary;
     capturedAt: string;
   } | null;
@@ -109,14 +110,19 @@ async function getState(projectId: string): Promise<AiVisibilityState> {
     };
   }
 
-  const [activeRun, completedRuns] = await Promise.all([
+  const [activeRun, finishedRuns] = await Promise.all([
     AiVisibilityRepository.getActiveRunForConfig(config.id),
-    AiVisibilityRepository.getRecentCompletedRuns(config.id, 2),
+    // Include failed runs so a failed first baseline is visible as unavailable
+    // instead of looking like it is still collecting forever.
+    AiVisibilityRepository.getRecentFinishedRuns(config.id, 3),
   ]);
 
-  const [latestRun, previousRun] = completedRuns;
+  const [latestRun] = finishedRuns;
+  const previousRun = finishedRuns.find(
+    (run) => run.status === "completed" && run.id !== latestRun?.id,
+  );
   const observations = await AiVisibilityRepository.getObservationsForRuns(
-    completedRuns.map((run) => run.id),
+    finishedRuns.map((run) => run.id),
   );
   const byRun = (runId: string) =>
     observations.filter((observation) => observation.runId === runId);
@@ -127,6 +133,7 @@ async function getState(projectId: string): Promise<AiVisibilityState> {
     skipReason: config.lastSkipReason,
     latest: latestRun
       ? {
+          status: latestRun.status,
           summary: summarizeAiVisibilityRun(byRun(latestRun.id)),
           capturedAt: latestRun.completedAt ?? latestRun.startedAt,
         }
@@ -250,6 +257,12 @@ async function ensureBaselineRun(
       errorMessage: "Run abandoned before completing",
       completedAt: new Date().toISOString(),
     });
+  }
+  // `lastRunAt` is written when a run is claimed, so a failed attempt consumes
+  // the same daily baseline slot as a completed attempt. This prevents a
+  // provider outage from being re-spent on every manager dashboard visit.
+  if (config.lastRunAt && !isStale(config.lastRunAt, RUN_MIN_INTERVAL_MS)) {
+    return { queued: false, reason: "not_due" };
   }
 
   const skipReason = await checkEligibility(input.billingCustomer);
@@ -384,45 +397,61 @@ async function executeRun(
     }
   }
 
-  await AiVisibilityRepository.insertObservations(
-    results.map(({ prompt, provider, shaped }) => ({
-      observation: {
-        id: crypto.randomUUID(),
-        runId: plan.runId,
-        trackingPromptId: prompt.id,
-        prompt: prompt.prompt,
-        provider,
-        status: shaped.status,
-        outcome: shaped.outcome,
-        mentionCount: shaped.mentionCount,
-        domainCited: shaped.domainCited,
-        modelName: shaped.modelName,
-        errorMessage: shaped.errorMessage,
-        checkedAt,
-      },
-      citations: shaped.citations.map((citation) => ({
-        id: crypto.randomUUID(),
-        url: citation.url,
-        domain: citation.domain,
-        position: citation.position,
-        isTargetDomain: citation.isTargetDomain,
+  try {
+    await AiVisibilityRepository.insertObservations(
+      results.map(({ prompt, provider, shaped }) => ({
+        observation: {
+          id: crypto.randomUUID(),
+          runId: plan.runId,
+          trackingPromptId: prompt.id,
+          prompt: prompt.prompt,
+          provider,
+          status: shaped.status,
+          outcome: shaped.outcome,
+          mentionCount: shaped.mentionCount,
+          domainCited: shaped.domainCited,
+          modelName: shaped.modelName,
+          errorMessage: shaped.errorMessage,
+          checkedAt,
+        },
+        citations: shaped.citations.map((citation) => ({
+          id: crypto.randomUUID(),
+          url: citation.url,
+          domain: citation.domain,
+          position: citation.position,
+          isTargetDomain: citation.isTargetDomain,
+        })),
       })),
-    })),
-  );
+    );
 
-  const readable = results.filter(
-    (result) => result.shaped.status === "completed",
-  ).length;
+    const readable = results.filter(
+      (result) => result.shaped.status === "completed",
+    ).length;
 
-  // A run with zero readable observations is a failure, not a baseline of zero
-  // visibility — otherwise a total provider outage would chart as the brand
-  // vanishing from AI answers.
-  await AiVisibilityRepository.updateRun(plan.runId, {
-    status: readable > 0 ? "completed" : "failed",
-    observationsCompleted: readable,
-    errorMessage: readable > 0 ? null : "Every provider was unavailable",
-    completedAt: new Date().toISOString(),
-  });
+    // A run with zero readable observations is a failure, not a baseline of
+    // zero visibility — otherwise a total provider outage would chart as the
+    // brand vanishing from AI answers.
+    await AiVisibilityRepository.updateRun(plan.runId, {
+      status: readable > 0 ? "completed" : "failed",
+      observationsCompleted: readable,
+      errorMessage: readable > 0 ? null : "Every provider was unavailable",
+      completedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    // Provider calls may already have been charged before persistence or final
+    // summary bookkeeping fails. Mark only an unfinished run: if the summary
+    // update actually committed before throwing, this cannot double-complete it
+    // as failed.
+    try {
+      await AiVisibilityRepository.markRunFailed(
+        plan.runId,
+        error instanceof Error ? error.message.slice(0, 500) : "Run failed",
+      );
+    } catch (markError) {
+      console.error("ai-visibility.run.mark-failed failed", markError);
+    }
+    throw error;
+  }
 }
 
 export const AiVisibilityService = {

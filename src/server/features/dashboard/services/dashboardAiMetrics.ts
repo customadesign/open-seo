@@ -51,6 +51,13 @@ function aiMetricState(sources: DashboardMetricSources): {
       target: null,
     };
   }
+  if (aiVisibility.latest.status === "failed") {
+    return {
+      status: "unavailable",
+      note: "The last AI visibility baseline was temporarily unavailable.",
+      target: null,
+    };
+  }
   if (aiVisibility.latest.summary.readableObservations === 0) {
     return {
       status: "unavailable",
@@ -84,7 +91,9 @@ export function buildAiVisibilityMetric(
         ? null
         : absoluteChange(value, previous?.summary.visibilityPercent ?? null),
     deltaKind: "percentage_points",
-    capturedAt: value === null ? null : (latest?.capturedAt ?? null),
+    // Keep a failed attempt's timestamp so the refresh path can retry it after
+    // the daily bound without retrying on every manager visit.
+    capturedAt: latest?.capturedAt ?? null,
     sourceLabel: AI_SOURCE_LABEL,
     estimated: false,
     status: state.status,
@@ -112,7 +121,7 @@ export function buildMentionsMetric(
         ? null
         : absoluteChange(value, previous?.summary.mentions ?? null),
     deltaKind: "absolute",
-    capturedAt: value === null ? null : (latest?.capturedAt ?? null),
+    capturedAt: latest?.capturedAt ?? null,
     sourceLabel: AI_SOURCE_LABEL,
     estimated: false,
     status: state.status,
