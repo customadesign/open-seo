@@ -2,10 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  getRankCannibalizationReport,
   getRankDistributionReport,
   getRankPagesReport,
-  getRankSnippetsReport,
   getRankTagsReport,
   tagTrackingKeywords,
 } from "@/serverFunctions/rank-tracking";
@@ -54,54 +52,6 @@ export function DistributionReportPanel({
           data.current[band],
           data.movement[band].entered,
           data.movement[band].left,
-        ])}
-      />
-    </div>
-  );
-}
-
-export function CannibalizationReportPanel({
-  projectId,
-  configId,
-  device,
-}: {
-  projectId: string;
-  configId: string;
-  device: "desktop" | "mobile";
-}) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["rankCannibalization", projectId, configId, device],
-    queryFn: () =>
-      getRankCannibalizationReport({
-        data: { projectId, configId, device },
-      }),
-  });
-
-  if (isLoading) return <LoadingState />;
-  if (!data || data.findings.length === 0) {
-    return (
-      <EmptyState>
-        No URL cannibalization in stored snapshots. A single one-way URL change
-        (redirect or page move) is not reported.
-      </EmptyState>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-base-content/60">
-        {data.findings.length} of {data.scannedKeywords} keywords flipped
-        between two or more ranking URLs across {data.runCount} checks.
-      </p>
-      <ReportTable
-        headers={["Keyword", "Position", "URLs", "Flips"]}
-        rows={data.findings.map((row) => [
-          row.keyword,
-          formatPosition(row.currentPosition),
-          row.competingUrls
-            .map((url) => `${url.url} (${url.snapshotCount})`)
-            .join(" · "),
-          row.transitionCount,
         ])}
       />
     </div>
@@ -289,50 +239,5 @@ export function PagesReportPanel({
         formatSigned(page.keywordCountChange, 0),
       ])}
     />
-  );
-}
-
-export function SnippetsReportPanel({
-  projectId,
-  configId,
-  device,
-}: {
-  projectId: string;
-  configId: string;
-  device: "desktop" | "mobile";
-}) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["rankSnippets", projectId, configId, device],
-    queryFn: () =>
-      getRankSnippetsReport({ data: { projectId, configId, device } }),
-  });
-
-  if (isLoading) return <LoadingState />;
-  if (!data || data.rows.length === 0) {
-    return (
-      <EmptyState>
-        No notable SERP features in stored snapshots. Ownership is not stored —
-        this list is presence only.
-      </EmptyState>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-base-content/60">
-        Stored checks record which features appeared on the SERP, not whether
-        this domain owns them.
-      </p>
-      <ReportTable
-        headers={["Keyword", "Position", "Features", "Gained", "Lost"]}
-        rows={data.rows.map((row) => [
-          row.keyword,
-          formatPosition(row.position),
-          row.features.join(", ") || "—",
-          row.gained.join(", ") || "—",
-          row.lost.join(", ") || "—",
-        ])}
-      />
-    </div>
   );
 }

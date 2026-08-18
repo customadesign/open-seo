@@ -60,16 +60,23 @@ function buildEvidence(
           direction: enteredTop3 > 0 ? "positive" : "neutral",
         });
       }
-      const cannibalizing = section.data.configs.reduce(
+      const sameSerp = section.data.configs.reduce(
+        (sum, config) => sum + (config.cannibalization?.sameSerp?.length ?? 0),
+        0,
+      );
+      const urlFlips = section.data.configs.reduce(
         (sum, config) => sum + (config.cannibalization?.findings.length ?? 0),
         0,
       );
       if (section.data.configs.some((config) => config.cannibalization)) {
         evidence.push({
           key: "rankings.cannibalization",
-          label: "Keywords with competing URLs",
-          value: String(cannibalizing),
-          direction: cannibalizing === 0 ? "positive" : "negative",
+          label: "Keywords with two URLs on one SERP",
+          value:
+            sameSerp > 0
+              ? String(sameSerp)
+              : `${urlFlips} URL-flip signal${urlFlips === 1 ? "" : "s"}`,
+          direction: sameSerp === 0 && urlFlips === 0 ? "positive" : "negative",
         });
       }
     }

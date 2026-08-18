@@ -39,22 +39,24 @@ describe("rank tracking report MCP tools", () => {
 
   it("renders cannibalization findings as a table of keywords", async () => {
     mocks.getCannibalization.mockResolvedValue({
-      findings: [
+      sameSerp: [
         {
           trackingKeywordId: "kw_1",
           keyword: "sign shop",
           device: "desktop",
-          competingUrls: [
-            { url: "https://example.com/a", snapshotCount: 3 },
-            { url: "https://example.com/b", snapshotCount: 2 },
+          urls: [
+            { url: "https://example.com/a", position: 4 },
+            { url: "https://example.com/b", position: 9 },
           ],
-          transitionCount: 2,
-          currentUrl: "https://example.com/a",
           currentPosition: 4,
         },
       ],
+      urlFlips: [],
+      findings: [],
       scannedKeywords: 12,
       runCount: 8,
+      capturedRunCount: 3,
+      capturedSince: "2026-08-01T00:00:00.000Z",
     });
 
     const parsed = z

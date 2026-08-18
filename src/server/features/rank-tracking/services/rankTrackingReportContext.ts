@@ -55,15 +55,15 @@ export function volumeByKeywordId(
   return new Map(keywords.map((keyword) => [keyword.id, keyword.searchVolume]));
 }
 
-export function parseSerpFeatures(raw: string | null): string[] {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === "string");
-    }
-  } catch {
-    // ignore malformed JSON from older rows
-  }
-  return [];
+export function capturedRunsForDevice(
+  snapshots: ReportSnapshotRow[],
+  runs: Array<{ id: string; startedAt: string }>,
+  device: Device,
+) {
+  const captured = new Set(
+    snapshots
+      .filter((row) => row.device === device && row.serpCaptured)
+      .map((row) => row.runId),
+  );
+  return runs.filter((run) => captured.has(run.id));
 }

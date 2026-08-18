@@ -109,6 +109,7 @@ export const {
   rankTrackingKeywords,
   rankCheckRuns,
   rankSnapshots,
+  rankSerpEntries,
   organizationActivationState,
   projectActivationState,
   backlinkSnapshots,

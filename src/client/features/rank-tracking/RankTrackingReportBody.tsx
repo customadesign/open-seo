@@ -5,14 +5,14 @@ import { RankTrackingHistoryMatrix } from "./RankTrackingHistoryMatrix";
 import { RankTrackingTable } from "./RankTrackingTable";
 import type { RankReportTab } from "./RankTrackingReportTabs";
 import {
-  CannibalizationReportPanel,
   DistributionReportPanel,
   PagesReportPanel,
-  SnippetsReportPanel,
   TagsReportPanel,
 } from "./RankTrackingReportPanels";
 import {
+  CannibalizationReportPanel,
   CompetitorsReportPanel,
+  SnippetsReportPanel,
   VisibilityReportPanel,
 } from "./RankTrackingReportExtraPanels";
 

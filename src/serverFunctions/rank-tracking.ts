@@ -414,6 +414,7 @@ export const getRankCompetitorsReport = createServerFn({ method: "POST" })
     return RankTrackingReportService.getCompetitors(
       data.configId,
       context.projectId,
+      data.device,
     );
   });
 

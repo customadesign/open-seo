@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { REPORT_SECTION_KEYS } from "@/shared/report-sections";
+import {
+  cannibalizationSchema,
+  rankBandCountSchema,
+  rankBandMoveSchema,
+} from "./report-rankings";
 
 export const reportSectionKeySchema = z.enum(REPORT_SECTION_KEYS);
 export const reportCommentaryKindSchema = z.enum([
@@ -70,18 +75,6 @@ const comparisonMetricSchema = z.object({
   percentChange: z.number().nullable(),
 });
 
-const rankBandCountSchema = z.object({
-  top3: z.number().int(),
-  top4to10: z.number().int(),
-  top11to20: z.number().int(),
-  top21to100: z.number().int(),
-  notInTop100: z.number().int(),
-});
-const rankBandMoveSchema = z.object({
-  entered: z.number().int(),
-  left: z.number().int(),
-});
-
 const rankingsSectionSchema = z.object({
   configs: z.array(
     z.object({
@@ -133,26 +126,7 @@ const rankingsSectionSchema = z.object({
           }),
         })
         .optional(),
-      cannibalization: z
-        .object({
-          findings: z.array(
-            z.object({
-              keyword: z.string(),
-              device: z.enum(["desktop", "mobile"]),
-              currentPosition: z.number().nullable(),
-              currentUrl: z.string().nullable(),
-              transitionCount: z.number().int(),
-              competingUrls: z.array(
-                z.object({
-                  url: z.string(),
-                  snapshotCount: z.number().int(),
-                }),
-              ),
-            }),
-          ),
-          scannedKeywords: z.number().int(),
-        })
-        .optional(),
+      cannibalization: cannibalizationSchema.optional(),
     }),
   ),
 });

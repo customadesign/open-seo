@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  getRankCannibalizationReport,
   getRankCompetitorsReport,
+  getRankSnippetsReport,
   getRankVisibilityReport,
 } from "@/serverFunctions/rank-tracking";
 import { formatVisibilityContribution } from "@/shared/rank-tracking-visibility";
@@ -12,6 +14,162 @@ import {
   LoadingState,
   ReportTable,
 } from "./RankTrackingReportUi";
+
+function formatCheckDate(value: string | null): string | null {
+  if (value == null) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value.slice(0, 10);
+  return parsed.toLocaleDateString();
+}
+
+export function CannibalizationReportPanel({
+  projectId,
+  configId,
+  device,
+}: {
+  projectId: string;
+  configId: string;
+  device: "desktop" | "mobile";
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["rankCannibalization", projectId, configId, device],
+    queryFn: () =>
+      getRankCannibalizationReport({
+        data: { projectId, configId, device },
+      }),
+  });
+
+  if (isLoading) return <LoadingState />;
+  const sameSerp = data?.sameSerp ?? [];
+  const urlFlips = data?.urlFlips ?? data?.findings ?? [];
+  if (!data || (sameSerp.length === 0 && urlFlips.length === 0)) {
+    return (
+      <EmptyState>
+        {data && data.capturedRunCount === 0
+          ? "No URL-flip cannibalization in stored snapshots. Same-SERP detection starts after the next rank check — older snapshots only stored the best URL."
+          : "No same-SERP multi-URL cases and no URL-flip cannibalization in stored checks. A single one-way URL change is not reported."}
+      </EmptyState>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">Same SERP</h3>
+        <p className="text-xs text-base-content/60">
+          Two or more of your URLs on one results page. This is the primary
+          cannibalization signal.
+        </p>
+        {sameSerp.length === 0 ? (
+          <p className="text-sm text-base-content/60">
+            {data.capturedRunCount === 0
+              ? `No same-SERP data yet${
+                  formatCheckDate(data.capturedSince)
+                    ? ""
+                    : " — older checks did not store every ranking URL"
+                }.`
+              : "No keyword has two of your URLs on the latest captured SERP."}
+          </p>
+        ) : (
+          <ReportTable
+            headers={["Keyword", "Best", "URLs"]}
+            rows={sameSerp.map((row) => [
+              row.keyword,
+              formatPosition(row.currentPosition),
+              row.urls
+                .map((url) => `${url.url} (#${url.position})`)
+                .join(" · "),
+            ])}
+          />
+        )}
+      </section>
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">URL flips over time</h3>
+        <p className="text-xs text-base-content/60">
+          The best ranking URL changed more than once. A single one-way change
+          (redirect or page move) is not reported.
+        </p>
+        {urlFlips.length === 0 ? (
+          <p className="text-sm text-base-content/60">
+            No URL-flip signal across {data.scannedKeywords} keywords in{" "}
+            {data.runCount} checks.
+          </p>
+        ) : (
+          <ReportTable
+            headers={["Keyword", "Position", "URLs", "Flips"]}
+            rows={urlFlips.map((row) => [
+              row.keyword,
+              formatPosition(row.currentPosition),
+              row.competingUrls
+                .map((url) => `${url.url} (${url.snapshotCount})`)
+                .join(" · "),
+              row.transitionCount,
+            ])}
+          />
+        )}
+      </section>
+    </div>
+  );
+}
+
+export function SnippetsReportPanel({
+  projectId,
+  configId,
+  device,
+}: {
+  projectId: string;
+  configId: string;
+  device: "desktop" | "mobile";
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["rankSnippets", projectId, configId, device],
+    queryFn: () =>
+      getRankSnippetsReport({ data: { projectId, configId, device } }),
+  });
+
+  if (isLoading) return <LoadingState />;
+  if (!data || !data.ownershipAvailable) {
+    return (
+      <EmptyState>
+        Snippet ownership was not stored on older checks. Run a rank check to
+        see owned, available, and lost featured snippets — no extra provider
+        cost.
+      </EmptyState>
+    );
+  }
+  if (data.rows.length === 0) {
+    const since = formatCheckDate(data.capturedSince);
+    return (
+      <EmptyState>
+        {since
+          ? `No notable SERP features in the latest captured check (ownership starts ${since}).`
+          : "No notable SERP features in the latest captured check."}
+      </EmptyState>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-base-content/60">
+        Owned means this domain holds the feature. Available means it is on the
+        SERP but another domain holds it. Lost means you held it on the previous
+        captured check.
+        {formatCheckDate(data.capturedSince)
+          ? ` Ownership starts ${formatCheckDate(data.capturedSince)}.`
+          : ""}
+      </p>
+      <ReportTable
+        headers={["Keyword", "Feature", "Status", "Position"]}
+        rows={data.rows.map((row) => [
+          row.keyword,
+          row.feature.replaceAll("_", " "),
+          row.status,
+          formatPosition(row.position),
+        ])}
+      />
+    </div>
+  );
+}
 
 export function CompetitorsReportPanel({
   projectId,
@@ -31,12 +189,44 @@ export function CompetitorsReportPanel({
   });
 
   if (isLoading) return <LoadingState />;
+  if (!data || !data.available) {
+    return (
+      <EmptyState>
+        {data?.reason === "no_checks"
+          ? "No stored rank checks yet."
+          : "Not enough history yet. Competitor domains start being stored on the next rank check — no extra provider cost. Older snapshots cannot invent a competitor list."}
+      </EmptyState>
+    );
+  }
+  if (data.competitors.length === 0) {
+    const since = formatCheckDate(data.capturedSince);
+    return (
+      <EmptyState>
+        {since
+          ? `No competitor domains appeared in the latest captured check (data starts ${since}).`
+          : "No competitor domains appeared in the latest captured check."}
+      </EmptyState>
+    );
+  }
+
   return (
-    <EmptyState>
-      {data?.reason === "serp_results_not_stored"
-        ? "Competitor domains are not stored on rank snapshots — each check keeps only this domain’s ranking URL. No competitor list exists on the tracker, so there is nothing to add."
-        : "Competitor discovery is not available from stored snapshots."}
-    </EmptyState>
+    <div className="space-y-3">
+      <p className="text-xs text-base-content/60">
+        Domains that appear in organic results for this tracker&apos;s keywords,
+        ranked by overlap and average position.
+        {formatCheckDate(data.capturedSince)
+          ? ` No competitor data before ${formatCheckDate(data.capturedSince)}.`
+          : ""}
+      </p>
+      <ReportTable
+        headers={["Domain", "Keywords", "Avg position"]}
+        rows={data.competitors.map((row) => [
+          row.domain,
+          row.overlapCount,
+          row.averagePosition.toFixed(1),
+        ])}
+      />
+    </div>
   );
 }
 

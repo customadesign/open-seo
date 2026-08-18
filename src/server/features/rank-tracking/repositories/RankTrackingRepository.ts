@@ -5,6 +5,7 @@ import {
   rankTrackingConfigs,
   rankCheckRuns,
   rankSnapshots,
+  rankSerpEntries,
   rankTrackingKeywords,
   savedKeywordTagAssignments,
   savedKeywordTags,
@@ -25,6 +26,7 @@ import {
   getPositionMatrix,
   getCompletedFullRuns,
   getSnapshotsForRuns,
+  getSerpEntriesForRuns,
 } from "./snapshotQueries";
 
 // ---------------------------------------------------------------------------
@@ -218,6 +220,26 @@ async function insertSnapshots(
 
 async function getSnapshotsForRun(runId: string) {
   return db.select().from(rankSnapshots).where(eq(rankSnapshots.runId, runId));
+}
+
+async function insertSerpEntries(
+  entries: Array<Omit<InferInsertModel<typeof rankSerpEntries>, "id">>,
+) {
+  if (entries.length === 0) return;
+  await executeInBatches(entries, (tx, entry) =>
+    tx
+      .insert(rankSerpEntries)
+      .values(entry)
+      .onConflictDoNothing({
+        target: [
+          rankSerpEntries.runId,
+          rankSerpEntries.trackingKeywordId,
+          rankSerpEntries.device,
+          rankSerpEntries.rowKind,
+          rankSerpEntries.identity,
+        ],
+      }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +453,8 @@ export const RankTrackingRepository = {
   getLatestRunForConfig,
   getActiveRunForConfig,
   insertSnapshots,
+  insertSerpEntries,
+  getSerpEntriesForRuns,
   getSnapshotsForRun,
   getKeywordsForConfig,
   addKeywordsToConfig,

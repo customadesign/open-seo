@@ -29,7 +29,7 @@ const toolCategories: ToolCategory[] = [
         name: "get_rank_cannibalization",
         title: "Get rank cannibalization",
         description:
-          "Find keywords whose ranking URL has flipped between pages.",
+          "Find keywords with two project URLs on one SERP, or ranking URL flips.",
       },
       {
         name: "get_rankings_distribution",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectKeywordCannibalization,
+  detectSameSerpCannibalization,
   type CannibalizationSnapshot,
 } from "./rank-tracking-cannibalization";
 
@@ -68,6 +69,34 @@ describe("detectKeywordCannibalization", () => {
         snap("2026-01-08", null, null),
         snap("2026-01-15", "https://example.com/b", 8),
       ]),
+    ).toBeNull();
+  });
+
+  it("flags two tracked URLs on one SERP", () => {
+    const result = detectSameSerpCannibalization({
+      trackingKeywordId: "kw_1",
+      keyword: "sign shop",
+      device: "desktop",
+      urls: [
+        { url: "https://example.com/a", position: 3 },
+        { url: "https://example.com/b", position: 8 },
+      ],
+    });
+    expect(result?.urls).toHaveLength(2);
+    expect(result?.currentPosition).toBe(3);
+  });
+
+  it("does not flag one URL with query-string variants as same-SERP cannibalization", () => {
+    expect(
+      detectSameSerpCannibalization({
+        trackingKeywordId: "kw_1",
+        keyword: "sign shop",
+        device: "desktop",
+        urls: [
+          { url: "https://example.com/a", position: 3 },
+          { url: "https://www.example.com/a?utm=1", position: 9 },
+        ],
+      }),
     ).toBeNull();
   });
 

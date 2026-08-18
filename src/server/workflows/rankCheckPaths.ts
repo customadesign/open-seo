@@ -11,6 +11,7 @@ import type {
   RankCheckTaskInput,
 } from "@/server/lib/dataforseo";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
+import { persistRankCheckResults } from "@/server/workflows/rankCheckPersist";
 import {
   estimateRankCheckTaskCredits,
   KEYWORDS_PER_BATCH,
@@ -29,22 +30,6 @@ type KeywordEntry = { id: string; keyword: string };
 type RankCheckResultWithDevice = RankCheckResult & {
   device: "desktop" | "mobile";
 };
-
-function mapResultsToSnapshotRows(
-  runId: string,
-  results: RankCheckResultWithDevice[],
-) {
-  return results.map((r) => ({
-    runId,
-    trackingKeywordId: r.keywordId,
-    keyword: r.keyword,
-    device: r.device,
-    position: r.position,
-    url: r.url,
-    serpFeatures:
-      r.serpFeatures.length > 0 ? JSON.stringify(r.serpFeatures) : null,
-  }));
-}
 
 interface CheckContext {
   client: ReturnType<typeof createDataforseoClient>;
@@ -119,11 +104,7 @@ async function checkBatchLive(
       );
     }
   }
-  if (results.length > 0) {
-    await RankTrackingRepository.insertSnapshots(
-      mapResultsToSnapshotRows(ctx.runId, results),
-    );
-  }
+  await persistRankCheckResults(ctx.runId, results);
   return results.length;
 }
 
@@ -245,9 +226,7 @@ async function collectQueuedRound(
   }
 
   if (completed.length > 0) {
-    await RankTrackingRepository.insertSnapshots(
-      mapResultsToSnapshotRows(ctx.runId, completed),
-    );
+    await persistRankCheckResults(ctx.runId, completed);
     // Progress for the UI; finalize recounts from the DB anyway.
     const snapshots = await RankTrackingRepository.getSnapshotsForRun(
       ctx.runId,

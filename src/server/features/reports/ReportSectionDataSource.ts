@@ -152,6 +152,12 @@ async function loadRankings(
       trend,
       distribution: distributionFromSnapshotRows(current, previous),
       cannibalization: {
+        sameSerp: cannibalization.sameSerp.map((finding) => ({
+          keyword: finding.keyword,
+          device: finding.device,
+          currentPosition: finding.currentPosition,
+          urls: finding.urls,
+        })),
         findings: cannibalization.findings.map((finding) => ({
           keyword: finding.keyword,
           device: finding.device,
@@ -161,6 +167,7 @@ async function loadRankings(
           competingUrls: finding.competingUrls,
         })),
         scannedKeywords: cannibalization.scannedKeywords,
+        capturedRunCount: cannibalization.capturedRunCount,
       },
     });
   }

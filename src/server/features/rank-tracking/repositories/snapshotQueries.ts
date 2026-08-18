@@ -12,7 +12,8 @@ import {
   sql,
 } from "drizzle-orm";
 import { db } from "@/db";
-import { rankCheckRuns, rankSnapshots } from "@/db/schema";
+import { rankCheckRuns, rankSerpEntries, rankSnapshots } from "@/db/schema";
+import { DB_BATCH_SIZE } from "@/db/runBatch";
 import { toSqliteTimestamp } from "@/server/features/rank-tracking/rankTrackingTimestamps";
 
 function completedRunIdsForConfig(configId: string) {
@@ -187,6 +188,7 @@ export async function getSnapshotsForConfig(
       position: rankSnapshots.position,
       url: rankSnapshots.url,
       serpFeatures: rankSnapshots.serpFeatures,
+      serpCaptured: rankSnapshots.serpCaptured,
       checkedAt: rankSnapshots.checkedAt,
     })
     .from(rankSnapshots)
@@ -202,6 +204,34 @@ export async function getSnapshotsForConfig(
 }
 
 const REPORT_RUN_LIMIT = 52;
+
+export async function getSerpEntriesForRuns(
+  runIds: string[],
+  filters?: {
+    rowKind?: (typeof rankSerpEntries.rowKind.enumValues)[number];
+    device?: "desktop" | "mobile";
+  },
+) {
+  if (runIds.length === 0) return [];
+  const rows: Array<typeof rankSerpEntries.$inferSelect> = [];
+  for (let i = 0; i < runIds.length; i += DB_BATCH_SIZE) {
+    const chunk = runIds.slice(i, i + DB_BATCH_SIZE);
+    const conditions = [inArray(rankSerpEntries.runId, chunk)];
+    if (filters?.rowKind) {
+      conditions.push(eq(rankSerpEntries.rowKind, filters.rowKind));
+    }
+    if (filters?.device) {
+      conditions.push(eq(rankSerpEntries.device, filters.device));
+    }
+    rows.push(
+      ...(await db
+        .select()
+        .from(rankSerpEntries)
+        .where(and(...conditions))),
+    );
+  }
+  return rows;
+}
 
 /**
  * Newest completed full-config runs (subset/add-keyword checks are excluded so
@@ -245,6 +275,7 @@ export async function getSnapshotsForRuns(runIds: string[]) {
       position: rankSnapshots.position,
       url: rankSnapshots.url,
       serpFeatures: rankSnapshots.serpFeatures,
+      serpCaptured: rankSnapshots.serpCaptured,
     })
     .from(rankSnapshots)
     .innerJoin(rankCheckRuns, eq(rankSnapshots.runId, rankCheckRuns.id))
@@ -314,6 +345,7 @@ export async function getEarliestSnapshotsForKeywords(
         position: rankSnapshots.position,
         url: rankSnapshots.url,
         serpFeatures: rankSnapshots.serpFeatures,
+        serpCaptured: rankSnapshots.serpCaptured,
         checkedAt: rankSnapshots.checkedAt,
       })
       .from(rankSnapshots)

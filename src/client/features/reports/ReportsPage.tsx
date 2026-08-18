@@ -903,21 +903,47 @@ function RankingsSection({
             </div>
           ) : null}
           {config.cannibalization &&
-          config.cannibalization.findings.length > 0 ? (
-            <div>
-              <h4 className="mb-2 text-sm font-semibold">Cannibalization</h4>
-              <DataTable
-                headers={["Keyword", "Device", "Position", "URLs", "Flips"]}
-                rows={config.cannibalization.findings
-                  .slice(0, 20)
-                  .map((row) => [
-                    row.keyword,
-                    row.device,
-                    row.currentPosition ?? "—",
-                    row.competingUrls.length,
-                    row.transitionCount,
-                  ])}
-              />
+          (config.cannibalization.sameSerp?.length ?? 0) +
+            config.cannibalization.findings.length >
+            0 ? (
+            <div className="space-y-4">
+              {(config.cannibalization.sameSerp?.length ?? 0) > 0 ? (
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold">
+                    Same-SERP cannibalization
+                  </h4>
+                  <DataTable
+                    headers={["Keyword", "Device", "Best", "URLs"]}
+                    rows={(config.cannibalization.sameSerp ?? [])
+                      .slice(0, 20)
+                      .map((row) => [
+                        row.keyword,
+                        row.device,
+                        row.currentPosition ?? "—",
+                        row.urls.length,
+                      ])}
+                  />
+                </div>
+              ) : null}
+              {config.cannibalization.findings.length > 0 ? (
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold">
+                    URL-flip signal
+                  </h4>
+                  <DataTable
+                    headers={["Keyword", "Device", "Position", "URLs", "Flips"]}
+                    rows={config.cannibalization.findings
+                      .slice(0, 20)
+                      .map((row) => [
+                        row.keyword,
+                        row.device,
+                        row.currentPosition ?? "—",
+                        row.competingUrls.length,
+                        row.transitionCount,
+                      ])}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

@@ -11,6 +11,7 @@ import {
   volumeByKeywordId,
   type Device,
 } from "./rankTrackingReportContext";
+export type { CompetitorsReport } from "./rankTrackingSerpReports";
 
 export type TagReportRow = {
   tagId: string;
@@ -127,24 +128,6 @@ export async function getTags(
     untaggedKeywordCount: keywords.filter(
       (keyword) => !taggedIds.has(keyword.id),
     ).length,
-  };
-}
-
-export type CompetitorsReport = {
-  available: false;
-  reason: "serp_results_not_stored";
-  configuredCompetitors: string[];
-};
-
-export async function getCompetitors(
-  configId: string,
-  projectId: string,
-): Promise<CompetitorsReport> {
-  await requireConfig(configId, projectId);
-  return {
-    available: false,
-    reason: "serp_results_not_stored",
-    configuredCompetitors: [],
   };
 }
 

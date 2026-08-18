@@ -1,33 +1,26 @@
+import { getTags, tagTrackingKeywords } from "./rankTrackingTagReports";
 import {
+  getCannibalization,
   getCompetitors,
-  getTags,
-  tagTrackingKeywords,
-} from "./rankTrackingTagReports";
+  getSnippets,
+} from "./rankTrackingSerpReports";
 import {
   latestTwoRunIds,
   loadReportContext,
-  parseSerpFeatures,
   snapshotsForDevice,
   volumeByKeywordId,
   type Device,
   type ReportSnapshotRow,
 } from "./rankTrackingReportContext";
 import {
-  detectCannibalization,
-  type CannibalizationFinding,
-  type CannibalizationKeyword,
-} from "@/shared/rank-tracking-cannibalization";
-import {
   countRankBands,
   emptyRankBandCounts,
   groupSnapshotsByPage,
   rankBand,
   rankBandMovement,
-  serpFeatureChanges,
   type PageReportRow,
   type RankBandCounts,
   type RankBandMovement,
-  type SerpFeatureKeywordRow,
 } from "@/shared/rank-tracking-reports";
 import {
   estimatedTraffic,
@@ -105,64 +98,7 @@ async function getDistribution(
   return buildDistribution(snapshotsForDevice(snapshots, device), runs);
 }
 
-function groupSnapshotsByKeyword(
-  snapshots: ReportSnapshotRow[],
-): CannibalizationKeyword[] {
-  const grouped = new Map<
-    string,
-    {
-      trackingKeywordId: string;
-      keyword: string;
-      device: Device;
-      snapshots: Array<{
-        checkedAt: string;
-        url: string | null;
-        position: number | null;
-      }>;
-    }
-  >();
-  for (const snapshot of snapshots) {
-    const key = `${snapshot.trackingKeywordId}:${snapshot.device}`;
-    const existing = grouped.get(key);
-    const point = {
-      checkedAt: snapshot.checkedAt,
-      url: snapshot.url,
-      position: snapshot.position,
-    };
-    if (existing) {
-      existing.snapshots.push(point);
-      continue;
-    }
-    grouped.set(key, {
-      trackingKeywordId: snapshot.trackingKeywordId,
-      keyword: snapshot.keyword,
-      device: snapshot.device,
-      snapshots: [point],
-    });
-  }
-  return [...grouped.values()];
-}
-
-export type CannibalizationReport = {
-  findings: CannibalizationFinding[];
-  scannedKeywords: number;
-  runCount: number;
-};
-
-async function getCannibalization(
-  configId: string,
-  projectId: string,
-  device?: Device,
-): Promise<CannibalizationReport> {
-  const { snapshots, runs } = await loadReportContext(configId, projectId);
-  const scoped = device ? snapshotsForDevice(snapshots, device) : snapshots;
-  const keywords = groupSnapshotsByKeyword(scoped);
-  return {
-    findings: detectCannibalization(keywords),
-    scannedKeywords: keywords.length,
-    runCount: runs.length,
-  };
-}
+export type { CannibalizationReport } from "./rankTrackingSerpReports";
 
 export type PagesReport = {
   pages: PageReportRow[];
@@ -195,42 +131,7 @@ async function getPages(
   };
 }
 
-export type SnippetsReport = {
-  rows: SerpFeatureKeywordRow[];
-  ownedNotStored: true;
-};
-
-async function getSnippets(
-  configId: string,
-  projectId: string,
-  device: Device,
-): Promise<SnippetsReport> {
-  const { snapshots, runs } = await loadReportContext(configId, projectId);
-  const { currentRunId, previousRunId } = latestTwoRunIds(runs);
-  const deviceRows = snapshotsForDevice(snapshots, device);
-  const previousById = new Map<string, string[]>();
-  for (const row of deviceRows) {
-    if (row.runId !== previousRunId) continue;
-    previousById.set(
-      row.trackingKeywordId,
-      parseSerpFeatures(row.serpFeatures),
-    );
-  }
-  return {
-    rows: serpFeatureChanges(
-      deviceRows
-        .filter((row) => row.runId === currentRunId)
-        .map((row) => ({
-          trackingKeywordId: row.trackingKeywordId,
-          keyword: row.keyword,
-          position: row.position,
-          features: parseSerpFeatures(row.serpFeatures),
-        })),
-      previousById,
-    ),
-    ownedNotStored: true,
-  };
-}
+export type { SnippetsReport } from "./rankTrackingSerpReports";
 
 export type VisibilityReport = {
   visibility: number | null;
