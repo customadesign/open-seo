@@ -9,6 +9,8 @@ import {
   getStandardErrorMessage,
 } from "@/client/lib/error-messages";
 import {
+  getBacklinksAnchors,
+  getBacklinksNewLost,
   getBacklinksOverview,
   getBacklinksReferringDomains,
   getBacklinksRows,
@@ -82,7 +84,9 @@ export function useBacklinksPageData({
     [searchState.scope, searchState.target],
   );
 
-  const { target, scope, tab, page, pageSize, sort, order, view } = searchState;
+  const { target, scope, tab, page, pageSize, sort, order, view, range } =
+    searchState;
+  const newLostGroupRange = range ?? "week";
   const rowsMode = view === "all" ? "as_is" : "one_per_domain";
   const targetReady = Boolean(target);
   const baseQueryKeyParts = [projectId, scope, target] as const;
@@ -196,6 +200,28 @@ export function useBacklinksPageData({
       }),
   });
 
+  const anchorsQuery = useQuery({
+    queryKey: ["backlinksAnchors", ...baseQueryKeyParts],
+    enabled: targetReady && tab === "anchors",
+    staleTime: BACKLINKS_QUERY_STALE_TIME_MS,
+    queryFn: () => getBacklinksAnchors({ data: { projectId, target, scope } }),
+  });
+
+  const newLostQuery = useQuery({
+    queryKey: ["backlinksNewLost", ...baseQueryKeyParts, newLostGroupRange],
+    enabled: targetReady && tab === "new-lost",
+    staleTime: BACKLINKS_QUERY_STALE_TIME_MS,
+    queryFn: () =>
+      getBacklinksNewLost({
+        data: {
+          projectId,
+          target,
+          scope,
+          groupRange: newLostGroupRange,
+        },
+      }),
+  });
+
   const overviewErrorMessage = getBacklinksErrorMessage(
     overviewQuery.error,
     "Could not load backlinks data.",
@@ -205,7 +231,13 @@ export function useBacklinksPageData({
       ? rowsQuery
       : tab === "domains"
         ? referringDomainsQuery
-        : topPagesQuery;
+        : tab === "pages"
+          ? topPagesQuery
+          : tab === "anchors"
+            ? anchorsQuery
+            : tab === "new-lost"
+              ? newLostQuery
+              : overviewQuery;
   const activeTabErrorMessage = getBacklinksErrorMessage(
     activeTabQuery.error,
     "Could not load this tab.",
@@ -220,6 +252,9 @@ export function useBacklinksPageData({
     rowsQuery,
     searchCardInitialValues,
     topPagesQuery,
+    anchorsQuery,
+    newLostQuery,
+    newLostGroupRange,
   };
 }
 

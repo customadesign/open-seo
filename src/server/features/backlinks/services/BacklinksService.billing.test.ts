@@ -5,6 +5,12 @@ const backlinksRowsMock = vi.fn();
 const referringDomainsMock = vi.fn();
 const domainPagesMock = vi.fn();
 const backlinksHistoryMock = vi.fn();
+const backlinksAnchorsMock = vi.fn();
+const timeseriesNewLostMock = vi.fn();
+const bulkRanksMock = vi.fn();
+const bulkBacklinksMock = vi.fn();
+const bulkReferringDomainsMock = vi.fn();
+const bulkTrafficEstimationMock = vi.fn();
 
 vi.mock("@/server/lib/r2-cache", () => ({
   buildCacheKey: vi.fn(
@@ -24,6 +30,14 @@ vi.mock("@/server/lib/dataforseo", () => ({
       referringDomains: referringDomainsMock,
       domainPages: domainPagesMock,
       history: backlinksHistoryMock,
+      anchors: backlinksAnchorsMock,
+      timeseriesNewLost: timeseriesNewLostMock,
+      bulkRanks: bulkRanksMock,
+      bulkBacklinks: bulkBacklinksMock,
+      bulkReferringDomains: bulkReferringDomainsMock,
+    },
+    labs: {
+      bulkTrafficEstimation: bulkTrafficEstimationMock,
     },
   })),
 }));
@@ -331,6 +345,70 @@ it("keeps page cache entries isolated per page and per organization", async () =
     userEmail: "other@example.com",
   });
   expect(backlinksRowsMock).toHaveBeenCalledTimes(3);
+});
+
+it("caches the full anchors snapshot so later reads do not re-query the provider", async () => {
+  vi.mocked(normalizeBacklinksTarget).mockReturnValue({
+    apiTarget: "example.com",
+    displayTarget: "example.com",
+    scope: "domain",
+  });
+  backlinksAnchorsMock.mockResolvedValue({
+    items: [
+      {
+        anchor: "buy cheap widgets",
+        referring_domains: 12,
+        backlinks: 40,
+        referring_pages: 10,
+        rank: 20,
+        backlinks_spam_score: 2,
+        first_seen: "2026-01-01",
+      },
+      {
+        anchor: "example",
+        referring_domains: 8,
+        backlinks: 10,
+        referring_pages: 8,
+        rank: 15,
+        backlinks_spam_score: 1,
+        first_seen: "2026-01-02",
+      },
+    ],
+    totalCount: 2,
+  });
+
+  const first = await service.profileAnchors(
+    { target: "example.com" },
+    billingCustomer,
+  );
+  const second = await service.profileAnchors(
+    { target: "example.com" },
+    billingCustomer,
+  );
+
+  expect(backlinksAnchorsMock).toHaveBeenCalledOnce();
+  expect(first.concentratedAnchors).toEqual(["buy cheap widgets"]);
+  expect(second).toEqual(first);
+});
+
+it("requires an approved credit ceiling before a bulk analysis spends", async () => {
+  vi.mocked(normalizeBacklinksTarget).mockImplementation((target: string) => ({
+    apiTarget: target,
+    displayTarget: target,
+    scope: "domain" as const,
+  }));
+
+  await expect(
+    service.runBulkAnalysis(
+      {
+        targets: ["one.example", "two.example"],
+        locationCode: 2840,
+        languageCode: "en",
+      },
+      billingCustomer,
+    ),
+  ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  expect(bulkRanksMock).not.toHaveBeenCalled();
 });
 
 function parseCachedValue(raw: string): unknown {

@@ -19,6 +19,7 @@ import * as sqliteLocalSeo from "./local-seo.schema";
 import * as sqliteGoogleAds from "./google-ads.schema";
 import * as sqliteReports from "./report.schema";
 import * as sqliteDisavow from "./disavow.schema";
+import * as sqliteBacklinkToxicity from "./backlink-toxicity.schema";
 import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as sqliteRankTracking from "./rank-tracking.schema";
 import * as sqliteChangeEvents from "./change-events.schema";
@@ -34,6 +35,7 @@ import * as pgLocalSeo from "./pg/local-seo.schema";
 import * as pgGoogleAds from "./pg/google-ads.schema";
 import * as pgReports from "./pg/report.schema";
 import * as pgDisavow from "./pg/disavow.schema";
+import * as pgBacklinkToxicity from "./pg/backlink-toxicity.schema";
 import * as pgAiVisibility from "./pg/ai-visibility.schema";
 import * as pgRankTracking from "./pg/rank-tracking.schema";
 import * as pgChangeEvents from "./pg/change-events.schema";
@@ -170,6 +172,7 @@ const sqliteAppTables = tablesFrom(
   sqliteGoogleAds,
   sqliteReports,
   sqliteDisavow,
+  sqliteBacklinkToxicity,
   sqliteAiVisibility,
   sqliteRankTracking,
   sqliteChangeEvents,
@@ -186,6 +189,7 @@ const pgAppTables = tablesFrom(
   pgGoogleAds,
   pgReports,
   pgDisavow,
+  pgBacklinkToxicity,
   pgAiVisibility,
   pgRankTracking,
   pgChangeEvents,

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/server/features/backlinks/repositories/DisavowRepository", () => ({
   DisavowRepository: {
     list: vi.fn(),
+    getByValue: vi.fn(),
     saveManual: vi.fn(),
     importMany: vi.fn(),
     remove: vi.fn(),
@@ -11,8 +12,10 @@ vi.mock("@/server/features/backlinks/repositories/DisavowRepository", () => ({
   },
 }));
 
+import { DisavowRepository } from "@/server/features/backlinks/repositories/DisavowRepository";
 import {
   buildGoogleDisavowTxt,
+  DisavowService,
   normalizeDisavowValue,
   parseGoogleDisavowTxt,
   parseSemrushDisavowCsv,
@@ -162,5 +165,28 @@ describe("Google disavow export", () => {
       ].join("\n"),
     );
     expect(buildGoogleDisavowTxt([...entries])).toBe(content);
+  });
+
+  it("exports only the disavowed and exported rows the repository returns", async () => {
+    vi.mocked(DisavowRepository.listExportable).mockResolvedValue([
+      {
+        id: "1",
+        projectId: "p1",
+        entryType: "domain",
+        value: "spam.example",
+        status: "disavowed",
+        comments: null,
+        source: "manual",
+        linkCount: 3,
+        exportedAt: null,
+        createdAt: "2026-08-18T00:00:00.000Z",
+        updatedAt: "2026-08-18T00:00:00.000Z",
+      },
+    ]);
+    vi.mocked(DisavowRepository.markExported).mockResolvedValue();
+    const result = await DisavowService.exportGoogleTxt("p1");
+    expect(result.content).toContain("domain:spam.example");
+    expect(result.content).not.toContain("partner.example");
+    expect(DisavowRepository.listExportable).toHaveBeenCalledWith("p1");
   });
 });

@@ -4,6 +4,9 @@ import { withPgClient } from "@/db";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { type ToolAuthContext, type ToolContext } from "@/server/mcp/context";
 import { instrumentMcpToolHandler } from "@/server/mcp/instrumentation";
+import { analyzeBacklinksBulkTool } from "@/server/mcp/tools/analyze-backlinks-bulk";
+import { estimateBacklinksBulkAnalysisTool } from "@/server/mcp/tools/estimate-backlinks-bulk";
+import { getBacklinksAnchorsTool } from "@/server/mcp/tools/get-backlinks-anchors";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
@@ -210,6 +213,11 @@ export function buildSamMcpTools(
     get_domain_keyword_suggestions: adaptTool(getDomainKeywordSuggestionsTool),
     get_backlinks_overview: adaptTool(getBacklinksOverviewTool),
     get_backlinks_profile: adaptTool(getBacklinksProfileTool),
+    get_backlinks_anchors: adaptTool(getBacklinksAnchorsTool),
+    estimate_backlinks_bulk_analysis: adaptTool(
+      estimateBacklinksBulkAnalysisTool,
+    ),
+    analyze_backlinks_bulk: adaptTool(analyzeBacklinksBulkTool),
     get_serp_results: adaptTool(getSerpResultsTool),
     get_rank_tracker: adaptTool(getRankTrackerTool),
     get_ranked_keywords: adaptTool(getRankedKeywordsTool),

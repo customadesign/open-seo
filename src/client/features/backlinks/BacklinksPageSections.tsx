@@ -1,15 +1,26 @@
 import { useEffect, useMemo } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import type { OnChangeFn, SortingState } from "@tanstack/react-table";
+import { BacklinksAnchorsPanel } from "./BacklinksAnchorsPanel";
+import { BacklinksAuthorityPanel } from "./BacklinksAuthorityPanel";
+import { BacklinksBulkPanel } from "./BacklinksBulkPanel";
+import { BacklinksComparePanel } from "./BacklinksComparePanel";
 import { BacklinksFilterPanel } from "./BacklinksFilterPanel";
+import { BacklinksNewLostPanel } from "./BacklinksNewLostPanel";
 import { BacklinksTable } from "./BacklinksTable";
 import { ReferringDomainsTable } from "./ReferringDomainsTable";
 import { TopPagesTable } from "./TopPagesTable";
 import type {
+  BacklinksAnchorsData,
+  BacklinksNewLostData,
+  BacklinksOverviewData,
   BacklinksSearchState,
   BacklinksTabRows,
 } from "./backlinksPageTypes";
-import { TAB_DESCRIPTIONS } from "./backlinksPageUtils";
+import {
+  isServerPagedBacklinksTab,
+  TAB_DESCRIPTIONS,
+} from "./backlinksPageUtils";
 import {
   BacklinksActionsMenu,
   BacklinksExportMenu,
@@ -19,10 +30,7 @@ import type { BacklinksDomainExpansion } from "./useBacklinksDomainExpansion";
 import type { BacklinksFiltersState } from "./useBacklinksFilters";
 import { useAhrefsDomainRatings } from "./useAhrefsDomainRatings";
 import { TablePagination } from "@/client/components/table/TablePagination";
-import {
-  BACKLINKS_PAGE_SIZES,
-  type BacklinksTab,
-} from "@/types/schemas/backlinks";
+import { BACKLINKS_PAGE_SIZES } from "@/types/schemas/backlinks";
 
 const BACKLINKS_RESULTS_TABS: Array<{
   tab: BacklinksSearchState["tab"];
@@ -30,7 +38,12 @@ const BACKLINKS_RESULTS_TABS: Array<{
 }> = [
   { tab: "backlinks", label: "Backlinks" },
   { tab: "domains", label: "Referring Domains" },
-  { tab: "pages", label: "Top Pages" },
+  { tab: "pages", label: "Indexed Pages" },
+  { tab: "anchors", label: "Anchors" },
+  { tab: "new-lost", label: "New & Lost" },
+  { tab: "authority", label: "Authority Score" },
+  { tab: "compare", label: "Competitors" },
+  { tab: "bulk", label: "Bulk Analysis" },
 ];
 
 export function BacklinksResultsCard({
@@ -45,6 +58,12 @@ export function BacklinksResultsCard({
   tabErrorMessage,
   exportTarget,
   pagination,
+  anchorsData,
+  newLostData,
+  newLostGroupRange,
+  onNewLostRangeChange,
+  overviewData,
+  target,
   onPageChange,
   onPageSizeChange,
   onSortingChange,
@@ -61,6 +80,12 @@ export function BacklinksResultsCard({
   isTabLoading: boolean;
   tabErrorMessage: string | null;
   exportTarget: string;
+  anchorsData: BacklinksAnchorsData | undefined;
+  newLostData: BacklinksNewLostData | undefined;
+  newLostGroupRange: "day" | "week";
+  onNewLostRangeChange: (value: "day" | "week") => void;
+  overviewData: BacklinksOverviewData | undefined;
+  target: string;
   pagination: {
     page: number;
     pageSize: number;
@@ -79,10 +104,19 @@ export function BacklinksResultsCard({
     isLoading: isLoadingRatings,
     loadRatings,
   } = useAhrefsDomainRatings(projectId);
-  const activeFilterCount = filters[activeTab].activeFilterCount;
+  const activeFilterCount = isServerPagedBacklinksTab(activeTab)
+    ? filters[activeTab].activeFilterCount
+    : 0;
+  const showPagedChrome = isServerPagedBacklinksTab(activeTab);
   const exportTable = useMemo(
     () =>
-      buildBacklinksTabExport({ tab: activeTab, rows: tabRows, domainRatings }),
+      isServerPagedBacklinksTab(activeTab)
+        ? buildBacklinksTabExport({
+            tab: activeTab,
+            rows: tabRows,
+            domainRatings,
+          })
+        : { headers: [], rows: [] },
     [activeTab, domainRatings, tabRows],
   );
   // Domains keyed by both tables that the DR column can enrich. Each table
@@ -122,73 +156,79 @@ export function BacklinksResultsCard({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <BacklinksExportMenu
-            activeTab={activeTab}
-            exportTarget={exportTarget}
-            headers={exportTable.headers}
-            rows={exportTable.rows}
-          />
-          {activeTab !== "pages" ? (
-            <BacklinksActionsMenu
-              isLoadingRatings={isLoadingRatings}
-              loadRatings={loadRatings}
-              ratableDomains={ratableDomains}
+        {showPagedChrome ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <BacklinksExportMenu
+              activeTab={activeTab}
+              exportTarget={exportTarget}
+              headers={exportTable.headers}
+              rows={exportTable.rows}
             />
-          ) : null}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-base-300">
-        <button
-          className={`btn btn-ghost btn-sm gap-1.5 ${filters.showFilters ? "btn-active" : ""}`}
-          onClick={() => filters.setShowFilters((current) => !current)}
-          title="Toggle table filters"
-        >
-          <SlidersHorizontal className="size-3.5" />
-          Filters
-          {activeFilterCount > 0 ? (
-            <span className="badge badge-xs badge-primary border-0 text-primary-content">
-              {activeFilterCount}
-            </span>
-          ) : null}
-        </button>
-        {activeTab === "backlinks" ? (
-          <div
-            role="tablist"
-            aria-label="Backlinks view"
-            className="ml-auto tabs tabs-border tabs-xs w-fit"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view !== "all"}
-              className={`tab ${view !== "all" ? "tab-active" : ""}`}
-              title="Show each referring domain's strongest link; expand a row for the rest"
-              onClick={() => onViewChange(undefined)}
-            >
-              One per domain
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "all"}
-              className={`tab ${view === "all" ? "tab-active" : ""}`}
-              title="List every individual backlink"
-              onClick={() => onViewChange("all")}
-            >
-              All links
-            </button>
+            {activeTab !== "pages" ? (
+              <BacklinksActionsMenu
+                isLoadingRatings={isLoadingRatings}
+                loadRatings={loadRatings}
+                ratableDomains={ratableDomains}
+              />
+            ) : null}
           </div>
         ) : null}
       </div>
 
-      {filters.showFilters ? (
-        <BacklinksFilterPanel
-          activeTab={activeTab}
-          filters={filters}
-          onApplied={() => onPageChange(1)}
-        />
+      {showPagedChrome ? (
+        <>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-base-300">
+            <button
+              className={`btn btn-ghost btn-sm gap-1.5 ${filters.showFilters ? "btn-active" : ""}`}
+              onClick={() => filters.setShowFilters((current) => !current)}
+              title="Toggle table filters"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              Filters
+              {activeFilterCount > 0 ? (
+                <span className="badge badge-xs badge-primary border-0 text-primary-content">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </button>
+            {activeTab === "backlinks" ? (
+              <div
+                role="tablist"
+                aria-label="Backlinks view"
+                className="ml-auto tabs tabs-border tabs-xs w-fit"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view !== "all"}
+                  className={`tab ${view !== "all" ? "tab-active" : ""}`}
+                  title="Show each referring domain's strongest link; expand a row for the rest"
+                  onClick={() => onViewChange(undefined)}
+                >
+                  One per domain
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === "all"}
+                  className={`tab ${view === "all" ? "tab-active" : ""}`}
+                  title="List every individual backlink"
+                  onClick={() => onViewChange("all")}
+                >
+                  All links
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          {filters.showFilters ? (
+            <BacklinksFilterPanel
+              activeTab={activeTab}
+              filters={filters}
+              onApplied={() => onPageChange(1)}
+            />
+          ) : null}
+        </>
       ) : null}
 
       <div className="p-4">
@@ -197,58 +237,80 @@ export function BacklinksResultsCard({
             <span>{tabErrorMessage}</span>
           </div>
         ) : null}
-        {isTabLoading && !tabErrorMessage ? (
+        {isTabLoading && !tabErrorMessage && showPagedChrome ? (
           <TabLoadingState label={TAB_LOADING_LABELS[activeTab]} />
         ) : null}
-        {!isTabLoading && !tabErrorMessage ? (
-          <>
-            {activeTab === "backlinks" ? (
-              <BacklinksTable
-                rows={tabRows.backlinks}
-                domainRatings={domainRatings}
-                sorting={sorting}
-                onSortingChange={onSortingChange}
-                expansion={view === "all" ? null : domainExpansion}
-              />
-            ) : null}
-            {activeTab === "domains" ? (
-              <ReferringDomainsTable
-                rows={tabRows.referringDomains}
-                domainRatings={domainRatings}
-                sorting={sorting}
-                onSortingChange={onSortingChange}
-              />
-            ) : null}
-            {activeTab === "pages" ? (
-              <TopPagesTable
-                rows={tabRows.topPages}
-                sorting={sorting}
-                onSortingChange={onSortingChange}
-              />
-            ) : null}
-          </>
+        {activeTab === "backlinks" && !isTabLoading && !tabErrorMessage ? (
+          <BacklinksTable
+            rows={tabRows.backlinks}
+            domainRatings={domainRatings}
+            sorting={sorting}
+            onSortingChange={onSortingChange}
+            expansion={view === "all" ? null : domainExpansion}
+          />
+        ) : null}
+        {activeTab === "domains" && !isTabLoading && !tabErrorMessage ? (
+          <ReferringDomainsTable
+            rows={tabRows.referringDomains}
+            domainRatings={domainRatings}
+            sorting={sorting}
+            onSortingChange={onSortingChange}
+          />
+        ) : null}
+        {activeTab === "pages" && !isTabLoading && !tabErrorMessage ? (
+          <TopPagesTable
+            rows={tabRows.topPages}
+            sorting={sorting}
+            onSortingChange={onSortingChange}
+          />
+        ) : null}
+        {activeTab === "anchors" ? (
+          <BacklinksAnchorsPanel
+            data={anchorsData}
+            isLoading={isTabLoading}
+            errorMessage={tabErrorMessage}
+          />
+        ) : null}
+        {activeTab === "new-lost" ? (
+          <BacklinksNewLostPanel
+            data={newLostData}
+            isLoading={isTabLoading}
+            errorMessage={tabErrorMessage}
+            groupRange={newLostGroupRange}
+            onGroupRangeChange={onNewLostRangeChange}
+          />
+        ) : null}
+        {activeTab === "authority" ? (
+          <BacklinksAuthorityPanel data={overviewData} />
+        ) : null}
+        {activeTab === "compare" ? (
+          <BacklinksComparePanel projectId={projectId} target={target} />
+        ) : null}
+        {activeTab === "bulk" ? (
+          <BacklinksBulkPanel projectId={projectId} initialTargets={target} />
         ) : null}
       </div>
 
-      {/* Kept visible on tab errors so a failing page still offers a way back. */}
-      <TablePagination
-        page={pagination.page}
-        pageSize={pagination.pageSize}
-        pageSizes={BACKLINKS_PAGE_SIZES}
-        totalCount={pagination.totalCount}
-        hasNextPage={pagination.hasNextPage}
-        isLoading={pagination.isFetching}
-        onPageChange={onPageChange}
-        onPageSizeChange={onPageSizeChange}
-      />
+      {showPagedChrome ? (
+        <TablePagination
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          pageSizes={BACKLINKS_PAGE_SIZES}
+          totalCount={pagination.totalCount}
+          hasNextPage={pagination.hasNextPage}
+          isLoading={pagination.isFetching}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
+      ) : null}
     </div>
   );
 }
 
-const TAB_LOADING_LABELS: Record<BacklinksTab, string> = {
+const TAB_LOADING_LABELS: Record<"backlinks" | "domains" | "pages", string> = {
   backlinks: "Loading backlinks",
   domains: "Loading referring domains",
-  pages: "Loading top pages",
+  pages: "Loading indexed pages",
 };
 
 /** Unique domains the DR column keys on, from both the backlinks and referring

@@ -4,10 +4,13 @@ import type {
   BacklinksTargetScope,
 } from "@/types/schemas/backlinks";
 import type {
+  getBacklinksAnchors,
+  getBacklinksNewLost,
   getBacklinksOverview,
   getBacklinksReferringDomains,
   getBacklinksRows,
   getBacklinksTopPages,
+  runBacklinksBulkAnalysis,
 } from "@/serverFunctions/backlinks";
 
 export type BacklinksOverviewData = Awaited<
@@ -21,6 +24,15 @@ export type BacklinksReferringDomainsData = Awaited<
 >;
 export type BacklinksTopPagesData = Awaited<
   ReturnType<typeof getBacklinksTopPages>
+>;
+export type BacklinksAnchorsData = Awaited<
+  ReturnType<typeof getBacklinksAnchors>
+>;
+export type BacklinksNewLostData = Awaited<
+  ReturnType<typeof getBacklinksNewLost>
+>;
+export type BacklinksBulkData = Awaited<
+  ReturnType<typeof runBacklinksBulkAnalysis>
 >;
 
 export type BacklinksRow = BacklinksRowsPageData["rows"][number];
@@ -38,6 +50,8 @@ export type BacklinksSearchState = {
   order?: BacklinksSortOrder;
   /** Backlinks tab only: "all" lists every link; default is one per domain. */
   view?: "all";
+  /** New & lost tab only: daily or weekly grouping. */
+  range?: "day" | "week";
 };
 
 export type BacklinksNavigate = (args: {

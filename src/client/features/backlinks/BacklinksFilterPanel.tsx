@@ -1,4 +1,5 @@
 import { DomainFilterPanel } from "@/client/features/domain/components/DomainFilterPanel";
+import { isServerPagedBacklinksTab } from "./backlinksPageUtils";
 import type { BacklinksTab } from "@/types/schemas/backlinks";
 import {
   BACKLINKS_FILTER_FIELDS,
@@ -24,6 +25,8 @@ export function BacklinksFilterPanel({
   filters: BacklinksFiltersState;
   onApplied: () => void;
 }) {
+  if (!isServerPagedBacklinksTab(activeTab)) return null;
+
   if (activeTab === "backlinks") {
     const state = filters.backlinks;
     return (

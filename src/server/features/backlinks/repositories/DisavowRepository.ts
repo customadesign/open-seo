@@ -111,6 +111,25 @@ async function remove(projectId: string, id: string) {
   return rows.length > 0;
 }
 
+async function getByValue(
+  projectId: string,
+  entryType: DisavowInsert["entryType"],
+  value: string,
+) {
+  const [entry] = await db
+    .select()
+    .from(backlinkDisavowEntries)
+    .where(
+      and(
+        eq(backlinkDisavowEntries.projectId, projectId),
+        eq(backlinkDisavowEntries.entryType, entryType),
+        eq(backlinkDisavowEntries.value, value),
+      ),
+    )
+    .limit(1);
+  return entry ?? null;
+}
+
 async function listExportable(projectId: string) {
   return db
     .select()
@@ -146,6 +165,7 @@ async function markExported(
 
 export const DisavowRepository = {
   list,
+  getByValue,
   saveManual,
   importMany,
   remove,
