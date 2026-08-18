@@ -14,6 +14,7 @@ export const REPORT_SECTION_KEYS = [
   "backlinks",
   "ai_visibility",
   "local_geo_grid",
+  "on_page_ideas",
 ] as const;
 
 export type ReportSectionKey = (typeof REPORT_SECTION_KEYS)[number];
@@ -27,6 +28,7 @@ export const REPORT_SECTION_LABELS: Record<ReportSectionKey, string> = {
   backlinks: "Backlinks",
   ai_visibility: "AI visibility",
   local_geo_grid: "Local map rankings",
+  on_page_ideas: "On-page ideas",
 };
 
 type ReportSectionSelection = {

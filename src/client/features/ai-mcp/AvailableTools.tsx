@@ -66,6 +66,11 @@ const toolCategories: ToolCategory[] = [
         title: "Save keywords",
         description: "Save keywords back to OpenSEO.",
       },
+      {
+        name: "get_on_page_ideas",
+        title: "Get on-page ideas",
+        description: "Read stored on-page tasks for a project or page.",
+      },
     ],
   },
   {

@@ -28,6 +28,7 @@ export const DEFAULT_REPORT_SECTIONS: Array<{
   // and never triggers a provider call.
   { key: "ai_visibility", enabled: true },
   { key: "local_geo_grid", enabled: true },
+  { key: "on_page_ideas", enabled: true },
 ];
 
 async function getSettings(projectId: string) {

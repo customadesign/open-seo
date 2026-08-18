@@ -22,6 +22,7 @@ import {
   isoEndTimestamp,
   loadAiVisibility,
   loadLocalGeoGrid,
+  loadOnPageIdeas,
   type DateRange,
   type SectionLoadResult,
 } from "./storedReportSections";
@@ -413,5 +414,6 @@ export function loadReportSection(
   // Stored-only sources: these read rows the project already paid for and
   // never call a provider. See storedReportSections.ts.
   if (key === "ai_visibility") return loadAiVisibility(projectId, range);
-  return loadLocalGeoGrid(projectId, range);
+  if (key === "local_geo_grid") return loadLocalGeoGrid(projectId, range);
+  return loadOnPageIdeas(projectId, range);
 }
