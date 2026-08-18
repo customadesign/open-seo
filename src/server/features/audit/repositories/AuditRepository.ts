@@ -188,7 +188,7 @@ async function insertCrawledBatch(
       internalLinkCount: page.links.filter((l) => l.isInternal).length,
       externalLinkCount: page.links.filter((l) => !l.isInternal).length,
       hasStructuredData: page.hasStructuredData,
-      hreflangTagsJson: JSON.stringify(page.hreflangTags),
+      hreflangTagsJson: JSON.stringify(page.hreflangLinks),
       isIndexable: page.isIndexable,
       fetchClass: page.fetchClass,
       crawlDepth: page.crawlDepth,
@@ -387,6 +387,43 @@ async function getPagesForAudit(auditId: string) {
     .where(eq(auditPages.auditId, auditId));
 }
 
+export interface ResourceCheckPageRow {
+  id: string;
+  url: string;
+  statusCode: number | null;
+  fetchClass: string;
+  canonicalUrl: string | null;
+  headerCanonicalUrl: string | null;
+  imagesJson: string | null;
+  scriptUrlsJson: string | null;
+  stylesheetUrlsJson: string | null;
+  hreflangTagsJson: string | null;
+  inlineScriptBytes: number;
+  inlineStyleBytes: number;
+}
+
+async function getResourceCheckPages(
+  auditId: string,
+): Promise<ResourceCheckPageRow[]> {
+  return db
+    .select({
+      id: auditPages.id,
+      url: auditPages.url,
+      statusCode: auditPages.statusCode,
+      fetchClass: auditPages.fetchClass,
+      canonicalUrl: auditPages.canonicalUrl,
+      headerCanonicalUrl: auditPages.headerCanonicalUrl,
+      imagesJson: auditPages.imagesJson,
+      scriptUrlsJson: auditPages.scriptUrlsJson,
+      stylesheetUrlsJson: auditPages.stylesheetUrlsJson,
+      hreflangTagsJson: auditPages.hreflangTagsJson,
+      inlineScriptBytes: auditPages.inlineScriptBytes,
+      inlineStyleBytes: auditPages.inlineStyleBytes,
+    })
+    .from(auditPages)
+    .where(eq(auditPages.auditId, auditId));
+}
+
 async function countBlockedPages(auditId: string): Promise<number> {
   const rows = await db
     .select({ blocked: count() })
@@ -514,6 +551,7 @@ export const AuditRepository = {
   getLatestAuditForProject,
   getIssuesForAudit,
   getPagesForAudit,
+  getResourceCheckPages,
   countBlockedPages,
   hasPagesForAudit,
   getAuditsByProject,

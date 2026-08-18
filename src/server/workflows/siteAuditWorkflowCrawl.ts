@@ -262,14 +262,30 @@ async function persistCrawledPages(input: {
   await AuditRepository.insertCrawledBatch(auditId, pages, issues);
 
   const links: ScratchpadLinkRow[] = [];
+  const externalLinks: Array<{
+    sourcePageId: string;
+    sourceUrl: string;
+    targetUrl: string;
+  }> = [];
   const discovered = new Map<string, number | null>();
   for (const page of pages) {
     const pageDepth = depthByUrl.get(page.url) ?? null;
     const childDepth = pageDepth === null ? null : pageDepth + 1;
 
     let storedForPage = 0;
+    let storedExternalForPage = 0;
     for (const link of page.links) {
-      if (!link.isInternal) continue;
+      if (!link.isInternal) {
+        if (storedExternalForPage < MAX_STORED_LINKS_PER_PAGE) {
+          storedExternalForPage += 1;
+          externalLinks.push({
+            sourcePageId: page.id,
+            sourceUrl: page.url,
+            targetUrl: link.targetUrl,
+          });
+        }
+        continue;
+      }
       if (storedForPage < MAX_STORED_LINKS_PER_PAGE) {
         storedForPage += 1;
         links.push({
@@ -309,6 +325,7 @@ async function persistCrawledPages(input: {
       redirectUrl: page.redirectUrl,
     })),
     links,
+    externalLinks,
     discovered: Array.from(discovered, ([url, depth]) => ({ url, depth })),
   });
 

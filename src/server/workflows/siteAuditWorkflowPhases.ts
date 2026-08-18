@@ -27,6 +27,8 @@ import { AuditChangeEventService } from "@/server/features/audit/services/AuditC
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import { runMultipageChecks } from "@/server/lib/audit/issues/multipage";
+import { runOriginVariantChecks } from "@/server/lib/audit/issues/origin-checks";
+import { runResourceChecks } from "@/server/lib/audit/issues/run-resource-checks";
 import { runSitewideChecks } from "@/server/lib/audit/issues/sitewide";
 import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
 import type { AuditConfig } from "@/server/lib/audit/types";
@@ -398,8 +400,21 @@ async function finalizeAudit(args: {
       }),
     );
     issues.push(...(await runScratchpadLinkChecks(auditId, startUrl, crawl)));
+    const scratchpad = getAuditScratchpad(auditId);
+    const externalLinks = await scratchpad.listExternalLinks();
+    const resource = await runResourceChecks({
+      auditId,
+      origin: getOrigin(startUrl),
+      externalLinks,
+    });
+    issues.push(...resource.issues);
+    issues.push(...(await runOriginVariantChecks({ startUrl })));
     await AuditRepository.insertIssues(auditId, issues);
-    return { issueCount: issues.length };
+    return {
+      issueCount: issues.length,
+      resourceProbesAttempted: resource.budget.attempted,
+      resourceProbesSkippedByCap: resource.budget.skippedByCap,
+    };
   });
 
   await pgStep(step, "finalize", DB_STEP, async () => {
@@ -442,13 +457,14 @@ async function runScratchpadLinkChecks(
   crawl: CrawlPhaseResult,
 ): Promise<DetectedIssue[]> {
   const scratchpad = getAuditScratchpad(auditId);
-  const { brokenLinks, orphanPages } = await scratchpad.runFinalizeChecks({
-    // Page rows store normalized URLs; normalize the start URL the same way
-    // so the orphan exclusion matches.
-    startUrl: normalizeUrl(startUrl) ?? startUrl,
-    // Orphan detection only makes sense when the crawl wasn't truncated.
-    crawlCompleted: crawl.completed,
-  });
+  const { brokenLinks, orphanPages, singleInboundPages } =
+    await scratchpad.runFinalizeChecks({
+      // Page rows store normalized URLs; normalize the start URL the same way
+      // so the orphan exclusion matches.
+      startUrl: normalizeUrl(startUrl) ?? startUrl,
+      // Orphan detection only makes sense when the crawl wasn't truncated.
+      crawlCompleted: crawl.completed,
+    });
 
   return [
     ...brokenLinks.map((row) => ({
@@ -460,6 +476,11 @@ async function runScratchpadLinkChecks(
     })),
     ...orphanPages.map((row) => ({
       issueType: "orphan-page" as const,
+      pageId: row.pageId,
+      pageUrl: row.url,
+    })),
+    ...singleInboundPages.map((row) => ({
+      issueType: "single-incoming-internal-link" as const,
       pageId: row.pageId,
       pageUrl: row.url,
     })),
