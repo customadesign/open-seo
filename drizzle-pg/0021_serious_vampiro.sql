@@ -1,0 +1,1 @@
+ALTER TABLE "report_templates" ADD COLUMN "deleted_at" text;

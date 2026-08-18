@@ -1,6 +1,11 @@
 import type { WorkflowStep } from "cloudflare:workers";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
-import { discoverUrls, parseRobotsTxt } from "@/server/lib/audit/discovery";
+import {
+  discoverUrls,
+  parseRobotsTxt,
+  type AiCrawlerAccess,
+  type LlmsTxtStatus,
+} from "@/server/lib/audit/discovery";
 import {
   fetchLighthouseResult,
   selectLighthouseSample,
@@ -13,9 +18,11 @@ import {
 } from "@/server/lib/audit/url-utils";
 import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { AuditComparisonService } from "@/server/features/audit/services/AuditComparisonService";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import { runMultipageChecks } from "@/server/lib/audit/issues/multipage";
+import { runSitewideChecks } from "@/server/lib/audit/issues/sitewide";
 import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
 import type { AuditConfig } from "@/server/lib/audit/types";
 import { captureServerEvent } from "@/server/lib/posthog";
@@ -47,6 +54,13 @@ type AuditPhasesParams = {
   projectId: string;
   startUrl: string;
   config: AuditConfig;
+};
+
+type DiscoveryPhaseResult = {
+  robotsText: string | null;
+  seededCount: number;
+  aiCrawlerAccess: AiCrawlerAccess[];
+  llmsTxt: LlmsTxtStatus;
 };
 
 export async function runAuditPhases(
@@ -100,6 +114,7 @@ export async function runAuditPhases(
     startUrl,
     config,
     crawl,
+    discovery,
   });
 }
 
@@ -114,53 +129,62 @@ async function runDiscoveryPhase(
   },
 ) {
   const { auditId, workflowInstanceId, origin, startUrl, maxPages } = input;
-  // "-v2": the checkpoint shape changed (seeds now live in the scratchpad DO
-  // instead of the step return). A pre-refactor instance replayed under this
-  // code must re-run discovery — resuming from the old cached {sitemapUrls}
-  // shape would leave the scratchpad empty and finalize a zero-page audit.
-  return pgStep(step, "discover-urls-v2", DISCOVERY_STEP, async () => {
-    const result = await discoverUrls(origin, maxPages);
-    const robots = parseRobotsTxt(origin, result.robotsText);
-    const scratchpad = getAuditScratchpad(auditId);
+  // "-v3": v2 moved seeds into the scratchpad DO; v3 also checkpoints AI
+  // crawler access and llms.txt status. Re-run discovery when either older
+  // shape replays so finalize never reads missing sitewide signals.
+  return pgStep(
+    step,
+    "discover-urls-v3",
+    DISCOVERY_STEP,
+    async (): Promise<DiscoveryPhaseResult> => {
+      const result = await discoverUrls(origin, maxPages);
+      const robots = parseRobotsTxt(origin, result.robotsText);
+      const scratchpad = getAuditScratchpad(auditId);
 
-    // Seeds go straight into the scratchpad frontier — nothing large is
-    // returned as step state (an uncapped seed list used to blow the ~1MiB
-    // step-output limit on big sitemaps).
-    let seededCount = 0;
-    const normalizedStart = normalizeUrl(startUrl) ?? startUrl;
-    if (
-      robots.isAllowed(normalizedStart) &&
-      isSameOrigin(normalizedStart, origin)
-    ) {
-      await scratchpad.seedStart(normalizedStart);
-      seededCount += 1;
-    }
+      // Seeds go straight into the scratchpad frontier — nothing large is
+      // returned as step state (an uncapped seed list used to blow the ~1MiB
+      // step-output limit on big sitemaps).
+      let seededCount = 0;
+      const normalizedStart = normalizeUrl(startUrl) ?? startUrl;
+      if (
+        robots.isAllowed(normalizedStart) &&
+        isSameOrigin(normalizedStart, origin)
+      ) {
+        await scratchpad.seedStart(normalizedStart);
+        seededCount += 1;
+      }
 
-    // The start URL is deliberately not excluded here: seedSitemapUrls
-    // upserts, so a start URL that also appears in the sitemap keeps its
-    // link-queue position but gains the in-sitemap flag.
-    const seen = new Set<string>();
-    const seeds: string[] = [];
-    for (const url of result.urls) {
-      const normalized = normalizeUrl(url);
-      if (!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      if (!isSameOrigin(normalized, origin)) continue;
-      if (!isCrawlableUrl(normalized)) continue;
-      if (!robots.isAllowed(normalized)) continue;
-      seeds.push(normalized);
-    }
-    for (let i = 0; i < seeds.length; i += SEED_RPC_BATCH) {
-      await scratchpad.seedSitemapUrls(seeds.slice(i, i + SEED_RPC_BATCH));
-    }
-    seededCount += seeds.filter((seed) => seed !== normalizedStart).length;
+      // The start URL is deliberately not excluded here: seedSitemapUrls
+      // upserts, so a start URL that also appears in the sitemap keeps its
+      // link-queue position but gains the in-sitemap flag.
+      const seen = new Set<string>();
+      const seeds: string[] = [];
+      for (const url of result.urls) {
+        const normalized = normalizeUrl(url);
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        if (!isSameOrigin(normalized, origin)) continue;
+        if (!isCrawlableUrl(normalized)) continue;
+        if (!robots.isAllowed(normalized)) continue;
+        seeds.push(normalized);
+      }
+      for (let i = 0; i < seeds.length; i += SEED_RPC_BATCH) {
+        await scratchpad.seedSitemapUrls(seeds.slice(i, i + SEED_RPC_BATCH));
+      }
+      seededCount += seeds.filter((seed) => seed !== normalizedStart).length;
 
-    await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
-      pagesTotal: Math.min(seededCount, maxPages),
-      currentPhase: "crawling",
-    });
-    return { robotsText: result.robotsText, seededCount };
-  });
+      await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
+        pagesTotal: Math.min(seededCount, maxPages),
+        currentPhase: "crawling",
+      });
+      return {
+        robotsText: result.robotsText,
+        seededCount,
+        aiCrawlerAccess: result.aiCrawlerAccess,
+        llmsTxt: result.llmsTxt,
+      };
+    },
+  );
 }
 
 type LighthousePhaseParams = {
@@ -324,6 +348,7 @@ async function finalizeAudit(args: {
   startUrl: string;
   config: AuditConfig;
   crawl: CrawlPhaseResult;
+  discovery: DiscoveryPhaseResult;
 }) {
   const {
     step,
@@ -334,6 +359,7 @@ async function finalizeAudit(args: {
     startUrl,
     config,
     crawl,
+    discovery,
   } = args;
 
   await pgStep(step, "multipage-checks", MULTIPAGE_CHECKS_STEP, async () => {
@@ -354,6 +380,13 @@ async function finalizeAudit(args: {
     }
 
     const issues = await runMultipageChecks({ auditId });
+    issues.push(
+      ...runSitewideChecks({
+        origin: getOrigin(startUrl),
+        aiCrawlerAccess: discovery.aiCrawlerAccess,
+        llmsTxt: discovery.llmsTxt,
+      }),
+    );
     issues.push(...(await runScratchpadLinkChecks(auditId, startUrl, crawl)));
     await AuditRepository.insertIssues(auditId, issues);
     return { issueCount: issues.length };
@@ -383,6 +416,18 @@ async function finalizeAudit(args: {
     // Crawl scratch state (frontier, links, mirror) is no longer needed.
     await getAuditScratchpad(auditId).destroy();
   });
+
+  // Change events are valuable but must never turn a successfully persisted
+  // crawl into a failed audit. Inserts are deduplicated by audit id, so a
+  // workflow replay or a later backfill can safely retry this best-effort step.
+  try {
+    await AuditComparisonService.recordChangeEvents(auditId, projectId);
+  } catch (error) {
+    console.error(
+      `Audit ${auditId}: failed to record comparison events`,
+      error,
+    );
+  }
 }
 
 /**

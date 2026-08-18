@@ -82,6 +82,19 @@ export interface PageAnalysis {
 
   // Structured data
   hasStructuredData: boolean;
+  structuredDataTypes: string[];
+  invalidStructuredDataCount: number;
+
+  // Semantic/AEO/GEO signals (used by reporters; no raw content is stored)
+  htmlLang: string | null;
+  hasViewportMeta: boolean;
+  questionHeadingCount: number;
+  listCount: number;
+  tableCount: number;
+  hasAuthorSignal: boolean;
+  hasDateSignal: boolean;
+  mixedContentCount: number;
+  contentExternalLinkTargets: string[];
 
   // Hreflang
   hreflangTags: string[];
@@ -151,6 +164,17 @@ export interface CrawledPageResult {
   images: Array<{ src: string | null; alt: string | null }>;
   links: PageLink[];
   hasStructuredData: boolean;
+  structuredDataTypes: string[];
+  invalidStructuredDataCount: number;
+  htmlLang: string | null;
+  hasViewportMeta: boolean;
+  questionHeadingCount: number;
+  listCount: number;
+  tableCount: number;
+  hasAuthorSignal: boolean;
+  hasDateSignal: boolean;
+  mixedContentCount: number;
+  contentExternalLinkTargets: string[];
   hreflangTags: string[];
   isIndexable: boolean;
   responseTimeMs: number;

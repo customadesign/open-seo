@@ -24,13 +24,13 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     title: "A perfectly reasonable page title",
     metaDescription:
       "A reasonable meta description that says something useful about the page.",
-    canonicalUrl: null,
+    canonicalUrl: "https://example.com/a",
     robotsMeta: null,
     xRobotsTag: null,
     headerCanonicalUrl: null,
-    ogTitle: null,
-    ogDescription: null,
-    ogImage: null,
+    ogTitle: "A perfectly reasonable page title",
+    ogDescription: "A useful social description.",
+    ogImage: "https://example.com/social.jpg",
     h1Count: 1,
     h2Count: 0,
     h3Count: 0,
@@ -47,6 +47,17 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     images: [],
     links: [HEALTHY_LINK],
     hasStructuredData: false,
+    structuredDataTypes: [],
+    invalidStructuredDataCount: 0,
+    htmlLang: "en",
+    hasViewportMeta: true,
+    questionHeadingCount: 1,
+    listCount: 1,
+    tableCount: 0,
+    hasAuthorSignal: true,
+    hasDateSignal: true,
+    mixedContentCount: 0,
+    contentExternalLinkTargets: [],
     hreflangTags: [],
     isIndexable: true,
     responseTimeMs: 200,
@@ -200,6 +211,80 @@ describe("runPageReporters", () => {
     expect(issueTypes(makePage({ links: [HEALTHY_LINK] }))).not.toContain(
       "no-outgoing-links",
     );
+  });
+
+  it("checks technical, structured-data, AEO, and GEO readiness", () => {
+    const page = makePage({
+      url: "http://example.com/blog/guide",
+      canonicalUrl: null,
+      htmlLang: null,
+      hasViewportMeta: false,
+      mixedContentCount: 2,
+      invalidStructuredDataCount: 1,
+      structuredDataTypes: [],
+      ogTitle: null,
+      ogDescription: null,
+      ogImage: null,
+      questionHeadingCount: 0,
+      listCount: 0,
+      tableCount: 0,
+      hasAuthorSignal: false,
+      hasDateSignal: false,
+      links: [
+        {
+          targetUrl: "http://example.com/contact",
+          anchor: "Click here",
+          isInternal: true,
+          isNofollow: false,
+        },
+        {
+          targetUrl: "https://example.com/about",
+          anchor: null,
+          isInternal: true,
+          isNofollow: false,
+        },
+      ],
+    });
+    const types = issueTypes(page);
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "non-https-page",
+        "missing-viewport",
+        "mixed-content",
+        "missing-html-lang",
+        "missing-self-canonical",
+        "invalid-json-ld",
+        "missing-article-schema",
+        "incomplete-open-graph",
+        "generic-link-anchor",
+        "empty-link-anchor",
+        "weak-answer-structure",
+        "missing-author-attribution",
+        "missing-freshness-signal",
+        "no-cited-sources",
+      ]),
+    );
+  });
+
+  it("requires organization schema on the homepage", () => {
+    expect(
+      issueTypes(
+        makePage({
+          url: "https://example.com/",
+          canonicalUrl: "https://example.com/",
+        }),
+      ),
+    ).toContain("missing-entity-schema");
+    expect(
+      issueTypes(
+        makePage({
+          url: "https://example.com/",
+          canonicalUrl: "https://example.com/",
+          hasStructuredData: true,
+          structuredDataTypes: ["Organization"],
+        }),
+      ),
+    ).not.toContain("missing-entity-schema");
   });
 });
 

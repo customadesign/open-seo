@@ -9,3 +9,6 @@ export * from "../billing.schema";
 export * from "../ga4.schema";
 export * from "../gsc.schema";
 export * from "../telemetry.schema";
+export * from "../local-seo.schema";
+export * from "../report.schema";
+export * from "../change-events.schema";

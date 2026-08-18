@@ -9,8 +9,25 @@ import { analyzeHtml } from "@/server/lib/audit/page-analyzer";
 import { normalizeUrl, isSameOrigin } from "@/server/lib/audit/url-utils";
 import type { PageAnalysis, PageLink } from "@/server/lib/audit/types";
 
+type SemanticSignalKey =
+  | "structuredDataTypes"
+  | "invalidStructuredDataCount"
+  | "htmlLang"
+  | "hasViewportMeta"
+  | "questionHeadingCount"
+  | "listCount"
+  | "tableCount"
+  | "hasAuthorSignal"
+  | "hasDateSignal"
+  | "mixedContentCount"
+  | "contentExternalLinkTargets";
+type LegacyPageAnalysis = Omit<PageAnalysis, SemanticSignalKey>;
+
 /** The previous cheerio implementation, verbatim (minus passthrough fields). */
-function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
+function analyzeHtmlWithCheerio(
+  html: string,
+  pageUrl: string,
+): LegacyPageAnalysis {
   const $ = cheerio.load(html);
 
   const title = $("title").first().text().trim();
@@ -112,7 +129,21 @@ const PAGE_URL = "https://example.com/blog/post";
 function expectParity(html: string) {
   const streamed = analyzeHtml(html, PAGE_URL, 200, 0);
   const reference = analyzeHtmlWithCheerio(html, PAGE_URL);
-  expect(streamed).toEqual(reference);
+  const {
+    structuredDataTypes: _structuredDataTypes,
+    invalidStructuredDataCount: _invalidStructuredDataCount,
+    htmlLang: _htmlLang,
+    hasViewportMeta: _hasViewportMeta,
+    questionHeadingCount: _questionHeadingCount,
+    listCount: _listCount,
+    tableCount: _tableCount,
+    hasAuthorSignal: _hasAuthorSignal,
+    hasDateSignal: _hasDateSignal,
+    mixedContentCount: _mixedContentCount,
+    contentExternalLinkTargets: _contentExternalLinkTargets,
+    ...legacyStreamed
+  } = streamed;
+  expect(legacyStreamed).toEqual(reference);
 }
 
 describe("analyzeHtml parity with the DOM reference", () => {
@@ -204,5 +235,49 @@ describe("analyzeHtml parity with the DOM reference", () => {
       </p>
       <ul><li>four</li><li>five</li></ul>
     </body>`);
+  });
+
+  it("extracts structured-data and answer-readiness signals", () => {
+    const result = analyzeHtml(
+      `<html lang="en"><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta property="article:modified_time" content="2026-08-13">
+        <script type="application/ld+json; charset=utf-8">{
+          "@graph": [
+            {"@type":"Organization"},
+            {"@type":["Article","CreativeWork"],"author":{"@type":"Person"}}
+          ]
+        }</script>
+        <script type="application/ld+json">{not valid}</script>
+      </head><body><nav><ul><li>Navigation</li></ul></nav><main>
+        <h1>Guide</h1><h2>How does this work?</h2>
+        <ol><li>First</li></ol><table><tr><td>Comparison</td></tr></table>
+        <img src="http://insecure.example/image.jpg" alt="Example">
+        <a href="http://source.example/research">Source</a>
+      </main><footer><a href="https://footer.example/">Footer</a></footer>
+      </body></html>`,
+      PAGE_URL,
+      200,
+      0,
+    );
+
+    expect(result).toMatchObject({
+      htmlLang: "en",
+      hasViewportMeta: true,
+      structuredDataTypes: [
+        "Article",
+        "CreativeWork",
+        "Organization",
+        "Person",
+      ],
+      invalidStructuredDataCount: 1,
+      questionHeadingCount: 1,
+      listCount: 1,
+      tableCount: 1,
+      hasAuthorSignal: true,
+      hasDateSignal: true,
+      mixedContentCount: 1,
+      contentExternalLinkTargets: ["http://source.example/research"],
+    });
   });
 });

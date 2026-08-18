@@ -27,6 +27,8 @@ import {
   rankCheckCostApprovalError,
 } from "@/shared/rank-tracking";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { ChangeEventService } from "@/server/features/change-events/services/ChangeEventService";
+import { RankChangeEventService } from "@/server/features/rank-tracking/services/RankChangeEventService";
 
 const SINGLE_ATTEMPT_STEP_CONFIG = {
   retries: { limit: 0, delay: "1 second" as const },
@@ -148,10 +150,14 @@ async function finalizeRankCheckRun(input: {
   // decision with a completed status — a replacement run may already be
   // underway.
   const run = await RankTrackingRepository.getRunById(input.runId);
-  if (!run || run.status === "failed" || run.status === "completed") {
+  if (!run || run.status === "failed") {
     console.warn(
       `[rank-check] ${input.runId} no longer active (status=${run?.status ?? "missing"}), skipping finalization`,
     );
+    return;
+  }
+  if (run.status === "completed") {
+    await recordRankChangeEventsBestEffort(input);
     return;
   }
 
@@ -224,6 +230,22 @@ async function finalizeRankCheckRun(input: {
         : {}),
     },
   });
+  await recordRankChangeEventsBestEffort(input);
+}
+
+async function recordRankChangeEventsBestEffort(input: {
+  runId: string;
+  configId: string;
+  projectId: string;
+}) {
+  try {
+    await RankChangeEventService.recordChangeEvents(input);
+  } catch (error) {
+    console.error(
+      `Rank check ${input.runId}: failed to record change events`,
+      error,
+    );
+  }
 }
 
 async function markRankCheckRunFailed(input: {
@@ -257,6 +279,26 @@ async function markRankCheckRunFailed(input: {
       error: errorMessage,
     },
   });
+  try {
+    await ChangeEventService.record({
+      projectId: input.projectId,
+      source: "rank_tracking",
+      eventType: "rank_tracking.failed",
+      severity: "warning",
+      title: "Rank check failed",
+      summary: errorMessage.slice(0, 1_000),
+      entityType: "rank_tracking_config",
+      entityId: input.configId,
+      sourceRunId: input.runId,
+      dedupeKey: `rank:${input.runId}:failed`,
+      occurredAt: new Date().toISOString(),
+    });
+  } catch (eventError) {
+    console.error(
+      `Rank check ${input.runId}: failed to record failure event`,
+      eventError,
+    );
+  }
 }
 
 export class RankCheckWorkflow extends WorkflowEntrypoint<

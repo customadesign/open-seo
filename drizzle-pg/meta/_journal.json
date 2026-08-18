@@ -141,6 +141,34 @@
       "when": 1786209409297,
       "tag": "0019_clammy_selene",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786563648397,
+      "tag": "0020_gray_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786572967336,
+      "tag": "0021_serious_vampiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786914762550,
+      "tag": "0022_large_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787046073954,
+      "tag": "0023_nappy_radioactive_man",
+      "breakpoints": true
     }
   ]
 }

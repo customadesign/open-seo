@@ -5,6 +5,11 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { Ga4ConnectCard } from "@/client/features/dashboard/Ga4ConnectCard";
+import { Ga4DashboardCards } from "@/client/features/dashboard/Ga4DashboardCards";
+import {
+  ga4DashboardHasDataForSort,
+  shouldShowDashboardGa4,
+} from "@/client/features/dashboard/ga4Dashboard";
 import {
   computeNextStep,
   isStepDone,
@@ -17,6 +22,7 @@ import {
 } from "@/client/features/dashboard/DashboardCards";
 import { McpConnectCard } from "@/client/features/dashboard/McpConnectCard";
 import { WorkspaceMergeBanner } from "@/client/features/dashboard/WorkspaceMergeBanner";
+import { ChangeEventsCard } from "@/client/features/dashboard/ChangeEventsCard";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import type { DashboardActivation } from "@/server/features/dashboard/services/DashboardService";
 import {
@@ -25,9 +31,11 @@ import {
   markDashboardCompetitorClicked,
   refreshDashboardBacklinkSnapshot,
 } from "@/serverFunctions/dashboard";
+import { getChangeEventFeed } from "@/serverFunctions/change-events";
 import { setProjectDomain } from "@/serverFunctions/projects";
 import { GA4_OAUTH_APP_PENDING } from "@/shared/ga4";
 import type { DashboardHeroStep } from "@/types/schemas/dashboard";
+import { isHostedClientAuthMode } from "@/lib/auth-mode";
 
 const HERO_COPY: Record<
   DashboardHeroStep,
@@ -244,6 +252,13 @@ export function DashboardPage({ projectId }: { projectId: string }) {
     queryKey: ["dashboardOverview", projectId],
     queryFn: () => getDashboardOverview({ data: { projectId } }),
   });
+  const changesQuery = useQuery({
+    queryKey: ["changeEvents", projectId, "dashboard"],
+    queryFn: () =>
+      getChangeEventFeed({
+        data: { projectId, unreadOnly: false, limit: 3 },
+      }),
+  });
 
   const activation = activationQuery.data;
   const overview = overviewQuery.data;
@@ -282,7 +297,7 @@ export function DashboardPage({ projectId }: { projectId: string }) {
   // Wait for the overview too: rendering cards from `overview === undefined`
   // flashes their empty states (and reshuffles the data-first sort) once the
   // real data lands. An overview error falls through so the page still loads.
-  if (!activation || overviewQuery.isPending) {
+  if (!activation || overviewQuery.isPending || changesQuery.isPending) {
     return (
       <div
         className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-4 md:px-6 md:py-6"
@@ -301,6 +316,12 @@ export function DashboardPage({ projectId }: { projectId: string }) {
   const showBacklinks = activation.domain !== null;
   const gscConnected = activation.gsc.connected;
   const ga4Connected = activation.ga4.connected;
+  const showGa4 = shouldShowDashboardGa4({
+    hosted: isHostedClientAuthMode(),
+    oauthAppPending: GA4_OAUTH_APP_PENDING,
+    connected: ga4Connected,
+    dismissedAt: activation.ga4.cardDismissedAt,
+  });
 
   return (
     <div className="px-4 py-4 pb-24 md:px-6 md:py-6 md:pb-8">
@@ -332,17 +353,29 @@ export function DashboardPage({ projectId }: { projectId: string }) {
                   },
                 ]),
             {
+              key: "changes",
+              hasData: (changesQuery.data?.events.length ?? 0) > 0,
+              node: <ChangeEventsCard projectId={projectId} />,
+            },
+            {
               key: "gsc",
               hasData: gscConnected,
               node: <GscCard projectId={projectId} connected={gscConnected} />,
             },
-            ...(!GA4_OAUTH_APP_PENDING &&
-            (ga4Connected || !activation.ga4.cardDismissedAt)
+            ...(showGa4
               ? [
                   {
                     key: "ga4",
-                    hasData: ga4Connected,
-                    node: (
+                    hasData: ga4DashboardHasDataForSort({
+                      gscConnected,
+                      ga4Connected,
+                    }),
+                    node: ga4Connected ? (
+                      <Ga4DashboardCards
+                        projectId={projectId}
+                        connected={ga4Connected}
+                      />
+                    ) : (
                       <Ga4ConnectCard
                         projectId={projectId}
                         connected={ga4Connected}
@@ -380,7 +413,12 @@ export function DashboardPage({ projectId }: { projectId: string }) {
           ]
             .toSorted((a, b) => Number(b.hasData) - Number(a.hasData))
             .map((card) => (
-              <div key={card.key}>{card.node}</div>
+              <div
+                key={card.key}
+                className={card.key === "ga4" ? "contents" : undefined}
+              >
+                {card.node}
+              </div>
             ))}
         </div>
       </div>

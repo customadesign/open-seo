@@ -25,6 +25,7 @@ import {
 } from "@/server/lib/audit/url-policy";
 import { reconcileRunningAudit } from "@/server/features/audit/services/auditReconciler";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { AuditComparisonService } from "./AuditComparisonService";
 
 // Plan-tier limits are the abuse bound in hosted mode: free accounts get one
 // small audit at a time, paid keeps the full limits, and customers with no
@@ -209,6 +210,10 @@ async function getHistory(projectId: string) {
   });
 }
 
+async function getComparison(auditId: string, projectId: string) {
+  return AuditComparisonService.getComparison(auditId, projectId);
+}
+
 async function getCrawlProgress(auditId: string, projectId: string) {
   const audit = await AuditRepository.getAuditForProject(auditId, projectId);
   if (!audit) {
@@ -275,5 +280,6 @@ export const AuditService = {
   getCrawlProgress,
   getResults,
   getHistory,
+  getComparison,
   remove,
 } as const;

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { GscChangeEventService } from "@/server/features/gsc/services/GscChangeEventService";
 import {
   GscNotConnectedError,
   GscService,
@@ -109,6 +110,20 @@ export const getSearchPerformanceReport = createServerFn({ method: "POST" })
         }),
       ]);
 
+      const totals = sumSearchTotals(current.rows);
+      const prevTotals = sumSearchTotals(previous.rows);
+      await GscChangeEventService.recordFromReport({
+        projectId,
+        dateRange: data.dateRange,
+        startDate,
+        endDate,
+        prevStartDate: prev.startDate,
+        prevEndDate: prev.endDate,
+        device: data.device,
+        country: data.country,
+        current: totals,
+        previous: prevTotals,
+      });
       return {
         connected: true as const,
         range: {
@@ -117,8 +132,8 @@ export const getSearchPerformanceReport = createServerFn({ method: "POST" })
           prevStartDate: prev.startDate,
           prevEndDate: prev.endDate,
         },
-        totals: sumSearchTotals(current.rows),
-        prevTotals: sumSearchTotals(previous.rows),
+        totals,
+        prevTotals,
         strikingDistance: buildStrikingDistanceRows(queryPages.rows),
         countries: toDimensionRows(countries.rows),
       };

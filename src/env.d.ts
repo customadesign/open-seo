@@ -33,6 +33,13 @@ declare namespace Cloudflare {
     LOOPS_API_KEY?: string;
     LOOPS_TRANSACTIONAL_VERIFY_EMAIL_ID?: string;
     LOOPS_TRANSACTIONAL_RESET_PASSWORD_ID?: string;
+    // Optional scheduled report delivery. The renderer URL should point to a
+    // private or access-controlled Gotenberg deployment.
+    REPORT_PDF_RENDER_URL?: string;
+    REPORT_PDF_RENDER_BEARER_TOKEN?: string;
+    RESEND_API_KEY?: string;
+    REPORT_EMAIL_FROM?: string;
+    REPORT_EMAIL_REPLY_TO?: string;
     AUTUMN_SECRET_KEY?: string;
     AUTUMN_WEBHOOK_SECRET?: string;
     // HMAC secret for the operator-only GDPR storage-erasure endpoint.

@@ -32,6 +32,89 @@ export interface RobotsResult {
   sitemapUrls: string[];
 }
 
+export interface AiCrawlerAccess {
+  userAgent: string;
+  label: string;
+  kind: "search" | "ai-search";
+  allowed: boolean;
+}
+
+export interface LlmsTxtStatus {
+  available: boolean;
+  statusCode: number | null;
+}
+
+const SEARCH_AND_RETRIEVAL_CRAWLERS = [
+  {
+    userAgent: "OAI-SearchBot",
+    label: "OpenAI search discovery",
+    kind: "ai-search",
+  },
+  {
+    userAgent: "ChatGPT-User",
+    label: "ChatGPT user-requested retrieval",
+    kind: "ai-search",
+  },
+  {
+    userAgent: "PerplexityBot",
+    label: "Perplexity search discovery",
+    kind: "ai-search",
+  },
+  {
+    userAgent: "Claude-SearchBot",
+    label: "Claude search discovery",
+    kind: "ai-search",
+  },
+  {
+    userAgent: "Googlebot",
+    label: "Google Search and AI Overviews",
+    kind: "search",
+  },
+  {
+    userAgent: "bingbot",
+    label: "Bing Search and Copilot",
+    kind: "search",
+  },
+] as const;
+
+/** Training-only crawlers are intentionally excluded: blocking training is a
+ * separate policy choice and must not be scored as an AI-search failure. */
+export function analyzeAiCrawlerAccess(
+  origin: string,
+  text: string | null,
+): AiCrawlerAccess[] {
+  if (text === null) {
+    return SEARCH_AND_RETRIEVAL_CRAWLERS.map((crawler) => ({
+      ...crawler,
+      allowed: true,
+    }));
+  }
+  const robots = robotsParser(`${origin}/robots.txt`, text);
+  return SEARCH_AND_RETRIEVAL_CRAWLERS.map((crawler) => ({
+    ...crawler,
+    allowed: robots.isAllowed(`${origin}/`, crawler.userAgent) ?? true,
+  }));
+}
+
+async function fetchLlmsTxtStatus(origin: string): Promise<LlmsTxtStatus> {
+  try {
+    const response = await fetch(`${origin}/llms.txt`, {
+      headers: { "User-Agent": "OpenSEO-Audit/1.0" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const contentType = response.headers.get("content-type")?.toLowerCase();
+    return {
+      available:
+        response.ok &&
+        (contentType?.includes("text/plain") === true ||
+          contentType?.includes("text/markdown") === true),
+      statusCode: response.status,
+    };
+  } catch {
+    return { available: false, statusCode: null };
+  }
+}
+
 /**
  * Fetch the raw robots.txt body (null = missing/unreachable). Kept separate
  * from parsing so Workflows can checkpoint the text as durable step state and
@@ -226,8 +309,16 @@ async function fetchSitemapDocumentWithRetry(sitemapUrl: string): Promise<{
 export async function discoverUrls(
   origin: string,
   maxPages = 50,
-): Promise<{ urls: string[]; robotsText: string | null }> {
-  const robotsText = await fetchRobotsTxtText(origin);
+): Promise<{
+  urls: string[];
+  robotsText: string | null;
+  aiCrawlerAccess: AiCrawlerAccess[];
+  llmsTxt: LlmsTxtStatus;
+}> {
+  const [robotsText, llmsTxt] = await Promise.all([
+    fetchRobotsTxtText(origin),
+    fetchLlmsTxtStatus(origin),
+  ]);
   const robots = parseRobotsTxt(origin, robotsText);
 
   // Collect sitemap URLs: from robots.txt + default location
@@ -310,5 +401,7 @@ export async function discoverUrls(
   return {
     urls: Array.from(allUrls).slice(0, maxPages),
     robotsText,
+    aiCrawlerAccess: analyzeAiCrawlerAccess(origin, robotsText),
+    llmsTxt,
   };
 }

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- issue guidance is a single shared data registry used by the UI, exports, and MCP */
 /**
  * Registry of site-audit issue types.
  *
@@ -7,12 +8,34 @@
  */
 
 export type IssueSeverity = "critical" | "warning" | "info";
+export type AuditIssueCategory =
+  | "crawlability"
+  | "indexability"
+  | "technical"
+  | "on-page"
+  | "content"
+  | "architecture"
+  | "performance"
+  | "structured-data"
+  | "aeo"
+  | "geo";
+export type AuditFixOrder = "now" | "next" | "improve" | "monitor";
+export type AuditIssueImpact = "high" | "medium" | "low";
+export type AuditIssueEffort = "small" | "medium" | "large";
 
-interface AuditIssueDescriptor {
+interface BaseAuditIssueDescriptor {
   severity: IssueSeverity;
   title: string;
   explanation: string;
   howToFix: string;
+}
+
+interface AuditIssueDescriptor extends BaseAuditIssueDescriptor {
+  category: AuditIssueCategory;
+  fixOrder: AuditFixOrder;
+  impact: AuditIssueImpact;
+  effort: AuditIssueEffort;
+  howToVerify: string;
 }
 
 export const AUDIT_ISSUE_TYPES = {
@@ -232,20 +255,281 @@ export const AUDIT_ISSUE_TYPES = {
     howToFix:
       "Add links from higher-level pages (hubs, category pages, navigation) to flatten the path to this page.",
   },
-} as const satisfies Record<string, AuditIssueDescriptor>;
+  "non-https-page": {
+    severity: "critical",
+    title: "Page is not served over HTTPS",
+    explanation:
+      "Search engines and browsers treat HTTP pages as insecure. HTTP versions also split canonical signals unless every request immediately redirects to the HTTPS equivalent.",
+    howToFix:
+      "Install a valid TLS certificate, redirect every HTTP URL directly to its HTTPS equivalent with one permanent redirect, and update internal links, canonicals, and sitemaps to HTTPS.",
+  },
+  "missing-viewport": {
+    severity: "warning",
+    title: "Mobile viewport is missing",
+    explanation:
+      "Without a viewport declaration, mobile browsers can render the page at desktop width. That harms mobile usability and makes the page a poor fit for mobile-first indexing.",
+    howToFix:
+      'Add <meta name="viewport" content="width=device-width, initial-scale=1"> in the document head and verify that the layout has no horizontal overflow on a phone-sized viewport.',
+  },
+  "mixed-content": {
+    severity: "warning",
+    title: "HTTPS page loads insecure resources",
+    explanation:
+      "An HTTPS document references HTTP images, scripts, styles, or links. Browsers may block active resources, and insecure asset URLs weaken trust and can create duplicate crawl paths.",
+    howToFix:
+      "Serve each referenced resource over HTTPS and update the source URL. Do not hide the warning with a browser policy until the underlying URLs have been corrected.",
+  },
+  "missing-self-canonical": {
+    severity: "info",
+    title: "Indexable page has no self-referencing canonical",
+    explanation:
+      "A self-referencing canonical is not mandatory, but it makes the preferred URL explicit and helps consolidate accidental parameter, case, and tracking variants.",
+    howToFix:
+      "Add one absolute rel=canonical that resolves to this page's preferred indexable URL. Keep it aligned with redirects, internal links, and the sitemap.",
+  },
+  "invalid-json-ld": {
+    severity: "warning",
+    title: "JSON-LD cannot be parsed",
+    explanation:
+      "One or more structured-data blocks are invalid JSON. Search and answer engines cannot reliably extract entities, authors, dates, products, or business details from a malformed block.",
+    howToFix:
+      "Correct the JSON syntax, then validate the rendered page with Schema.org Validator and Google's Rich Results Test. Keep the markup consistent with visible page content.",
+  },
+  "missing-entity-schema": {
+    severity: "info",
+    title: "Homepage lacks organization entity schema",
+    explanation:
+      "The homepage does not identify the primary Organization or LocalBusiness entity in JSON-LD. Explicit entity markup helps search and answer engines connect the brand, website, logo, contact details, and profiles.",
+    howToFix:
+      "Add one accurate Organization or appropriate LocalBusiness subtype on the homepage with name, URL, logo, contact details, address when applicable, and verified sameAs profiles.",
+  },
+  "missing-article-schema": {
+    severity: "info",
+    title: "Editorial page lacks Article schema",
+    explanation:
+      "This appears to be a substantial article or guide but does not expose Article, BlogPosting, or NewsArticle markup for its headline, author, dates, and publisher.",
+    howToFix:
+      "Add the most specific Article subtype that matches the visible page. Include headline, author, datePublished, dateModified, publisher, image, and mainEntityOfPage without inventing data.",
+  },
+  "missing-html-lang": {
+    severity: "info",
+    title: "Document language is not declared",
+    explanation:
+      "The HTML element has no lang attribute. Language declaration helps accessibility tools and gives parsers a reliable language signal for pronunciation and interpretation.",
+    howToFix:
+      'Set the page language on the root element, for example <html lang="en"> or the correct language-region code.',
+  },
+  "incomplete-open-graph": {
+    severity: "info",
+    title: "Open Graph metadata is incomplete",
+    explanation:
+      "The page is missing one or more core sharing fields. Weak previews reduce click-through when people or AI assistants surface and share the URL.",
+    howToFix:
+      "Add accurate og:title, og:description, and og:image values. Use a crawlable absolute image URL and keep the text aligned with the visible page.",
+  },
+  "generic-link-anchor": {
+    severity: "info",
+    title: "Links use non-descriptive anchor text",
+    explanation:
+      'Anchors such as "click here" or "learn more" hide the destination topic from users, search engines, and answer engines that use link context to understand relationships.',
+    howToFix:
+      "Replace generic anchors with short destination-specific wording. Keep the link natural in its sentence and avoid repeating exact-match commercial phrases everywhere.",
+  },
+  "empty-link-anchor": {
+    severity: "warning",
+    title: "Links have no accessible anchor text",
+    explanation:
+      "A link without text or an image alt label gives users and crawlers no reliable description of its destination.",
+    howToFix:
+      "Add meaningful visible anchor text or, for a linked image, descriptive alt text. Use an accessible label only when visible wording is impractical.",
+  },
+  "weak-answer-structure": {
+    severity: "info",
+    title: "Long-form content is difficult to extract",
+    explanation:
+      "This substantial editorial page has no question-led headings, lists, or tables. It may read well as prose but offers few self-contained blocks that answer engines can quote or summarize confidently.",
+    howToFix:
+      "Keep the useful prose, but add direct-answer sections where appropriate: descriptive question headings, concise opening answers, numbered steps, comparison tables, or clearly labeled definitions.",
+  },
+  "missing-author-attribution": {
+    severity: "info",
+    title: "Editorial content lacks clear author attribution",
+    explanation:
+      "A substantial article or guide has no detectable author signal. Named, qualified authors improve accountability and make expertise easier for users and answer engines to evaluate.",
+    howToFix:
+      "Show the author's name and relevant credentials on the page, link to a useful author profile, and align the visible attribution with Article JSON-LD.",
+  },
+  "missing-freshness-signal": {
+    severity: "info",
+    title: "Editorial content has no published or updated date",
+    explanation:
+      "The page has no detectable publication or modification date. Users and answer engines cannot tell whether time-sensitive claims are current.",
+    howToFix:
+      "Display an honest published date and, after a substantive review, a last-updated date. Mirror those values in Article JSON-LD; do not refresh dates without updating the content.",
+  },
+  "no-cited-sources": {
+    severity: "info",
+    title: "Long-form content cites no external sources",
+    explanation:
+      "This substantial editorial page contains no detectable external source links. Unsupported claims are harder to verify and less attractive for answer engines to cite.",
+    howToFix:
+      "Link important factual claims, statistics, and quotations to their original authoritative sources. Add original evidence or expert attribution where the insight is your own.",
+  },
+  "ai-search-crawler-blocked": {
+    severity: "warning",
+    title: "AI search crawlers are blocked",
+    explanation:
+      "robots.txt blocks one or more crawlers used to discover or retrieve pages for AI-assisted search. This can prevent those systems from finding or citing otherwise public content.",
+    howToFix:
+      "Review the named user agents and allow the search/retrieval crawlers you want to serve. Treat training-only crawlers as a separate policy decision; allowing AI search does not require allowing every training crawler.",
+  },
+  "search-crawler-blocked": {
+    severity: "critical",
+    title: "Search engine crawlers are blocked",
+    explanation:
+      "robots.txt blocks Googlebot or bingbot from the site root. This can prevent conventional search indexing as well as downstream AI experiences that depend on those search indexes.",
+    howToFix:
+      "Review robots.txt immediately and allow the named search crawler unless the block is intentional. Keep private or duplicate paths disallowed with narrow path rules instead of blocking the public site root.",
+  },
+  "missing-llms-txt": {
+    severity: "info",
+    title: "Optional llms.txt file is unavailable",
+    explanation:
+      "No usable /llms.txt file was found. This emerging convention can offer AI agents a concise map of important content, but it is not a standard ranking requirement and its absence is not an SEO failure.",
+    howToFix:
+      "Optional: publish a concise, factual /llms.txt that links to canonical public resources. Do not use it as a substitute for crawlable HTML, sound internal linking, sitemaps, or structured data.",
+  },
+} as const satisfies Record<string, BaseAuditIssueDescriptor>;
 
 export type AuditIssueType = keyof typeof AUDIT_ISSUE_TYPES;
 
-export const ISSUE_SEVERITY_ORDER: Record<IssueSeverity, number> = {
-  critical: 0,
-  warning: 1,
-  info: 2,
+const CATEGORIES: Partial<Record<AuditIssueType, AuditIssueCategory>> = {
+  "blocked-page": "crawlability",
+  "broken-internal-link": "architecture",
+  "broken-page": "crawlability",
+  "server-error": "technical",
+  "redirect-chain": "crawlability",
+  "redirect-loop": "crawlability",
+  "orphan-page": "architecture",
+  "no-outgoing-links": "architecture",
+  "deep-page": "architecture",
+  "canonical-conflict": "indexability",
+  "canonicalized-page": "indexability",
+  "noindex-page": "indexability",
+  "missing-self-canonical": "indexability",
+  "missing-title": "on-page",
+  "duplicate-title": "on-page",
+  "missing-meta-description": "on-page",
+  "duplicate-meta-description": "on-page",
+  "missing-h1": "on-page",
+  "multiple-h1": "on-page",
+  "title-too-long": "on-page",
+  "title-too-short": "on-page",
+  "meta-description-too-long": "on-page",
+  "meta-description-too-short": "on-page",
+  "heading-order-skip": "on-page",
+  "duplicate-content": "content",
+  "thin-content": "content",
+  "images-missing-alt": "content",
+  "slow-response": "performance",
+  "invalid-json-ld": "structured-data",
+  "missing-entity-schema": "structured-data",
+  "missing-article-schema": "structured-data",
+  "generic-link-anchor": "aeo",
+  "empty-link-anchor": "aeo",
+  "weak-answer-structure": "aeo",
+  "missing-author-attribution": "geo",
+  "missing-freshness-signal": "geo",
+  "no-cited-sources": "geo",
+  "ai-search-crawler-blocked": "geo",
+  "search-crawler-blocked": "crawlability",
+  "missing-llms-txt": "geo",
 };
 
-const issueRegistry: Record<string, AuditIssueDescriptor> = AUDIT_ISSUE_TYPES;
+const GUIDANCE_OVERRIDES: Partial<
+  Record<
+    AuditIssueType,
+    Partial<
+      Pick<
+        AuditIssueDescriptor,
+        "fixOrder" | "impact" | "effort" | "howToVerify"
+      >
+    >
+  >
+> = {
+  "broken-internal-link": { fixOrder: "now", impact: "high", effort: "small" },
+  "missing-title": { fixOrder: "now", impact: "high", effort: "small" },
+  "server-error": { fixOrder: "now", impact: "high", effort: "large" },
+  "non-https-page": { fixOrder: "now", impact: "high", effort: "medium" },
+  "invalid-json-ld": { fixOrder: "next", impact: "high", effort: "medium" },
+  "ai-search-crawler-blocked": {
+    fixOrder: "next",
+    impact: "high",
+    effort: "small",
+    howToVerify:
+      "Re-run the audit and test the affected user agents against robots.txt and representative public URLs.",
+  },
+  "search-crawler-blocked": {
+    fixOrder: "now",
+    impact: "high",
+    effort: "small",
+    howToVerify:
+      "Re-run the audit and test Googlebot and bingbot against robots.txt and representative public URLs.",
+  },
+  "missing-entity-schema": { impact: "medium", effort: "medium" },
+  "missing-article-schema": { impact: "medium", effort: "medium" },
+  "generic-link-anchor": { impact: "medium", effort: "small" },
+  "empty-link-anchor": { impact: "medium", effort: "small" },
+  "weak-answer-structure": { impact: "medium", effort: "medium" },
+  "missing-author-attribution": { impact: "medium", effort: "medium" },
+  "missing-freshness-signal": { impact: "medium", effort: "small" },
+  "no-cited-sources": { impact: "medium", effort: "medium" },
+  "missing-llms-txt": {
+    fixOrder: "monitor",
+    impact: "low",
+    effort: "small",
+    howToVerify:
+      "Open /llms.txt directly and confirm it returns a useful text document; no score should depend on it.",
+  },
+  "noindex-page": { fixOrder: "monitor", impact: "low", effort: "small" },
+  "canonicalized-page": {
+    fixOrder: "monitor",
+    impact: "low",
+    effort: "small",
+  },
+};
+
+function defaultFixOrder(severity: IssueSeverity): AuditFixOrder {
+  if (severity === "critical") return "now";
+  if (severity === "warning") return "next";
+  return "improve";
+}
+
+function defaultImpact(severity: IssueSeverity): AuditIssueImpact {
+  if (severity === "critical") return "high";
+  if (severity === "warning") return "medium";
+  return "low";
+}
+
+const DEFAULT_VERIFICATION =
+  "Apply the fix, re-run the audit, and confirm this check passes on every affected URL.";
+
+function isAuditIssueType(value: string): value is AuditIssueType {
+  return Object.hasOwn(AUDIT_ISSUE_TYPES, value);
+}
 
 export function getIssueDescriptor(
   issueType: string,
 ): AuditIssueDescriptor | null {
-  return issueRegistry[issueType] ?? null;
+  if (!isAuditIssueType(issueType)) return null;
+  const descriptor = AUDIT_ISSUE_TYPES[issueType];
+  const override = GUIDANCE_OVERRIDES[issueType];
+  return {
+    ...descriptor,
+    category: CATEGORIES[issueType] ?? "technical",
+    fixOrder: override?.fixOrder ?? defaultFixOrder(descriptor.severity),
+    impact: override?.impact ?? defaultImpact(descriptor.severity),
+    effort: override?.effort ?? "medium",
+    howToVerify: override?.howToVerify ?? DEFAULT_VERIFICATION,
+  };
 }

@@ -1,11 +1,14 @@
 import {
   Bookmark,
+  Bell,
   Bot,
   ClipboardCheck,
   Globe,
   LayoutDashboard,
   Link2,
+  MapPinned,
   MessageSquare,
+  NotebookTabs,
   Search,
   Sparkles,
   TrendingUp,
@@ -23,6 +26,11 @@ const projectNavItems = [
     activeOptions: { exact: true, includeSearch: false },
   },
   {
+    to: "/p/$projectId/changes" as const,
+    label: "Changes",
+    icon: Bell,
+  },
+  {
     to: "/p/$projectId/keywords" as const,
     label: "Keyword Research",
     icon: Search,
@@ -36,6 +44,16 @@ const projectNavItems = [
     to: "/p/$projectId/rank-tracking" as const,
     label: "Rank Tracking",
     icon: TrendingUp,
+  },
+  {
+    to: "/p/$projectId/local-seo" as const,
+    label: "Local SEO",
+    icon: MapPinned,
+  },
+  {
+    to: "/p/$projectId/reports" as const,
+    label: "Reports",
+    icon: NotebookTabs,
   },
   {
     to: "/p/$projectId/search-performance" as const,
@@ -101,7 +119,7 @@ export function getProjectNavGroups(projectId: string) {
   return [
     {
       label: "Overview",
-      items: [byPath("/p/$projectId")],
+      items: [byPath("/p/$projectId"), byPath("/p/$projectId/changes")],
     },
     {
       label: "Research",
@@ -118,6 +136,8 @@ export function getProjectNavGroups(projectId: string) {
       items: [
         byPath("/p/$projectId/search-performance"),
         byPath("/p/$projectId/rank-tracking"),
+        byPath("/p/$projectId/local-seo"),
+        byPath("/p/$projectId/reports"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
       ],
