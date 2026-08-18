@@ -3,6 +3,7 @@ import { waitUntil } from "cloudflare:workers";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import { RankTrackingService } from "@/server/features/rank-tracking/services/RankTrackingService";
 import { getLatestResults } from "@/server/features/rank-tracking/services/rankTrackingResults";
+import { RankTrackingReportService } from "@/server/features/rank-tracking/services/rankTrackingReports";
 import { AppError, asAppError } from "@/server/lib/errors";
 import { captureServerEvent } from "@/server/lib/posthog";
 import {
@@ -23,6 +24,8 @@ import {
   getKeywordHistorySchema,
   getConfigTrendSchema,
   getPositionMatrixSchema,
+  getRankReportSchema,
+  tagTrackingKeywordsSchema,
 } from "@/types/schemas/rank-tracking";
 
 export interface RankKeywordHistoryPoint {
@@ -37,6 +40,9 @@ interface RankConfigTrendPoint {
   top3: number;
   top4to10: number;
   top11to20: number;
+  top21to100: number;
+  notInTop100: number;
+  /** @deprecated use notInTop100 — kept so the overview chart can migrate. */
   notRanking: number;
 }
 
@@ -304,14 +310,21 @@ export const getRankConfigTrend = createServerFn({ method: "POST" })
       const top3 = Number(row.top3) || 0;
       const top4to10 = Number(row.top4to10) || 0;
       const top11to20 = Number(row.top11to20) || 0;
+      const top21to100 = Number(row.top21to100) || 0;
       const total = Number(row.total) || 0;
+      const notInTop100 = Math.max(
+        0,
+        total - top3 - top4to10 - top11to20 - top21to100,
+      );
       return {
         runId: row.runId,
         checkedAt: row.checkedAt,
         top3,
         top4to10,
         top11to20,
-        notRanking: Math.max(0, total - top3 - top4to10 - top11to20),
+        top21to100,
+        notInTop100,
+        notRanking: notInTop100,
       };
     });
   });
@@ -326,4 +339,93 @@ export const getRankPositionMatrix = createServerFn({ method: "POST" })
       data.device,
       data.runLimit,
     );
+  });
+
+export const getRankDistributionReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getDistribution(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankCannibalizationReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getCannibalization(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankPagesReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getPages(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankSnippetsReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getSnippets(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankVisibilityReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getVisibilityAttribution(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankTagsReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getTags(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankCompetitorsReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getCompetitors(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const tagTrackingKeywords = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(tagTrackingKeywordsSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.tagTrackingKeywords({
+      configId: data.configId,
+      projectId: context.projectId,
+      keywordIds: data.keywordIds,
+      tags: data.tags,
+    });
   });

@@ -9,6 +9,10 @@ import {
   SerpGoogleOrganicTaskPostRequestInfo,
 } from "dataforseo-client";
 import type { RankTrackingEngine } from "@/shared/rank-tracking";
+import {
+  captureRankCheckSerp,
+  type RankCheckSerpCapture,
+} from "@/shared/rank-check-serp";
 import { serpApi } from "@/server/lib/dataforseo/core";
 import { MAX_TASKS_PER_POST } from "@/server/lib/dataforseo/shared";
 import {
@@ -125,36 +129,19 @@ export async function fetchLiveSerp(input: {
   };
 }
 
-export interface RankCheckResult {
+export type RankCheckResult = RankCheckSerpCapture & {
   keywordId: string;
   keyword: string;
-  position: number | null;
-  url: string | null;
-  serpFeatures: string[];
-}
+};
 
 function buildRankCheckResult(
   input: { keywordId: string; keyword: string; targetDomain: string },
   items: SerpLiveItem[],
 ): RankCheckResult {
-  const target = input.targetDomain.toLowerCase();
-  const organicMatch = items.find((item) => {
-    if (item.type !== "organic" || item.domain == null) return false;
-    const domain = item.domain.toLowerCase();
-    return domain === target || domain.endsWith(`.${target}`);
-  });
-
   return {
     keywordId: input.keywordId,
     keyword: input.keyword,
-    // rank_group = position among organic results only (what users count as
-    // "my ranking"). rank_absolute would also count SERP features (local
-    // pack, PAA, AI overviews) and reads as worse than what users see.
-    position: organicMatch
-      ? (organicMatch.rank_group ?? organicMatch.rank_absolute ?? null)
-      : null,
-    url: organicMatch?.url ?? null,
-    serpFeatures: [...new Set(items.map((item) => item.type).filter(Boolean))],
+    ...captureRankCheckSerp(items, input.targetDomain),
   };
 }
 

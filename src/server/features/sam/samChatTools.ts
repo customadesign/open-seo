@@ -12,6 +12,8 @@ import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profil
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
 import { getDomainOverviewTool } from "@/server/mcp/tools/get-domain-overview";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
+import { getRankCannibalizationTool } from "@/server/mcp/tools/get-rank-cannibalization";
+import { getRankingsDistributionTool } from "@/server/mcp/tools/get-rankings-distribution";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
 import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
 import {
@@ -220,6 +222,8 @@ export function buildSamMcpTools(
     analyze_backlinks_bulk: adaptTool(analyzeBacklinksBulkTool),
     get_serp_results: adaptTool(getSerpResultsTool),
     get_rank_tracker: adaptTool(getRankTrackerTool),
+    get_rank_cannibalization: adaptTool(getRankCannibalizationTool),
+    get_rankings_distribution: adaptTool(getRankingsDistributionTool),
     get_ranked_keywords: adaptTool(getRankedKeywordsTool),
     find_serp_competitors: adaptTool(findSerpCompetitorsTool),
     search_local_businesses: adaptTool(searchLocalBusinessesTool),

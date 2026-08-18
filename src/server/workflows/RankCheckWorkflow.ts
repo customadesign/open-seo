@@ -8,6 +8,7 @@ import { withPgClient } from "@/db";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import { failRunIfActive } from "@/server/features/rank-tracking/services/rankCheckRunGuards";
+import { pruneExpiredSerpEntries } from "@/server/features/rank-tracking/services/rankSerpRetention";
 import {
   runLiveCheck,
   runQueuedCheck,
@@ -211,6 +212,15 @@ async function finalizeRankCheckRun(input: {
     lastCheckedAt: nowIso,
     lastSkipReason: null,
   });
+
+  try {
+    await pruneExpiredSerpEntries(input.configId);
+  } catch (error) {
+    console.warn(
+      `[rank-check] ${input.runId} SERP retention prune failed:`,
+      error,
+    );
+  }
 
   // One-line summary per run so fallback rates are visible in Workers Logs.
   // Keys match the PostHog event properties for log/event correlation.

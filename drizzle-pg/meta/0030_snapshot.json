@@ -1,5 +1,5 @@
 {
-  "id": "43e8f79e-fdc0-4b02-89fc-a451581f2c16",
+  "id": "f61db407-ac17-448f-a653-01094a88b210",
   "prevId": "e0e43aa6-54a0-4e87-ba2f-e12c115f1e0f",
   "version": "7",
   "dialect": "postgresql",
@@ -5343,375 +5343,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.backlink_toxicity_audits": {
-      "name": "backlink_toxicity_audits",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target": {
-          "name": "target",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "profile_score": {
-          "name": "profile_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "profile_verdict": {
-          "name": "profile_verdict",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "domain_count": {
-          "name": "domain_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "backlink_count": {
-          "name": "backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "toxic_count": {
-          "name": "toxic_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "potentially_toxic_count": {
-          "name": "potentially_toxic_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "non_toxic_count": {
-          "name": "non_toxic_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "toxic_percent": {
-          "name": "toxic_percent",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "new_domain_count": {
-          "name": "new_domain_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "lost_domain_count": {
-          "name": "lost_domain_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "broken_domain_count": {
-          "name": "broken_domain_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "new_backlink_count": {
-          "name": "new_backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "lost_backlink_count": {
-          "name": "lost_backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "broken_backlink_count": {
-          "name": "broken_backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "truncated": {
-          "name": "truncated",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')"
-        }
-      },
-      "indexes": {
-        "backlink_toxicity_audits_project_created_idx": {
-          "name": "backlink_toxicity_audits_project_created_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "backlink_toxicity_audits_project_id_projects_id_fk": {
-          "name": "backlink_toxicity_audits_project_id_projects_id_fk",
-          "tableFrom": "backlink_toxicity_audits",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.backlink_toxicity_domains": {
-      "name": "backlink_toxicity_domains",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "audit_id": {
-          "name": "audit_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "domain": {
-          "name": "domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "score": {
-          "name": "score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "verdict": {
-          "name": "verdict",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "classification": {
-          "name": "classification",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "backlink_count": {
-          "name": "backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "broken_backlink_count": {
-          "name": "broken_backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "rank": {
-          "name": "rank",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "spam_score": {
-          "name": "spam_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_new": {
-          "name": "is_new",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "is_lost": {
-          "name": "is_lost",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "is_broken": {
-          "name": "is_broken",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "markers_json": {
-          "name": "markers_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')"
-        }
-      },
-      "indexes": {
-        "backlink_toxicity_domains_audit_domain_idx": {
-          "name": "backlink_toxicity_domains_audit_domain_idx",
-          "columns": [
-            {
-              "expression": "audit_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "domain",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "backlink_toxicity_domains_project_class_idx": {
-          "name": "backlink_toxicity_domains_project_class_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "classification",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "backlink_toxicity_domains_audit_id_backlink_toxicity_audits_id_fk": {
-          "name": "backlink_toxicity_domains_audit_id_backlink_toxicity_audits_id_fk",
-          "tableFrom": "backlink_toxicity_domains",
-          "tableTo": "backlink_toxicity_audits",
-          "columnsFrom": [
-            "audit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "backlink_toxicity_domains_project_id_projects_id_fk": {
-          "name": "backlink_toxicity_domains_project_id_projects_id_fk",
-          "tableFrom": "backlink_toxicity_domains",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.project_change_event_states": {
       "name": "project_change_event_states",
       "schema": "",
@@ -8228,6 +7859,160 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.rank_serp_entries": {
+      "name": "rank_serp_entries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tracking_keyword_id": {
+          "name": "tracking_keyword_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "device": {
+          "name": "device",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_kind": {
+          "name": "row_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "identity": {
+          "name": "identity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "domain": {
+          "name": "domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "feature_owned": {
+          "name": "feature_owned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "rank_serp_entries_run_kw_device_kind_identity_idx": {
+          "name": "rank_serp_entries_run_kw_device_kind_identity_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tracking_keyword_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "device",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "row_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "identity",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "rank_serp_entries_run_kind_device_idx": {
+          "name": "rank_serp_entries_run_kind_device_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "row_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "device",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "rank_serp_entries_run_id_rank_check_runs_id_fk": {
+          "name": "rank_serp_entries_run_id_rank_check_runs_id_fk",
+          "tableFrom": "rank_serp_entries",
+          "tableTo": "rank_check_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.rank_snapshots": {
       "name": "rank_snapshots",
       "schema": "",
@@ -8279,6 +8064,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "serp_captured": {
+          "name": "serp_captured",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "checked_at": {
           "name": "checked_at",

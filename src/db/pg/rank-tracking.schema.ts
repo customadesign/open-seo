@@ -132,6 +132,12 @@ export const rankCheckRuns = pgTable(
     errorMessage: text("error_message"),
     startedAt: timestampColumn("started_at").notNull().default(isoNow),
     completedAt: timestampColumn("completed_at"),
+    /**
+     * True after rank_serp_entries for this run were pruned. Position
+     * snapshots are never deleted. serp_captured on snapshots still means
+     * "this check wrote SERP detail", not "the detail is still stored".
+     */
+    serpPruned: boolean("serp_pruned").notNull().default(false),
   },
   (table) => [
     index("rank_check_runs_config_idx").on(table.configId, table.startedAt),
@@ -159,6 +165,9 @@ export const rankSnapshots = pgTable(
     position: integer("position"), // null = not found in top 20
     url: text("url"),
     serpFeatures: text("serp_features"), // JSON array of feature type strings
+    // True when this check also wrote rank_serp_entries. Historical rows stay
+    // false so reports can say "not captured" instead of inventing zeros.
+    serpCaptured: boolean("serp_captured").notNull().default(false),
     checkedAt: timestampColumn("checked_at").notNull().default(isoNow),
   },
   (table) => [
@@ -172,6 +181,53 @@ export const rankSnapshots = pgTable(
     uniqueIndex("rank_snapshots_run_keyword_device_idx").on(
       table.runId,
       table.trackingKeywordId,
+      table.device,
+    ),
+  ],
+);
+
+/**
+ * Extra SERP rows captured from the same rank-check response that writes
+ * rank_snapshots. No extra provider call. Historical snapshots have no rows
+ * here — reports must treat that as "not captured", not as zero competitors
+ * or no cannibalization. Retention deletes only these rows (newest N checks
+ * plus a minimum age floor). It never deletes rank_snapshots or
+ * rank_check_runs — position history stays complete.
+ *
+ * rowKind:
+ * - owned: a tracked-domain organic URL (identity = normalized URL)
+ * - competitor: another organic domain (identity = domain)
+ * - feature: a non-organic SERP type (identity = type; featureOwned = held)
+ */
+export const rankSerpEntries = pgTable(
+  "rank_serp_entries",
+  {
+    id: serial("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => rankCheckRuns.id, { onDelete: "cascade" }),
+    trackingKeywordId: text("tracking_keyword_id").notNull(),
+    device: text("device", { enum: ["desktop", "mobile"] }).notNull(),
+    rowKind: text("row_kind", {
+      enum: ["owned", "competitor", "feature"],
+    }).notNull(),
+    identity: text("identity").notNull(),
+    domain: text("domain"),
+    url: text("url"),
+    position: integer("position"),
+    featureOwned: boolean("feature_owned"),
+  },
+  (table) => [
+    uniqueIndex("rank_serp_entries_run_kw_device_kind_identity_idx").on(
+      table.runId,
+      table.trackingKeywordId,
+      table.device,
+      table.rowKind,
+      table.identity,
+    ),
+    index("rank_serp_entries_run_kind_device_idx").on(
+      table.runId,
+      table.rowKind,
       table.device,
     ),
   ],

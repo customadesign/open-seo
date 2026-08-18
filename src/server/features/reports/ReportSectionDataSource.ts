@@ -17,6 +17,10 @@ import {
   toDimensionRows,
 } from "@/server/features/gsc/searchPerformanceReport";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
+import {
+  distributionFromSnapshotRows,
+  RankTrackingReportService,
+} from "@/server/features/rank-tracking/services/rankTrackingReports";
 import { OrganicTrafficInsightsService } from "@/server/features/traffic-insights/services/OrganicTrafficInsightsService";
 import type { ReportSectionKey, ReportSnapshot } from "@/types/schemas/reports";
 import {
@@ -134,6 +138,10 @@ async function loadRankings(
         },
       ];
     });
+    const cannibalization = await RankTrackingReportService.getCannibalization(
+      config.id,
+      projectId,
+    );
     configReports.push({
       configId: config.id,
       domain: config.domain,
@@ -143,6 +151,25 @@ async function loadRankings(
       summary,
       rows,
       trend,
+      distribution: distributionFromSnapshotRows(current, previous),
+      cannibalization: {
+        sameSerp: cannibalization.sameSerp.map((finding) => ({
+          keyword: finding.keyword,
+          device: finding.device,
+          currentPosition: finding.currentPosition,
+          urls: finding.urls,
+        })),
+        findings: cannibalization.findings.map((finding) => ({
+          keyword: finding.keyword,
+          device: finding.device,
+          currentPosition: finding.currentPosition,
+          currentUrl: finding.currentUrl,
+          transitionCount: finding.transitionCount,
+          competingUrls: finding.competingUrls,
+        })),
+        scannedKeywords: cannibalization.scannedKeywords,
+        capturedRunCount: cannibalization.capturedRunCount,
+      },
     });
   }
   return configReports.length === 0

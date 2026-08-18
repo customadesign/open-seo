@@ -14,12 +14,13 @@ import { captureClientEvent } from "@/client/lib/posthog";
 import { FreePlanAlert } from "./FreePlanAlert";
 import { RankTrackingDetailHeader } from "./RankTrackingDetailHeader";
 import { RankTrackingOverview } from "./RankTrackingOverview";
-import { RankTrackingTable } from "./RankTrackingTable";
-import {
-  countMatrixRuns,
-  RankTrackingHistoryMatrix,
-} from "./RankTrackingHistoryMatrix";
+import { countMatrixRuns } from "./RankTrackingHistoryMatrix";
 import { RankTrackingTableToolbar } from "./RankTrackingTableToolbar";
+import {
+  RankTrackingReportTabs,
+  type RankReportTab,
+} from "./RankTrackingReportTabs";
+import { RankTrackingReportBody } from "./RankTrackingReportBody";
 import {
   exportRankTrackingCsv,
   exportRankTrackingToSheets,
@@ -93,7 +94,7 @@ export function RankTrackingDomainDetail({
   const [activeDevice, setActiveDevice] = useState<"desktop" | "mobile">(
     config.devices === "mobile" ? "mobile" : "desktop",
   );
-  const [viewMode, setViewMode] = useState<"table" | "history">("table");
+  const [viewMode, setViewMode] = useState<RankReportTab>("keywords");
 
   const { data: resultsData, isLoading: resultsLoading } = useQuery({
     queryKey: ["rankTrackingResults", projectId, config.id, comparePeriod],
@@ -187,8 +188,11 @@ export function RankTrackingDomainDetail({
   );
   const activeFilterCount = countActiveFilters(filters);
   const defaultSortId = showDesktop ? "desktopPosition" : "mobilePosition";
-  // Fall back to the table if history disappears (e.g. device switch).
-  const effectiveViewMode = historyAvailable ? viewMode : "table";
+  // Fall back to keywords if history disappears (e.g. device switch).
+  const effectiveViewMode =
+    viewMode === "history" && !historyAvailable ? "keywords" : viewMode;
+  const showKeywordTable =
+    effectiveViewMode === "keywords" || effectiveViewMode === "history";
 
   return (
     <div className="space-y-3">
@@ -250,14 +254,19 @@ export function RankTrackingDomainDetail({
           </div>
         )}
 
-        {/* Portfolio overview */}
-        {(rows?.length ?? 0) > 0 && (
+        {(rows?.length ?? 0) > 0 && effectiveViewMode === "keywords" && (
           <RankTrackingOverview
             device={activeDevice}
             projectId={projectId}
             configId={config.id}
           />
         )}
+
+        <RankTrackingReportTabs
+          value={effectiveViewMode}
+          onChange={setViewMode}
+          historyAvailable={historyAvailable}
+        />
 
         {/* Table toolbar */}
         <RankTrackingTableToolbar
@@ -267,9 +276,12 @@ export function RankTrackingDomainDetail({
           isRunning={isRunning}
           latestRun={latestRun}
           keywordCount={filtered.length}
-          viewMode={effectiveViewMode}
-          onViewModeChange={setViewMode}
-          historyAvailable={historyAvailable}
+          viewMode={effectiveViewMode === "history" ? "history" : "table"}
+          onViewModeChange={(mode) =>
+            setViewMode(mode === "history" ? "history" : "keywords")
+          }
+          historyAvailable={false}
+          showFilterButton={showKeywordTable}
           onExport={() =>
             exportRankTrackingCsv(
               filtered,
@@ -305,8 +317,7 @@ export function RankTrackingDomainDetail({
           readOnly={readOnly}
         />
 
-        {/* Filters panel */}
-        {showFilters && (
+        {showKeywordTable && showFilters && (
           <FilterPanel
             filters={filters}
             setFilters={setFilters}
@@ -315,35 +326,22 @@ export function RankTrackingDomainDetail({
           />
         )}
 
-        {/* Table */}
         <div className="p-4">
-          {effectiveViewMode === "history" ? (
-            <RankTrackingHistoryMatrix
-              cells={matrixCells ?? []}
-              isLoading={matrixLoading}
-              keywords={filtered.map((r) => ({
-                trackingKeywordId: r.trackingKeywordId,
-                keyword: r.keyword,
-              }))}
-            />
-          ) : (
-            <RankTrackingTable
-              key={defaultSortId}
-              totalCount={rows?.length ?? 0}
-              rows={filtered}
-              resultsLoading={resultsLoading}
-              showDesktop={showDesktop}
-              showMobile={showMobile}
-              defaultSortId={defaultSortId}
-              domain={config.domain}
-              configId={config.id}
-              projectId={projectId}
-              locationCode={config.locationCode}
-              locationName={config.locationName}
-              serpDepth={config.serpDepth}
-              readOnly={readOnly}
-            />
-          )}
+          <RankTrackingReportBody
+            tab={effectiveViewMode}
+            projectId={projectId}
+            config={config}
+            device={activeDevice}
+            readOnly={readOnly}
+            rows={rows ?? []}
+            filtered={filtered}
+            resultsLoading={resultsLoading}
+            showDesktop={showDesktop}
+            showMobile={showMobile}
+            defaultSortId={defaultSortId}
+            matrixCells={matrixCells}
+            matrixLoading={matrixLoading}
+          />
         </div>
       </div>
 

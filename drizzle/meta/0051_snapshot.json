@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "45950c08-e26c-4234-b298-a12229cec16f",
+  "id": "bf51dc8d-a38c-4032-b239-83b1f0226c4b",
   "prevId": "9db93913-9a60-43bf-a314-7a5005b1a68c",
   "tables": {
     "backlink_snapshots": {
@@ -4859,366 +4859,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "backlink_toxicity_audits": {
-      "name": "backlink_toxicity_audits",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "target": {
-          "name": "target",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "profile_score": {
-          "name": "profile_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "profile_verdict": {
-          "name": "profile_verdict",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "domain_count": {
-          "name": "domain_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "backlink_count": {
-          "name": "backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "toxic_count": {
-          "name": "toxic_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "potentially_toxic_count": {
-          "name": "potentially_toxic_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "non_toxic_count": {
-          "name": "non_toxic_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "toxic_percent": {
-          "name": "toxic_percent",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "new_domain_count": {
-          "name": "new_domain_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "lost_domain_count": {
-          "name": "lost_domain_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "broken_domain_count": {
-          "name": "broken_domain_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "new_backlink_count": {
-          "name": "new_backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "lost_backlink_count": {
-          "name": "lost_backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "broken_backlink_count": {
-          "name": "broken_backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "truncated": {
-          "name": "truncated",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(current_timestamp)"
-        }
-      },
-      "indexes": {
-        "backlink_toxicity_audits_project_created_idx": {
-          "name": "backlink_toxicity_audits_project_created_idx",
-          "columns": [
-            "project_id",
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "backlink_toxicity_audits_project_id_projects_id_fk": {
-          "name": "backlink_toxicity_audits_project_id_projects_id_fk",
-          "tableFrom": "backlink_toxicity_audits",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "backlink_toxicity_domains": {
-      "name": "backlink_toxicity_domains",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "audit_id": {
-          "name": "audit_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "domain": {
-          "name": "domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "score": {
-          "name": "score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "verdict": {
-          "name": "verdict",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "classification": {
-          "name": "classification",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "backlink_count": {
-          "name": "backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "broken_backlink_count": {
-          "name": "broken_backlink_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "rank": {
-          "name": "rank",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "spam_score": {
-          "name": "spam_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "is_new": {
-          "name": "is_new",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "is_lost": {
-          "name": "is_lost",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "is_broken": {
-          "name": "is_broken",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "markers_json": {
-          "name": "markers_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(current_timestamp)"
-        }
-      },
-      "indexes": {
-        "backlink_toxicity_domains_audit_domain_idx": {
-          "name": "backlink_toxicity_domains_audit_domain_idx",
-          "columns": [
-            "audit_id",
-            "domain"
-          ],
-          "isUnique": true
-        },
-        "backlink_toxicity_domains_project_class_idx": {
-          "name": "backlink_toxicity_domains_project_class_idx",
-          "columns": [
-            "project_id",
-            "classification"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "backlink_toxicity_domains_audit_id_backlink_toxicity_audits_id_fk": {
-          "name": "backlink_toxicity_domains_audit_id_backlink_toxicity_audits_id_fk",
-          "tableFrom": "backlink_toxicity_domains",
-          "tableTo": "backlink_toxicity_audits",
-          "columnsFrom": [
-            "audit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "backlink_toxicity_domains_project_id_projects_id_fk": {
-          "name": "backlink_toxicity_domains_project_id_projects_id_fk",
-          "tableFrom": "backlink_toxicity_domains",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "project_change_event_states": {
       "name": "project_change_event_states",
       "columns": {
@@ -7446,6 +7086,121 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "rank_serp_entries": {
+      "name": "rank_serp_entries",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tracking_keyword_id": {
+          "name": "tracking_keyword_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "device": {
+          "name": "device",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "row_kind": {
+          "name": "row_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "identity": {
+          "name": "identity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "domain": {
+          "name": "domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "feature_owned": {
+          "name": "feature_owned",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "rank_serp_entries_run_kw_device_kind_identity_idx": {
+          "name": "rank_serp_entries_run_kw_device_kind_identity_idx",
+          "columns": [
+            "run_id",
+            "tracking_keyword_id",
+            "device",
+            "row_kind",
+            "identity"
+          ],
+          "isUnique": true
+        },
+        "rank_serp_entries_run_kind_device_idx": {
+          "name": "rank_serp_entries_run_kind_device_idx",
+          "columns": [
+            "run_id",
+            "row_kind",
+            "device"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "rank_serp_entries_run_id_rank_check_runs_id_fk": {
+          "name": "rank_serp_entries_run_id_rank_check_runs_id_fk",
+          "tableFrom": "rank_serp_entries",
+          "tableTo": "rank_check_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "rank_snapshots": {
       "name": "rank_snapshots",
       "columns": {
@@ -7504,6 +7259,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "serp_captured": {
+          "name": "serp_captured",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "checked_at": {
           "name": "checked_at",

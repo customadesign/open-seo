@@ -20,6 +20,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("cloudflare:workers", () => ({
   WorkflowEntrypoint: vi.fn(),
+  env: { DATABASE_PROVIDER: "d1" },
+}));
+vi.mock("@/server/features/rank-tracking/services/rankSerpRetention", () => ({
+  pruneExpiredSerpEntries: vi.fn().mockResolvedValue({ prunedRunCount: 0 }),
 }));
 vi.mock("cloudflare:workflows", () => ({
   NonRetryableError: class extends Error {},

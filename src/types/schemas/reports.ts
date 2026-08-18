@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { REPORT_SECTION_KEYS } from "@/shared/report-sections";
+import {
+  cannibalizationSchema,
+  rankBandCountSchema,
+  rankBandMoveSchema,
+} from "./report-rankings";
 
 export const reportSectionKeySchema = z.enum(REPORT_SECTION_KEYS);
 export const reportCommentaryKindSchema = z.enum([
@@ -108,6 +113,20 @@ const rankingsSectionSchema = z.object({
           top20: z.number().int(),
         }),
       ),
+      distribution: z
+        .object({
+          current: rankBandCountSchema,
+          previous: rankBandCountSchema.nullable(),
+          movement: z.object({
+            top3: rankBandMoveSchema,
+            top4to10: rankBandMoveSchema,
+            top11to20: rankBandMoveSchema,
+            top21to100: rankBandMoveSchema,
+            notInTop100: rankBandMoveSchema,
+          }),
+        })
+        .optional(),
+      cannibalization: cannibalizationSchema.optional(),
     }),
   ),
 });

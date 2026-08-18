@@ -12,7 +12,8 @@ import {
   sql,
 } from "drizzle-orm";
 import { db } from "@/db";
-import { rankCheckRuns, rankSnapshots } from "@/db/schema";
+import { rankCheckRuns, rankSerpEntries, rankSnapshots } from "@/db/schema";
+import { DB_BATCH_SIZE } from "@/db/runBatch";
 import { toSqliteTimestamp } from "@/server/features/rank-tracking/rankTrackingTimestamps";
 
 function completedRunIdsForConfig(configId: string) {
@@ -80,6 +81,7 @@ export async function getConfigTrend(
       top3: sql<number>`sum(case when ${rankSnapshots.position} between 1 and 3 then 1 else 0 end)`,
       top4to10: sql<number>`sum(case when ${rankSnapshots.position} between 4 and 10 then 1 else 0 end)`,
       top11to20: sql<number>`sum(case when ${rankSnapshots.position} between 11 and 20 then 1 else 0 end)`,
+      top21to100: sql<number>`sum(case when ${rankSnapshots.position} between 21 and 100 then 1 else 0 end)`,
     })
     .from(rankSnapshots)
     .innerJoin(rankCheckRuns, eq(rankSnapshots.runId, rankCheckRuns.id))
@@ -186,6 +188,7 @@ export async function getSnapshotsForConfig(
       position: rankSnapshots.position,
       url: rankSnapshots.url,
       serpFeatures: rankSnapshots.serpFeatures,
+      serpCaptured: rankSnapshots.serpCaptured,
       checkedAt: rankSnapshots.checkedAt,
     })
     .from(rankSnapshots)
@@ -198,6 +201,87 @@ export async function getSnapshotsForConfig(
       ),
     )
     .where(inArray(rankSnapshots.runId, completedRunIds));
+}
+
+const REPORT_RUN_LIMIT = 52;
+
+export async function getSerpEntriesForRuns(
+  runIds: string[],
+  filters?: {
+    rowKind?: (typeof rankSerpEntries.rowKind.enumValues)[number];
+    device?: "desktop" | "mobile";
+  },
+) {
+  if (runIds.length === 0) return [];
+  const rows: Array<typeof rankSerpEntries.$inferSelect> = [];
+  for (let i = 0; i < runIds.length; i += DB_BATCH_SIZE) {
+    const chunk = runIds.slice(i, i + DB_BATCH_SIZE);
+    const conditions = [inArray(rankSerpEntries.runId, chunk)];
+    if (filters?.rowKind) {
+      conditions.push(eq(rankSerpEntries.rowKind, filters.rowKind));
+    }
+    if (filters?.device) {
+      conditions.push(eq(rankSerpEntries.device, filters.device));
+    }
+    rows.push(
+      ...(await db
+        .select()
+        .from(rankSerpEntries)
+        .where(and(...conditions))),
+    );
+  }
+  return rows;
+}
+
+/**
+ * Newest completed full-config runs (subset/add-keyword checks are excluded so
+ * band counts and URL history stay comparable across the keyword set).
+ */
+export async function getCompletedFullRuns(
+  configId: string,
+  limit = REPORT_RUN_LIMIT,
+) {
+  return db
+    .select({
+      id: rankCheckRuns.id,
+      startedAt: rankCheckRuns.startedAt,
+      serpPruned: rankCheckRuns.serpPruned,
+    })
+    .from(rankCheckRuns)
+    .where(
+      and(
+        eq(rankCheckRuns.configId, configId),
+        eq(rankCheckRuns.status, "completed"),
+        eq(rankCheckRuns.isSubsetRun, false),
+      ),
+    )
+    .orderBy(desc(rankCheckRuns.startedAt))
+    .limit(limit);
+}
+
+/**
+ * Flat snapshot rows for a set of completed runs. Bounded by the caller so the
+ * IN list stays well under D1's parameter cap.
+ */
+export async function getSnapshotsForRuns(runIds: string[]) {
+  if (runIds.length === 0) return [];
+
+  return db
+    .select({
+      runId: rankSnapshots.runId,
+      checkedAt: rankCheckRuns.startedAt,
+      trackingKeywordId: rankSnapshots.trackingKeywordId,
+      keyword: rankSnapshots.keyword,
+      device: rankSnapshots.device,
+      position: rankSnapshots.position,
+      url: rankSnapshots.url,
+      serpFeatures: rankSnapshots.serpFeatures,
+      serpCaptured: rankSnapshots.serpCaptured,
+    })
+    .from(rankSnapshots)
+    .innerJoin(rankCheckRuns, eq(rankSnapshots.runId, rankCheckRuns.id))
+    .where(inArray(rankSnapshots.runId, runIds))
+    .orderBy(asc(rankCheckRuns.startedAt));
 }
 
 export async function getLatestSnapshotsForKeywords(configId: string) {
@@ -262,6 +346,7 @@ export async function getEarliestSnapshotsForKeywords(
         position: rankSnapshots.position,
         url: rankSnapshots.url,
         serpFeatures: rankSnapshots.serpFeatures,
+        serpCaptured: rankSnapshots.serpCaptured,
         checkedAt: rankSnapshots.checkedAt,
       })
       .from(rankSnapshots)

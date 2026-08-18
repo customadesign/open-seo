@@ -1,6 +1,6 @@
 {
-  "id": "7191bbe6-0b78-48ba-a297-5dfc6b7a2d62",
-  "prevId": "8eea28cd-360e-4638-8c47-3014af91dc14",
+  "id": "410a7c28-0a25-42cc-acfa-602cb2b3d1f9",
+  "prevId": "f61db407-ac17-448f-a653-01094a88b210",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1664,103 +1664,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
-        },
-        "html_bytes": {
-          "name": "html_bytes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "has_doctype": {
-          "name": "has_doctype",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "charset": {
-          "name": "charset",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "has_meta_refresh": {
-          "name": "has_meta_refresh",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "frame_count": {
-          "name": "frame_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "script_urls_json": {
-          "name": "script_urls_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stylesheet_urls_json": {
-          "name": "stylesheet_urls_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "inline_script_bytes": {
-          "name": "inline_script_bytes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "inline_style_bytes": {
-          "name": "inline_style_bytes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "text_bytes": {
-          "name": "text_bytes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "external_image_srcs_json": {
-          "name": "external_image_srcs_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "content_encoding": {
-          "name": "content_encoding",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cache_control": {
-          "name": "cache_control",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "content_type": {
-          "name": "content_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "content_length": {
-          "name": "content_length",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -1790,154 +1693,6 @@
         "audit_pages_audit_id_audits_id_fk": {
           "name": "audit_pages_audit_id_audits_id_fk",
           "tableFrom": "audit_pages",
-          "tableTo": "audits",
-          "columnsFrom": [
-            "audit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.audit_robots": {
-      "name": "audit_robots",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "audit_id": {
-          "name": "audit_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "found": {
-          "name": "found",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "status_code": {
-          "name": "status_code",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "parse_error": {
-          "name": "parse_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "has_sitemap_directive": {
-          "name": "has_sitemap_directive",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        }
-      },
-      "indexes": {
-        "audit_robots_audit_id_idx": {
-          "name": "audit_robots_audit_id_idx",
-          "columns": [
-            {
-              "expression": "audit_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "audit_robots_audit_id_audits_id_fk": {
-          "name": "audit_robots_audit_id_audits_id_fk",
-          "tableFrom": "audit_robots",
-          "tableTo": "audits",
-          "columnsFrom": [
-            "audit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.audit_robots_disallows": {
-      "name": "audit_robots_disallows",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "audit_id": {
-          "name": "audit_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_agent": {
-          "name": "user_agent",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "audit_robots_disallows_audit_id_idx": {
-          "name": "audit_robots_disallows_audit_id_idx",
-          "columns": [
-            {
-              "expression": "audit_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "audit_robots_disallows_audit_id_audits_id_fk": {
-          "name": "audit_robots_disallows_audit_id_audits_id_fk",
-          "tableFrom": "audit_robots_disallows",
           "tableTo": "audits",
           "columnsFrom": [
             "audit_id"
@@ -2095,135 +1850,6 @@
           "tableTo": "projects",
           "columnsFrom": [
             "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.audit_sitemaps": {
-      "name": "audit_sitemaps",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "audit_id": {
-          "name": "audit_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "found": {
-          "name": "found",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "status_code": {
-          "name": "status_code",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "parse_error": {
-          "name": "parse_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "entry_count": {
-          "name": "entry_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "byte_size": {
-          "name": "byte_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "http_url_count": {
-          "name": "http_url_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "is_index": {
-          "name": "is_index",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        }
-      },
-      "indexes": {
-        "audit_sitemaps_audit_id_idx": {
-          "name": "audit_sitemaps_audit_id_idx",
-          "columns": [
-            {
-              "expression": "audit_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "audit_sitemaps_audit_url_idx": {
-          "name": "audit_sitemaps_audit_url_idx",
-          "columns": [
-            {
-              "expression": "audit_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "url",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "audit_sitemaps_audit_id_audits_id_fk": {
-          "name": "audit_sitemaps_audit_id_audits_id_fk",
-          "tableFrom": "audit_sitemaps",
-          "tableTo": "audits",
-          "columnsFrom": [
-            "audit_id"
           ],
           "columnsTo": [
             "id"
@@ -8137,6 +7763,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "serp_pruned": {
+          "name": "serp_pruned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {
@@ -8233,6 +7866,160 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.rank_serp_entries": {
+      "name": "rank_serp_entries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tracking_keyword_id": {
+          "name": "tracking_keyword_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "device": {
+          "name": "device",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_kind": {
+          "name": "row_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "identity": {
+          "name": "identity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "domain": {
+          "name": "domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "feature_owned": {
+          "name": "feature_owned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "rank_serp_entries_run_kw_device_kind_identity_idx": {
+          "name": "rank_serp_entries_run_kw_device_kind_identity_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tracking_keyword_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "device",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "row_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "identity",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "rank_serp_entries_run_kind_device_idx": {
+          "name": "rank_serp_entries_run_kind_device_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "row_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "device",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "rank_serp_entries_run_id_rank_check_runs_id_fk": {
+          "name": "rank_serp_entries_run_id_rank_check_runs_id_fk",
+          "tableFrom": "rank_serp_entries",
+          "tableTo": "rank_check_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.rank_snapshots": {
       "name": "rank_snapshots",
       "schema": "",
@@ -8284,6 +8071,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "serp_captured": {
+          "name": "serp_captured",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "checked_at": {
           "name": "checked_at",

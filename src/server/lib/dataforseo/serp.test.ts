@@ -218,6 +218,9 @@ describe("rank check task queue", () => {
         position: 3,
         url: "https://www.example.com/page",
         serpFeatures: ["organic"],
+        ownedUrls: [{ url: "https://www.example.com/page", position: 3 }],
+        competitors: [],
+        featureOwnership: [],
       },
     });
   });
@@ -332,6 +335,9 @@ describe("Bing rank checks", () => {
         position: 3,
         url: "https://example.com/a",
         serpFeatures: ["organic"],
+        ownedUrls: [{ url: "https://example.com/a", position: 3 }],
+        competitors: [],
+        featureOwnership: [],
       },
     });
   });
