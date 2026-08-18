@@ -66,6 +66,13 @@ const domainRankedKeywordItemSchema = z
           .passthrough()
           .nullable()
           .optional(),
+        search_intent_info: z
+          .object({
+            main_intent: z.string().nullable().optional(),
+          })
+          .passthrough()
+          .nullable()
+          .optional(),
       })
       .passthrough()
       .nullable()

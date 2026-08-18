@@ -106,6 +106,26 @@ const toolCategories: ToolCategory[] = [
         title: "Get backlinks profile",
         description: "Fetch paginated link-level backlink rows.",
       },
+      {
+        name: "estimate_keyword_gap",
+        title: "Estimate keyword gap cost",
+        description: "Preview the cost of a multi-domain keyword comparison.",
+      },
+      {
+        name: "get_keyword_gap",
+        title: "Get keyword gap",
+        description: "Compare ranked keywords against competitor domains.",
+      },
+      {
+        name: "estimate_backlink_gap",
+        title: "Estimate backlink gap cost",
+        description: "Preview the cost of a referring-domain comparison.",
+      },
+      {
+        name: "get_backlink_gap",
+        title: "Get backlink gap",
+        description: "Find referring domains competitors have that you lack.",
+      },
     ],
   },
   {

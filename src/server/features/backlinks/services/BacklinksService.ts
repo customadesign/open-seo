@@ -15,8 +15,13 @@ import {
   type ReferringDomainsPageServiceInput,
   type TopPagesPageServiceInput,
 } from "@/server/features/backlinks/services/backlinksServiceData";
+import {
+  hasReferringDomainsSnapshot,
+  profileReferringDomainsSnapshot,
+} from "@/server/features/backlinks/services/backlinksSnapshot";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import type { CreditFeature } from "@/shared/billing-credit-features";
+import { BACKLINK_GAP_SNAPSHOT_LIMIT } from "@/shared/gap";
 
 const defaultCache: BacklinksCache = {
   get: getCached,
@@ -95,6 +100,37 @@ function createBacklinksService(cache: BacklinksCache = defaultCache) {
         input,
         billingCustomer,
         options,
+      );
+    },
+    async hasReferringDomainsSnapshot(
+      input: { target: string; scope?: "domain" | "page" },
+      billingCustomer: BillingCustomerContext,
+    ) {
+      const cacheKey = await buildCacheKey(
+        "backlinks:referring-domains-snapshot",
+        {
+          ...buildTargetCacheInput(input, billingCustomer),
+          limit: String(BACKLINK_GAP_SNAPSHOT_LIMIT),
+        },
+      );
+      return hasReferringDomainsSnapshot(cache, cacheKey);
+    },
+    async profileReferringDomainsSnapshot(
+      input: { target: string; scope?: "domain" | "page" },
+      billingCustomer: BillingCustomerContext,
+    ) {
+      const cacheKey = await buildCacheKey(
+        "backlinks:referring-domains-snapshot",
+        {
+          ...buildTargetCacheInput(input, billingCustomer),
+          limit: String(BACKLINK_GAP_SNAPSHOT_LIMIT),
+        },
+      );
+      return profileReferringDomainsSnapshot(
+        cache,
+        cacheKey,
+        input,
+        billingCustomer,
       );
     },
     async profileTopPagesPage(

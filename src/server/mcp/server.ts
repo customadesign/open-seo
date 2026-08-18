@@ -66,6 +66,14 @@ import {
   runCitationAuditTool,
   runGeoGridTool,
 } from "@/server/mcp/tools/local-seo-tools";
+import {
+  estimateKeywordGapTool,
+  getKeywordGapTool,
+} from "@/server/mcp/tools/keyword-gap-tools";
+import {
+  estimateBacklinkGapTool,
+  getBacklinkGapTool,
+} from "@/server/mcp/tools/backlink-gap-tools";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
 
@@ -159,6 +167,10 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getDomainKeywordSuggestionsTool);
   register(getBacklinksOverviewTool);
   register(getBacklinksProfileTool);
+  register(estimateKeywordGapTool);
+  register(getKeywordGapTool);
+  register(estimateBacklinkGapTool);
+  register(getBacklinkGapTool);
   register(getSerpResultsTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);

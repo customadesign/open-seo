@@ -6,7 +6,11 @@ import type { CreditFeature } from "@/shared/billing-credit-features";
 import { createDataforseoClient } from "@/server/lib/dataforseo";
 import { normalizeDomainInput } from "@/server/lib/domainUtils";
 import { mapKeywordItem } from "@/server/features/domain/services/domainKeywordMapper";
-import { getKeywordsPage } from "@/server/features/domain/services/domainKeywordsPage";
+import {
+  getKeywordsPage,
+  getKeywordsSnapshot,
+  hasKeywordsSnapshot,
+} from "@/server/features/domain/services/domainKeywordsPage";
 import { getPagesPage } from "@/server/features/domain/services/domainPagesPage";
 
 // Lets a caller attribute spend to its own feature (e.g. onboarding). Applied
@@ -198,5 +202,7 @@ export const DomainService = {
   getOverview,
   getSuggestedKeywords,
   getKeywordsPage,
+  getKeywordsSnapshot,
+  hasKeywordsSnapshot,
   getPagesPage,
 } as const;

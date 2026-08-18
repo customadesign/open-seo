@@ -3,9 +3,11 @@ import {
   Bot,
   ClipboardCheck,
   Eye,
+  GitCompare,
   Globe,
   LayoutDashboard,
   Link2,
+  Unlink,
   MapPinned,
   FileBarChart,
   MessageSquare,
@@ -56,9 +58,19 @@ const projectNavItems = [
     icon: Globe,
   },
   {
+    to: "/p/$projectId/keyword-gap" as const,
+    label: "Keyword Gap",
+    icon: GitCompare,
+  },
+  {
     to: "/p/$projectId/backlinks" as const,
     label: "Backlinks",
     icon: Link2,
+  },
+  {
+    to: "/p/$projectId/backlink-gap" as const,
+    label: "Backlink Gap",
+    icon: Unlink,
   },
   {
     to: "/p/$projectId/audit" as const,
@@ -129,7 +141,9 @@ export function getProjectNavGroups(
       items: [
         byPath("/p/$projectId/keywords"),
         byPath("/p/$projectId/domain"),
+        byPath("/p/$projectId/keyword-gap"),
         byPath("/p/$projectId/backlinks"),
+        byPath("/p/$projectId/backlink-gap"),
         byPath("/p/$projectId/brand-lookup"),
         byPath("/p/$projectId/prompt-explorer"),
       ],
