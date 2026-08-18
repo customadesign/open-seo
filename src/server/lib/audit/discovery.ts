@@ -2,32 +2,11 @@
  * robots.txt and sitemap.xml discovery for the site audit crawler.
  */
 import robotsParser from "robots-parser";
-import { XMLParser } from "fast-xml-parser";
-import { normalizeAndValidateStartUrl } from "./url-policy";
-import { isSameOrigin, normalizeUrl } from "./url-utils";
+import { fetchAuditDiscoveryResource } from "./discovery-fetch";
+import { fetchSiteFiles, type SiteFilesSnapshot } from "./site-files";
+import { isSameOrigin } from "./url-utils";
 
-const SITEMAP_FETCH_TIMEOUT_MS = 15_000;
-// robots.txt is checkpointed as durable Workflow step state (~1MiB cap, shared
-// with the rest of the step's return). RFC 9309 requires parsers to handle at
-// least 500 KiB and permits ignoring anything beyond it — Google does exactly
-// that — so this cap matches standard crawler behavior while keeping a
-// misbehaving server (e.g. HTML at /robots.txt) from blowing the step limit.
-const MAX_ROBOTS_TXT_BYTES = 500 * 1024;
-const MAX_SITEMAP_DEPTH = 3;
-const MAX_SITEMAP_DOCS = 300;
-const SITEMAP_CONCURRENCY = 5;
-const SITEMAP_RETRIES = 1;
-// Sitemap shards can legally reach 50 MB and SITEMAP_CONCURRENCY of them are
-// read at once, so unbounded reads can exhaust Worker memory. Oversized
-// shards are skipped whole — truncated XML would not parse anyway, and real
-// generators shard far below this.
-const MAX_SITEMAP_BYTES = 10 * 1024 * 1024;
-const DISCOVERY_REDIRECT_HOPS = 5;
-
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  isArray: (name) => name === "sitemap" || name === "url",
-});
+export { fetchAuditDiscoveryResource } from "./discovery-fetch";
 
 export interface RobotsResult {
   isAllowed: (url: string) => boolean;
@@ -44,40 +23,6 @@ export interface AiCrawlerAccess {
 export interface LlmsTxtStatus {
   available: boolean;
   statusCode: number | null;
-}
-
-/** Follow only same-origin redirects and re-run the full SSRF policy before
- * each network request. Native auto-follow validates the final URL too late:
- * the private-target request has already happened by then. */
-export async function fetchAuditDiscoveryResource(
-  input: string,
-  init: RequestInit,
-): Promise<{ response: Response; finalUrl: string }> {
-  const initialUrl = await normalizeAndValidateStartUrl(input);
-  let currentUrl = initialUrl;
-
-  for (let hop = 0; hop <= DISCOVERY_REDIRECT_HOPS; hop += 1) {
-    const response = await fetch(currentUrl, { ...init, redirect: "manual" });
-    if (response.status < 300 || response.status >= 400) {
-      return { response, finalUrl: currentUrl };
-    }
-
-    const location = response.headers.get("location");
-    if (!location) return { response, finalUrl: currentUrl };
-    if (hop === DISCOVERY_REDIRECT_HOPS) {
-      throw new Error("Audit discovery redirect limit exceeded");
-    }
-
-    const nextUrl = await normalizeAndValidateStartUrl(
-      new URL(location, currentUrl).toString(),
-    );
-    if (!isSameOrigin(nextUrl, initialUrl)) {
-      throw new Error("Audit discovery redirect changed origin");
-    }
-    currentUrl = nextUrl;
-  }
-
-  throw new Error("Audit discovery redirect limit exceeded");
 }
 
 const SEARCH_AND_RETRIEVAL_CRAWLERS = [
@@ -154,29 +99,6 @@ async function fetchLlmsTxtStatus(origin: string): Promise<LlmsTxtStatus> {
   }
 }
 
-/**
- * Fetch the raw robots.txt body (null = missing/unreachable). Kept separate
- * from parsing so Workflows can checkpoint the text as durable step state and
- * re-derive the parsed result deterministically on replay.
- */
-async function fetchRobotsTxtText(origin: string): Promise<string | null> {
-  try {
-    const { response } = await fetchAuditDiscoveryResource(
-      `${origin}/robots.txt`,
-      {
-        headers: { "User-Agent": "OpenSEO-Audit/1.0" },
-        signal: AbortSignal.timeout(10_000),
-      },
-    );
-
-    if (!response.ok) return null;
-    return (await response.text()).slice(0, MAX_ROBOTS_TXT_BYTES);
-  } catch (error) {
-    console.warn("Failed to fetch robots.txt:", error);
-    return null;
-  }
-}
-
 /** Deterministic: same text in, same result out. Null = everything allowed. */
 export function parseRobotsTxt(
   origin: string,
@@ -194,155 +116,6 @@ export function parseRobotsTxt(
 }
 
 /**
- * Fetch and parse a sitemap (supports sitemap index recursion).
- * Returns a flat list of page URLs found.
- */
-function isProbablySitemapXml(
-  contentType: string | null,
-  body: string,
-): boolean {
-  if (contentType?.toLowerCase().includes("xml")) {
-    return true;
-  }
-
-  const trimmed = body.trimStart().toLowerCase();
-  return (
-    trimmed.startsWith("<?xml") ||
-    trimmed.startsWith("<urlset") ||
-    trimmed.startsWith("<sitemapindex")
-  );
-}
-
-function getSitemapLocations(input: unknown): string[] {
-  if (!input) return [];
-  const entries = Array.isArray(input) ? input : [input];
-  return entries
-    .map((entry) => {
-      if (isRecord(entry)) {
-        const loc = entry["loc"];
-        return typeof loc === "string" ? loc : null;
-      }
-      return null;
-    })
-    .filter((loc): loc is string => typeof loc === "string");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object";
-}
-
-function getParsedSitemapSections(parsed: unknown): {
-  sitemap: unknown;
-  url: unknown;
-} {
-  if (!parsed || typeof parsed !== "object") {
-    return { sitemap: undefined, url: undefined };
-  }
-
-  const root = parsed as {
-    sitemapindex?: { sitemap?: unknown };
-    urlset?: { url?: unknown };
-  };
-
-  return {
-    sitemap: root.sitemapindex?.sitemap,
-    url: root.urlset?.url,
-  };
-}
-
-function isTimeoutError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  return "name" in error && error.name === "TimeoutError";
-}
-
-/** Read a response body up to maxBytes; null when the body exceeds it. */
-async function readBodyCapped(
-  response: Response,
-  maxBytes: number,
-): Promise<string | null> {
-  if (!response.body) return "";
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  const joined = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    joined.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(joined);
-}
-
-async function fetchSitemapDocumentWithRetry(sitemapUrl: string): Promise<{
-  nestedSitemaps: string[];
-  pageUrls: string[];
-  timedOut: boolean;
-}> {
-  const normalizedSitemapUrl = normalizeUrl(sitemapUrl);
-  if (!normalizedSitemapUrl) {
-    return { nestedSitemaps: [], pageUrls: [], timedOut: false };
-  }
-
-  let lastError: unknown = null;
-
-  for (let attempt = 0; attempt <= SITEMAP_RETRIES; attempt++) {
-    try {
-      const { response, finalUrl } = await fetchAuditDiscoveryResource(
-        normalizedSitemapUrl,
-        {
-          headers: { "User-Agent": "OpenSEO-Audit/1.0" },
-          signal: AbortSignal.timeout(SITEMAP_FETCH_TIMEOUT_MS),
-        },
-      );
-
-      if (!response.ok) {
-        return { nestedSitemaps: [], pageUrls: [], timedOut: false };
-      }
-
-      const body = await readBodyCapped(response, MAX_SITEMAP_BYTES);
-      if (
-        body === null ||
-        !isProbablySitemapXml(response.headers.get("content-type"), body)
-      ) {
-        return { nestedSitemaps: [], pageUrls: [], timedOut: false };
-      }
-
-      const parsed = xmlParser.parse(body) as unknown;
-      const sections = getParsedSitemapSections(parsed);
-      const nestedSitemaps = getSitemapLocations(sections.sitemap)
-        .map((loc) => normalizeUrl(loc, finalUrl))
-        .filter((loc): loc is string => loc !== null);
-      const pageUrls = getSitemapLocations(sections.url)
-        .map((loc) => normalizeUrl(loc, finalUrl))
-        .filter((loc): loc is string => loc !== null);
-
-      return { nestedSitemaps, pageUrls, timedOut: false };
-    } catch (error) {
-      lastError = error;
-      if (!isTimeoutError(error) || attempt === SITEMAP_RETRIES) {
-        break;
-      }
-    }
-  }
-
-  return {
-    nestedSitemaps: [],
-    pageUrls: [],
-    timedOut: isTimeoutError(lastError),
-  };
-}
-
-/**
  * Discover all page URLs from robots.txt + sitemaps for an origin.
  * Also tries the default /sitemap.xml if not listed in robots.txt.
  */
@@ -354,85 +127,37 @@ export async function discoverUrls(
   robotsText: string | null;
   aiCrawlerAccess: AiCrawlerAccess[];
   llmsTxt: LlmsTxtStatus;
+  siteFiles: SiteFilesSnapshot;
 }> {
-  const [robotsText, llmsTxt] = await Promise.all([
-    fetchRobotsTxtText(origin),
+  const [siteFiles, llmsTxt] = await Promise.all([
+    fetchSiteFiles(origin),
     fetchLlmsTxtStatus(origin),
   ]);
-  const robots = parseRobotsTxt(origin, robotsText);
-
-  // Collect sitemap URLs: from robots.txt + default location
-  const sitemapSources = new Set(robots.sitemapUrls);
-  sitemapSources.add(`${origin}/sitemap.xml`);
-
+  const robotsText = siteFiles.robots.text;
   const maxDiscoveredUrls = Math.min(Math.max(maxPages * 20, 500), 50_000);
   const allUrls = new Set<string>();
 
-  const queue: Array<{ url: string; depth: number }> = Array.from(
-    sitemapSources,
-  )
-    .map((url) => normalizeUrl(url, origin))
-    .filter((url): url is string => url !== null)
-    .filter((url) => isSameOrigin(url, origin))
-    .map((url) => ({ url, depth: MAX_SITEMAP_DEPTH }));
-  const seenSitemapDocs = new Set<string>();
-  let fetchedDocs = 0;
   let failedDocs = 0;
   let timedOutDocs = 0;
-
-  while (queue.length > 0 && allUrls.size < maxDiscoveredUrls) {
-    if (fetchedDocs >= MAX_SITEMAP_DOCS) {
-      break;
+  for (const sitemap of siteFiles.sitemaps) {
+    if (
+      sitemap.pageUrls.length === 0 &&
+      sitemap.nestedSitemapUrls.length === 0
+    ) {
+      failedDocs += 1;
+      if (sitemap.timedOut) timedOutDocs += 1;
+      continue;
     }
-    const batch = queue.splice(0, SITEMAP_CONCURRENCY);
-    await Promise.all(
-      batch.map(async ({ url, depth }) => {
-        const normalizedUrl = normalizeUrl(url);
-        if (
-          !normalizedUrl ||
-          !isSameOrigin(normalizedUrl, origin) ||
-          depth <= 0 ||
-          seenSitemapDocs.has(normalizedUrl)
-        ) {
-          return;
-        }
-
-        seenSitemapDocs.add(normalizedUrl);
-        fetchedDocs += 1;
-
-        const result = await fetchSitemapDocumentWithRetry(normalizedUrl);
-        if (
-          result.pageUrls.length === 0 &&
-          result.nestedSitemaps.length === 0
-        ) {
-          failedDocs += 1;
-          if (result.timedOut) {
-            timedOutDocs += 1;
-          }
-          return;
-        }
-
-        for (const pageUrl of result.pageUrls) {
-          if (!isSameOrigin(pageUrl, origin)) continue;
-          if (allUrls.size >= maxDiscoveredUrls) break;
-          allUrls.add(pageUrl);
-        }
-
-        if (depth <= 1) return;
-
-        for (const nestedUrl of result.nestedSitemaps) {
-          if (!isSameOrigin(nestedUrl, origin)) continue;
-          if (!seenSitemapDocs.has(nestedUrl)) {
-            queue.push({ url: nestedUrl, depth: depth - 1 });
-          }
-        }
-      }),
-    );
+    for (const pageUrl of sitemap.pageUrls) {
+      if (!isSameOrigin(pageUrl, origin)) continue;
+      if (allUrls.size >= maxDiscoveredUrls) break;
+      allUrls.add(pageUrl);
+    }
   }
 
   if (failedDocs > 0) {
     console.warn(
-      `Sitemap discovery completed with partial failures for ${origin}: fetched=${fetchedDocs}, failed=${failedDocs}, timedOut=${timedOutDocs}, discoveredUrls=${allUrls.size}`,
+      `Sitemap discovery completed with partial failures for ${origin}: fetched=${siteFiles.sitemaps.length}, failed=${failedDocs}, timedOut=${timedOutDocs}, discoveredUrls=${allUrls.size}`,
     );
   }
 
@@ -443,5 +168,6 @@ export async function discoverUrls(
     robotsText,
     aiCrawlerAccess: analyzeAiCrawlerAccess(origin, robotsText),
     llmsTxt,
+    siteFiles,
   };
 }

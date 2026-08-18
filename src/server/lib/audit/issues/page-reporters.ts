@@ -10,6 +10,12 @@
  */
 import type { AuditIssueType } from "@/shared/audit-issues";
 import type { CrawledPageResult } from "@/server/lib/audit/types";
+import {
+  HTML_SIZE_TOO_LARGE_BYTES,
+  LOW_TEXT_TO_HTML_RATIO,
+  URL_TOO_LONG_CHARS,
+  URL_TOO_MANY_PARAMETERS,
+} from "@/server/lib/audit/issues/thresholds";
 
 export interface DetectedIssue {
   issueType: AuditIssueType;
@@ -164,6 +170,84 @@ type ReportIssue = (
   details?: Record<string, unknown>,
 ) => void;
 
+function queryParamCount(url: string): number {
+  try {
+    return [...new URL(url).searchParams].length;
+  } catch {
+    return 0;
+  }
+}
+
+function urlPathHasUnderscores(url: string): boolean {
+  try {
+    return new URL(url).pathname.includes("_");
+  } catch {
+    return url.includes("_");
+  }
+}
+
+function hasNoindexDirective(value: string | null): boolean {
+  return value?.toLowerCase().includes("noindex") === true;
+}
+
+function isCompressedEncoding(contentEncoding: string | null): boolean {
+  if (!contentEncoding) return false;
+  const tokens = contentEncoding
+    .toLowerCase()
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+  return tokens.some((token) => token !== "identity");
+}
+
+function reportUrlShape(page: CrawledPageResult, report: ReportIssue) {
+  if (page.url.length > URL_TOO_LONG_CHARS) {
+    report("url-too-long", { length: page.url.length });
+  }
+  if (urlPathHasUnderscores(page.url)) {
+    report("url-has-underscores");
+  }
+  const parameterCount = queryParamCount(page.url);
+  if (parameterCount > URL_TOO_MANY_PARAMETERS) {
+    report("url-too-many-parameters", { parameterCount });
+  }
+}
+
+function reportHeaderSignals(page: CrawledPageResult, report: ReportIssue) {
+  if (hasNoindexDirective(page.responseHeaders.xRobotsTag ?? page.xRobotsTag)) {
+    report("noindex-via-x-robots-tag", {
+      xRobotsTag: page.responseHeaders.xRobotsTag ?? page.xRobotsTag,
+    });
+  }
+  if (
+    page.isHtml &&
+    !isCompressedEncoding(page.responseHeaders.contentEncoding)
+  ) {
+    report("page-not-compressed");
+  }
+}
+
+function reportDocumentSignals(page: CrawledPageResult, report: ReportIssue) {
+  if (!page.hasDoctype) report("missing-doctype");
+  if (!page.charset) report("missing-charset");
+  if (page.hasMetaRefresh) report("meta-refresh-present");
+  if (page.frameCount > 0) {
+    report("page-has-frames", { frameCount: page.frameCount });
+  }
+  if (page.htmlBytes > HTML_SIZE_TOO_LARGE_BYTES) {
+    report("html-size-too-large", { htmlBytes: page.htmlBytes });
+  }
+  if (
+    page.htmlBytes > 0 &&
+    page.textBytes / page.htmlBytes < LOW_TEXT_TO_HTML_RATIO
+  ) {
+    report("low-text-to-html-ratio", {
+      textBytes: page.textBytes,
+      htmlBytes: page.htmlBytes,
+    });
+  }
+}
+
 function reportTechnicalReadiness(
   page: CrawledPageResult,
   report: ReportIssue,
@@ -280,12 +364,16 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
     report("slow-response", { responseTimeMs: page.responseTimeMs });
   }
 
+  reportUrlShape(page, report);
+  reportHeaderSignals(page, report);
+
   // Content checks only make sense for analyzed HTML documents (a PDF has no
   // title tag to miss; an empty-shell HTML page very much does).
   if (!page.isHtml) {
     return issues;
   }
 
+  reportDocumentSignals(page, report);
   reportTechnicalReadiness(page, report);
 
   // Titles

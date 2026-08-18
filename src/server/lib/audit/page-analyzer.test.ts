@@ -20,7 +20,20 @@ type SemanticSignalKey =
   | "hasAuthorSignal"
   | "hasDateSignal"
   | "mixedContentCount"
-  | "contentExternalLinkTargets";
+  | "contentExternalLinkTargets"
+  | "htmlBytes"
+  | "hasDoctype"
+  | "charset"
+  | "hasMetaRefresh"
+  | "frameCount"
+  | "scriptUrls"
+  | "stylesheetUrls"
+  | "inlineScriptBytes"
+  | "inlineStyleBytes"
+  | "textBytes"
+  | "imageCount"
+  | "externalImageSrcs"
+  | "responseHeaders";
 type LegacyPageAnalysis = Omit<PageAnalysis, SemanticSignalKey>;
 
 /** The previous cheerio implementation, verbatim (minus passthrough fields). */
@@ -141,6 +154,19 @@ function expectParity(html: string) {
     hasDateSignal: _hasDateSignal,
     mixedContentCount: _mixedContentCount,
     contentExternalLinkTargets: _contentExternalLinkTargets,
+    htmlBytes: _htmlBytes,
+    hasDoctype: _hasDoctype,
+    charset: _charset,
+    hasMetaRefresh: _hasMetaRefresh,
+    frameCount: _frameCount,
+    scriptUrls: _scriptUrls,
+    stylesheetUrls: _stylesheetUrls,
+    inlineScriptBytes: _inlineScriptBytes,
+    inlineStyleBytes: _inlineStyleBytes,
+    textBytes: _textBytes,
+    imageCount: _imageCount,
+    externalImageSrcs: _externalImageSrcs,
+    responseHeaders: _responseHeaders,
     ...legacyStreamed
   } = streamed;
   expect(legacyStreamed).toEqual(reference);
@@ -279,5 +305,51 @@ describe("analyzeHtml parity with the DOM reference", () => {
       mixedContentCount: 1,
       contentExternalLinkTargets: ["http://source.example/research"],
     });
+  });
+});
+
+describe("analyzeHtml document and resource signals", () => {
+  it("captures doctype, charset, frames, resources, and text size", () => {
+    const html = `<!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta http-equiv="refresh" content="5;url=/next">
+          <link rel="stylesheet" href="/app.css">
+          <style>.x{color:red}</style>
+        </head>
+        <body>
+          Hello world
+          <script src="/app.js"></script>
+          <script>console.log(1)</script>
+          <iframe src="/embed"></iframe>
+          <img src="https://cdn.example/pic.png" alt="pic">
+        </body>
+      </html>`;
+    const result = analyzeHtml(html, PAGE_URL, 200, 0);
+
+    expect(result.hasDoctype).toBe(true);
+    expect(result.charset).toBe("utf-8");
+    expect(result.hasMetaRefresh).toBe(true);
+    expect(result.frameCount).toBe(1);
+    expect(result.stylesheetUrls).toEqual(["https://example.com/app.css"]);
+    expect(result.scriptUrls).toEqual(["https://example.com/app.js"]);
+    expect(result.inlineStyleBytes).toBeGreaterThan(0);
+    expect(result.inlineScriptBytes).toBeGreaterThan(0);
+    expect(result.imageCount).toBe(1);
+    expect(result.externalImageSrcs).toEqual(["https://cdn.example/pic.png"]);
+    expect(result.textBytes).toBeGreaterThan(0);
+    expect(result.htmlBytes).toBeGreaterThan(result.textBytes);
+  });
+
+  it("reads charset from a content-type meta tag", () => {
+    const result = analyzeHtml(
+      `<html><head><meta http-equiv="content-type" content="text/html; charset=ISO-8859-1"></head><body>Hi</body></html>`,
+      PAGE_URL,
+      200,
+      0,
+    );
+    expect(result.hasDoctype).toBe(false);
+    expect(result.charset).toBe("ISO-8859-1");
   });
 });

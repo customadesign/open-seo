@@ -399,6 +399,149 @@ export const AUDIT_ISSUE_TYPES = {
     howToFix:
       "Optional: publish a concise, factual /llms.txt that links to canonical public resources. Do not use it as a substitute for crawlable HTML, sound internal linking, sitemaps, or structured data.",
   },
+  "sitemap-missing": {
+    severity: "warning",
+    title: "sitemap.xml was not found",
+    explanation:
+      "The default /sitemap.xml URL did not return a sitemap. Search engines can still discover pages by following links, but a sitemap is the most reliable way to declare the URLs you want crawled.",
+    howToFix:
+      "Publish a valid XML sitemap at /sitemap.xml (or a sitemap index that lists sharded sitemaps) and keep it updated as URLs change.",
+  },
+  "sitemap-not-in-robots": {
+    severity: "info",
+    title: "robots.txt does not reference a sitemap",
+    explanation:
+      "robots.txt has no Sitemap: directive. Crawlers that start at robots.txt will not be pointed at your sitemap unless they guess the default path.",
+    howToFix:
+      "Add a Sitemap: line to robots.txt with the absolute URL of your sitemap or sitemap index.",
+  },
+  "sitemap-invalid": {
+    severity: "warning",
+    title: "Sitemap XML is invalid",
+    explanation:
+      "A sitemap document could not be parsed as a urlset or sitemap index. Search engines ignore a broken sitemap, so the URLs in it are not submitted.",
+    howToFix:
+      "Validate the sitemap XML, ensure each entry has a <loc>, and serve it with an XML content type.",
+  },
+  "sitemap-too-large": {
+    severity: "warning",
+    title: "Sitemap exceeds the size limit",
+    explanation:
+      "A sitemap is larger than 50,000 URLs or 50 MB uncompressed. Search engines may stop reading it, leaving later URLs undiscovered.",
+    howToFix:
+      "Split the sitemap into shards under both limits and list those shards from a sitemap index.",
+  },
+  "sitemap-http-urls-on-https-site": {
+    severity: "warning",
+    title: "HTTPS site lists HTTP URLs in its sitemap",
+    explanation:
+      "The sitemap includes http:// URLs on an HTTPS site. Those entries split crawl signals and often bounce through a redirect before reaching the canonical page.",
+    howToFix:
+      "Rewrite every sitemap <loc> to its HTTPS URL and keep the sitemap itself on HTTPS.",
+  },
+  "robots-missing": {
+    severity: "info",
+    title: "robots.txt was not found",
+    explanation:
+      "No robots.txt was returned. That allows crawling by default, but it also means there is no place to declare a sitemap or path rules.",
+    howToFix:
+      "Publish a robots.txt at the site root. At minimum allow public pages and add a Sitemap: directive.",
+  },
+  "robots-invalid": {
+    severity: "warning",
+    title: "robots.txt has format errors",
+    explanation:
+      "robots.txt could not be parsed as a valid robots file (for example it returned HTML, or group rules appeared before any User-agent). Crawlers may ignore the file.",
+    howToFix:
+      "Serve a plain-text robots.txt whose records start with User-agent, use Field: value lines, and put Sitemap: on its own lines.",
+  },
+  "missing-doctype": {
+    severity: "info",
+    title: "Document is missing a doctype",
+    explanation:
+      "The HTML has no <!DOCTYPE>. Browsers may fall back to quirks mode, which can change layout and make the page harder for parsers to treat as a standards document.",
+    howToFix: "Add <!DOCTYPE html> as the first line of every HTML document.",
+  },
+  "missing-charset": {
+    severity: "warning",
+    title: "Character encoding is not declared",
+    explanation:
+      "The page has no charset meta tag. Without an explicit encoding, browsers and crawlers may misread non-ASCII text in titles, snippets, and body copy.",
+    howToFix:
+      'Add <meta charset="utf-8"> in the document head (or declare charset on the Content-Type meta tag).',
+  },
+  "meta-refresh-present": {
+    severity: "warning",
+    title: "Page uses a meta refresh",
+    explanation:
+      "A meta refresh tells the browser to reload or redirect after a delay. Search engines treat this as a poor substitute for an HTTP redirect and it is a poor experience for users.",
+    howToFix:
+      "Remove the meta refresh. If the page has moved, use a single HTTP 301/302 to the destination instead.",
+  },
+  "page-has-frames": {
+    severity: "warning",
+    title: "Page uses frames or iframes",
+    explanation:
+      "Frames and iframes hide content from the parent document. Search engines may not associate framed content with this URL, and framesets are obsolete.",
+    howToFix:
+      "Render important content in the page itself. Keep iframes for genuine embeds (maps, videos) and do not put primary copy inside them.",
+  },
+  "html-size-too-large": {
+    severity: "warning",
+    title: "HTML document is larger than 2 MB",
+    explanation:
+      "The uncompressed HTML exceeds 2 MB. Large documents are slower to download and parse, and crawlers may truncate them before they reach the important content.",
+    howToFix:
+      "Reduce the HTML payload: drop unused markup, move large data out of the document, and paginate or lazy-load long lists.",
+  },
+  "low-text-to-html-ratio": {
+    severity: "info",
+    title: "Visible text is a small fraction of the HTML",
+    explanation:
+      "Less than 10% of the HTML is visible text. That often means the page is template-heavy or script-heavy, so crawlers see a lot of chrome and little content.",
+    howToFix:
+      "Increase useful visible copy, or reduce template/script/style bulk in the initial HTML so the main content is a larger share of the document.",
+  },
+  "url-too-long": {
+    severity: "info",
+    title: "URL is longer than 200 characters",
+    explanation:
+      "Very long URLs are harder to share, more likely to be truncated in reports, and often a sign of stacked parameters or unreadable path segments.",
+    howToFix:
+      "Shorten the path to a stable, readable slug and drop tracking or filter parameters from the canonical URL.",
+  },
+  "url-has-underscores": {
+    severity: "info",
+    title: "URL path contains underscores",
+    explanation:
+      "Hyphens are the conventional word separator in URLs. Underscores are treated as word characters, so /blue_widgets is harder for search engines to read as “blue widgets”.",
+    howToFix:
+      "Use hyphens in path segments (blue-widgets) and 301 the underscore URLs to the hyphenated versions.",
+  },
+  "url-too-many-parameters": {
+    severity: "info",
+    title: "URL has more than 3 query parameters",
+    explanation:
+      "URLs with many query parameters are often filters, sorts, or tracking variants. They explode crawl space and rarely deserve their own index entry.",
+    howToFix:
+      "Keep the public URL to the parameters that change the content. Move tracking to fragments or strip it with a self-canonical, and noindex leftover filter combinations.",
+  },
+  "noindex-via-x-robots-tag": {
+    severity: "info",
+    title: "X-Robots-Tag header is noindex",
+    explanation:
+      "The HTTP X-Robots-Tag header asks crawlers not to index this URL. This is separate from a robots meta tag in the HTML and is easy to miss when reviewing the page source.",
+    howToFix:
+      "If the page should be indexed, remove noindex from the X-Robots-Tag header. If the header is intentional, no action is needed.",
+  },
+  "page-not-compressed": {
+    severity: "warning",
+    title: "HTML is served uncompressed",
+    explanation:
+      "The HTML response has no Content-Encoding (gzip, Brotli, or similar). Uncompressed HTML wastes bandwidth and slows first-byte and parse time, especially on mobile.",
+    howToFix:
+      "Enable gzip or Brotli compression for text responses on the origin or CDN, then confirm Content-Encoding is present on HTML requests.",
+  },
 } as const satisfies Record<string, BaseAuditIssueDescriptor>;
 
 export type AuditIssueType = keyof typeof AUDIT_ISSUE_TYPES;
@@ -444,6 +587,24 @@ const CATEGORIES: Partial<Record<AuditIssueType, AuditIssueCategory>> = {
   "ai-search-crawler-blocked": "geo",
   "search-crawler-blocked": "crawlability",
   "missing-llms-txt": "geo",
+  "sitemap-missing": "crawlability",
+  "sitemap-not-in-robots": "crawlability",
+  "sitemap-invalid": "crawlability",
+  "sitemap-too-large": "crawlability",
+  "sitemap-http-urls-on-https-site": "crawlability",
+  "robots-missing": "crawlability",
+  "robots-invalid": "crawlability",
+  "missing-doctype": "technical",
+  "missing-charset": "technical",
+  "meta-refresh-present": "technical",
+  "page-has-frames": "technical",
+  "html-size-too-large": "performance",
+  "low-text-to-html-ratio": "content",
+  "url-too-long": "technical",
+  "url-has-underscores": "technical",
+  "url-too-many-parameters": "technical",
+  "noindex-via-x-robots-tag": "indexability",
+  "page-not-compressed": "performance",
 };
 
 const GUIDANCE_OVERRIDES: Partial<
@@ -492,6 +653,17 @@ const GUIDANCE_OVERRIDES: Partial<
       "Open /llms.txt directly and confirm it returns a useful text document; no score should depend on it.",
   },
   "noindex-page": { fixOrder: "monitor", impact: "low", effort: "small" },
+  "noindex-via-x-robots-tag": {
+    fixOrder: "monitor",
+    impact: "low",
+    effort: "small",
+  },
+  "robots-missing": { fixOrder: "next", impact: "medium", effort: "small" },
+  "sitemap-not-in-robots": {
+    fixOrder: "improve",
+    impact: "low",
+    effort: "small",
+  },
   "canonicalized-page": {
     fixOrder: "monitor",
     impact: "low",

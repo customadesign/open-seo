@@ -57,6 +57,22 @@ function page(
     responseTimeMs,
     crawlDepth: 0,
     inSitemap: false,
+    hasDoctype: false,
+    charset: null,
+    hasMetaRefresh: false,
+    frameCount: 0,
+    scriptUrls: [],
+    stylesheetUrls: [],
+    inlineScriptBytes: 0,
+    inlineStyleBytes: 0,
+    textBytes: 0,
+    externalImageSrcs: [],
+    responseHeaders: {
+      contentEncoding: null,
+      cacheControl: null,
+      xRobotsTag: null,
+      contentType: null,
+    },
   };
 }
 

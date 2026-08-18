@@ -50,6 +50,14 @@ export interface PageLink {
   isNofollow: boolean;
 }
 
+/** Response headers used by later audit checks. */
+export interface PageResponseHeaders {
+  contentEncoding: string | null;
+  cacheControl: string | null;
+  xRobotsTag: string | null;
+  contentType: string | null;
+}
+
 /** Data extracted from a single page's HTML. */
 export interface PageAnalysis {
   url: string;
@@ -98,6 +106,21 @@ export interface PageAnalysis {
 
   // Hreflang
   hreflangTags: string[];
+
+  // Document / resource signals for later audit slices
+  htmlBytes: number;
+  hasDoctype: boolean;
+  charset: string | null;
+  hasMetaRefresh: boolean;
+  frameCount: number;
+  scriptUrls: string[];
+  stylesheetUrls: string[];
+  inlineScriptBytes: number;
+  inlineStyleBytes: number;
+  textBytes: number;
+  imageCount: number;
+  externalImageSrcs: string[];
+  responseHeaders: PageResponseHeaders;
 }
 
 /** Lighthouse result for a single URL+strategy. */
@@ -181,4 +204,16 @@ export interface CrawledPageResult {
   /** null = not reached via links (e.g. sitemap-seeded). */
   crawlDepth: number | null;
   inSitemap: boolean;
+
+  hasDoctype: boolean;
+  charset: string | null;
+  hasMetaRefresh: boolean;
+  frameCount: number;
+  scriptUrls: string[];
+  stylesheetUrls: string[];
+  inlineScriptBytes: number;
+  inlineStyleBytes: number;
+  textBytes: number;
+  externalImageSrcs: string[];
+  responseHeaders: PageResponseHeaders;
 }

@@ -1,12 +1,15 @@
 import type {
   CrawledPageResult,
   PageFetchClass,
+  PageResponseHeaders,
 } from "@/server/lib/audit/types";
 import { sha256Hex } from "@/server/lib/audit/ids";
+import { HTML_SIZE_TOO_LARGE_BYTES } from "@/server/lib/audit/issues/thresholds";
 import { normalizeUrl } from "@/server/lib/audit/url-utils";
 
 const CRAWL_USER_AGENT = "OpenSEO-Audit/1.0";
 const MAX_HTML_BYTES = 1024 * 1024;
+const MAX_HTML_MEASURE_BYTES = HTML_SIZE_TOO_LARGE_BYTES + 1;
 
 /**
  * Markers of a bot-mitigation challenge page. We classify these honestly as
@@ -80,7 +83,8 @@ export async function crawlPage(
 
     const responseTimeMs = Date.now() - startTime;
     const statusCode = response.status;
-    const xRobotsTag = response.headers.get("x-robots-tag");
+    const responseHeaders = readPageResponseHeaders(response.headers);
+    const xRobotsTag = responseHeaders.xRobotsTag;
     const headerCanonicalUrl = parseLinkHeaderCanonical(
       response.headers.get("link"),
       url,
@@ -95,18 +99,21 @@ export async function crawlPage(
         fetchClass: "ok",
         redirectUrl,
         responseTimeMs,
-        xRobotsTag,
+        responseHeaders,
         headerCanonicalUrl,
         crawlDepth,
         inSitemap,
       });
     }
 
-    const contentType = response.headers.get("content-type") ?? "";
+    const contentType = responseHeaders.contentType ?? "";
     const isHtml = contentType.includes("text/html");
-    // Cap what we read: the first 1 MiB still contains the SEO metadata and
-    // navigation needed by the audit in normal documents.
-    const body = isHtml ? await readTextUpTo(response, MAX_HTML_BYTES) : "";
+    // Cap what we parse: the first 1 MiB still contains the SEO metadata and
+    // navigation needed by the audit in normal documents. Keep counting
+    // discarded bytes up to the HTML-size check so oversized pages are visible.
+    const { text: body, htmlBytes } = isHtml
+      ? await readHtmlCapped(response, MAX_HTML_BYTES, MAX_HTML_MEASURE_BYTES)
+      : { text: "", htmlBytes: 0 };
     const fetchClass = classifyFetch(
       statusCode,
       response.headers,
@@ -120,13 +127,13 @@ export async function crawlPage(
         fetchClass,
         redirectUrl: null,
         responseTimeMs,
-        xRobotsTag,
+        responseHeaders,
         headerCanonicalUrl,
         crawlDepth,
         inSitemap,
         // The body was still fetched and buffered; report its size so the
         // crawl window's byte budget sees blocked/error pages too.
-        htmlBytes: body.length,
+        htmlBytes,
       });
     }
 
@@ -135,7 +142,9 @@ export async function crawlPage(
     // a static import would evaluate it in every isolate's baseline heap,
     // not just when an audit actually crawls.
     const { analyzeHtml } = await import("@/server/lib/audit/page-analyzer");
-    const analysis = analyzeHtml(body, url, statusCode, responseTimeMs);
+    const analysis = analyzeHtml(body, url, statusCode, responseTimeMs, {
+      responseHeaders,
+    });
     const robotsDirectives = [analysis.robotsMeta, xRobotsTag]
       .filter(Boolean)
       .join(",")
@@ -173,7 +182,18 @@ export async function crawlPage(
         ? await sha256Hex(analysis.bodyText)
         : null,
       isHtml: true,
-      htmlBytes: body.length,
+      htmlBytes,
+      hasDoctype: analysis.hasDoctype,
+      charset: analysis.charset,
+      hasMetaRefresh: analysis.hasMetaRefresh,
+      frameCount: analysis.frameCount,
+      scriptUrls: analysis.scriptUrls,
+      stylesheetUrls: analysis.stylesheetUrls,
+      inlineScriptBytes: analysis.inlineScriptBytes,
+      inlineStyleBytes: analysis.inlineStyleBytes,
+      textBytes: analysis.textBytes,
+      externalImageSrcs: analysis.externalImageSrcs,
+      responseHeaders,
       imagesTotal: analysis.images.length,
       // Only a truly absent alt attribute counts: alt="" is the correct
       // markup for decorative images.
@@ -216,26 +236,51 @@ export async function crawlPage(
   }
 }
 
-async function readTextUpTo(response: Response, maxBytes: number) {
-  if (!response.body) return "";
+function readPageResponseHeaders(headers: Headers): PageResponseHeaders {
+  return {
+    contentEncoding: headers.get("content-encoding"),
+    cacheControl: headers.get("cache-control"),
+    xRobotsTag: headers.get("x-robots-tag"),
+    contentType: headers.get("content-type"),
+  };
+}
+
+async function readHtmlCapped(
+  response: Response,
+  analyzeMaxBytes: number,
+  measureMaxBytes: number,
+): Promise<{ text: string; htmlBytes: number }> {
+  if (!response.body) return { text: "", htmlBytes: 0 };
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const parts: string[] = [];
   let bytesRead = 0;
+  let analyzedBytes = 0;
 
   try {
-    while (bytesRead < maxBytes) {
+    while (bytesRead < measureMaxBytes) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const remaining = maxBytes - bytesRead;
+      const remaining = measureMaxBytes - bytesRead;
       const chunk =
         value.byteLength > remaining ? value.subarray(0, remaining) : value;
       bytesRead += chunk.byteLength;
-      parts.push(decoder.decode(chunk, { stream: true }));
 
-      if (bytesRead >= maxBytes) {
+      if (analyzedBytes < analyzeMaxBytes) {
+        const take = Math.min(
+          chunk.byteLength,
+          analyzeMaxBytes - analyzedBytes,
+        );
+        parts.push(decoder.decode(chunk.subarray(0, take), { stream: true }));
+        analyzedBytes += take;
+        if (analyzedBytes >= analyzeMaxBytes) {
+          parts.push(decoder.decode());
+        }
+      }
+
+      if (bytesRead >= measureMaxBytes) {
         await reader.cancel();
         break;
       }
@@ -244,8 +289,8 @@ async function readTextUpTo(response: Response, maxBytes: number) {
     reader.releaseLock();
   }
 
-  parts.push(decoder.decode());
-  return parts.join("");
+  if (analyzedBytes < analyzeMaxBytes) parts.push(decoder.decode());
+  return { text: parts.join(""), htmlBytes: bytesRead };
 }
 
 function emptyPageResult(input: {
@@ -254,12 +299,19 @@ function emptyPageResult(input: {
   fetchClass: PageFetchClass;
   redirectUrl: string | null;
   responseTimeMs: number;
-  xRobotsTag: string | null;
+  xRobotsTag?: string | null;
+  responseHeaders?: PageResponseHeaders;
   headerCanonicalUrl: string | null;
   crawlDepth: number | null;
   inSitemap: boolean;
   htmlBytes?: number;
 }): CrawledPageResult {
+  const responseHeaders = input.responseHeaders ?? {
+    contentEncoding: null,
+    cacheControl: null,
+    xRobotsTag: input.xRobotsTag ?? null,
+    contentType: null,
+  };
   return {
     id: crypto.randomUUID(),
     url: input.url,
@@ -270,7 +322,7 @@ function emptyPageResult(input: {
     metaDescription: "",
     canonicalUrl: null,
     robotsMeta: null,
-    xRobotsTag: input.xRobotsTag,
+    xRobotsTag: responseHeaders.xRobotsTag,
     headerCanonicalUrl: input.headerCanonicalUrl,
     ogTitle: null,
     ogDescription: null,
@@ -307,5 +359,16 @@ function emptyPageResult(input: {
     responseTimeMs: input.responseTimeMs,
     crawlDepth: input.crawlDepth,
     inSitemap: input.inSitemap,
+    hasDoctype: false,
+    charset: null,
+    hasMetaRefresh: false,
+    frameCount: 0,
+    scriptUrls: [],
+    stylesheetUrls: [],
+    inlineScriptBytes: 0,
+    inlineStyleBytes: 0,
+    textBytes: 0,
+    externalImageSrcs: [],
+    responseHeaders,
   };
 }

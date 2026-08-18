@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- discovery, lighthouse, and finalize live in one workflow module */
 import type { WorkflowStep } from "cloudflare:workers";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import {
@@ -6,6 +7,10 @@ import {
   type AiCrawlerAccess,
   type LlmsTxtStatus,
 } from "@/server/lib/audit/discovery";
+import {
+  compactSiteFiles,
+  type CompactSiteFilesSnapshot,
+} from "@/server/lib/audit/site-files";
 import {
   fetchLighthouseResult,
   selectLighthouseSample,
@@ -61,6 +66,7 @@ type DiscoveryPhaseResult = {
   seededCount: number;
   aiCrawlerAccess: AiCrawlerAccess[];
   llmsTxt: LlmsTxtStatus;
+  siteFiles: CompactSiteFilesSnapshot;
 };
 
 export async function runAuditPhases(
@@ -129,16 +135,17 @@ async function runDiscoveryPhase(
   },
 ) {
   const { auditId, workflowInstanceId, origin, startUrl, maxPages } = input;
-  // "-v3": v2 moved seeds into the scratchpad DO; v3 also checkpoints AI
-  // crawler access and llms.txt status. Re-run discovery when either older
-  // shape replays so finalize never reads missing sitewide signals.
+  // "-v4": v3 checkpointed AI crawler access and llms.txt; v4 also stores
+  // the robots/sitemap snapshot for sitewide checks. Re-run older shapes
+  // so finalize never reads missing site-file signals.
   return pgStep(
     step,
-    "discover-urls-v3",
+    "discover-urls-v4",
     DISCOVERY_STEP,
     async (): Promise<DiscoveryPhaseResult> => {
       const result = await discoverUrls(origin, maxPages);
       const robots = parseRobotsTxt(origin, result.robotsText);
+      const siteFiles = compactSiteFiles(result.siteFiles);
       const scratchpad = getAuditScratchpad(auditId);
 
       // Seeds go straight into the scratchpad frontier — nothing large is
@@ -173,6 +180,7 @@ async function runDiscoveryPhase(
       }
       seededCount += seeds.filter((seed) => seed !== normalizedStart).length;
 
+      await AuditRepository.insertSiteFiles(auditId, siteFiles);
       await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
         pagesTotal: Math.min(seededCount, maxPages),
         currentPhase: "crawling",
@@ -182,6 +190,7 @@ async function runDiscoveryPhase(
         seededCount,
         aiCrawlerAccess: result.aiCrawlerAccess,
         llmsTxt: result.llmsTxt,
+        siteFiles,
       };
     },
   );
@@ -385,6 +394,7 @@ async function finalizeAudit(args: {
         origin: getOrigin(startUrl),
         aiCrawlerAccess: discovery.aiCrawlerAccess,
         llmsTxt: discovery.llmsTxt,
+        siteFiles: discovery.siteFiles,
       }),
     );
     issues.push(...(await runScratchpadLinkChecks(auditId, startUrl, crawl)));

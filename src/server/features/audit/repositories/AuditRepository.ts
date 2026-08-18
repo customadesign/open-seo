@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- repository covers audits, pages, issues, lighthouse, and site-file snapshots */
 /**
  * Data access layer for site audit tables.
  * Provider-aware (D1 or Postgres) via the `@/db` handle. Covers audits,
@@ -11,11 +12,15 @@ import {
   auditIssues,
   auditLighthouseResults,
   auditPages,
+  auditRobots,
+  auditRobotsDisallows,
+  auditSitemaps,
 } from "@/db/schema";
 import { executeInBatches } from "@/db/runBatch";
 import { AUDIT_ISSUE_TYPES } from "@/shared/audit-issues";
 import { deterministicAuditRowId } from "@/server/lib/audit/ids";
 import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
+import type { CompactSiteFilesSnapshot } from "@/server/lib/audit/site-files";
 import type {
   AuditConfig,
   CrawledPageResult,
@@ -189,6 +194,20 @@ async function insertCrawledBatch(
       crawlDepth: page.crawlDepth,
       inSitemap: page.inSitemap,
       responseTimeMs: page.responseTimeMs,
+      htmlBytes: page.htmlBytes,
+      hasDoctype: page.hasDoctype,
+      charset: page.charset,
+      hasMetaRefresh: page.hasMetaRefresh,
+      frameCount: page.frameCount,
+      scriptUrlsJson: JSON.stringify(page.scriptUrls),
+      stylesheetUrlsJson: JSON.stringify(page.stylesheetUrls),
+      inlineScriptBytes: page.inlineScriptBytes,
+      inlineStyleBytes: page.inlineStyleBytes,
+      textBytes: page.textBytes,
+      externalImageSrcsJson: JSON.stringify(page.externalImageSrcs),
+      contentEncoding: page.responseHeaders.contentEncoding,
+      cacheControl: page.responseHeaders.cacheControl,
+      contentType: page.responseHeaders.contentType,
     };
     return tx
       .insert(auditPages)
@@ -197,6 +216,65 @@ async function insertCrawledBatch(
   });
 
   await insertIssues(auditId, issues);
+}
+
+async function insertSiteFiles(
+  auditId: string,
+  siteFiles: CompactSiteFilesSnapshot,
+) {
+  const robotsId = await deterministicAuditRowId(auditId, "robots");
+  const robotsColumns = {
+    found: siteFiles.robots.found,
+    statusCode: siteFiles.robots.statusCode,
+    parseError: siteFiles.robots.parseError,
+    hasSitemapDirective: siteFiles.robots.hasSitemapDirective,
+  };
+  await db
+    .insert(auditRobots)
+    .values({ id: robotsId, auditId, ...robotsColumns })
+    .onConflictDoUpdate({ target: auditRobots.id, set: robotsColumns });
+
+  const disallowRows = await Promise.all(
+    siteFiles.robots.disallowedPaths.map(async (entry) => ({
+      id: await deterministicAuditRowId(
+        auditId,
+        "robots-disallow",
+        entry.userAgent,
+        entry.path,
+      ),
+      auditId,
+      userAgent: entry.userAgent,
+      path: entry.path,
+    })),
+  );
+  await executeInBatches(disallowRows, (tx, row) =>
+    tx.insert(auditRobotsDisallows).values(row).onConflictDoNothing(),
+  );
+
+  const sitemapRows = await Promise.all(
+    siteFiles.sitemaps.map(async (sitemap) => {
+      const id = await deterministicAuditRowId(auditId, "sitemap", sitemap.url);
+      return {
+        id,
+        auditId,
+        url: sitemap.url,
+        found: sitemap.found,
+        statusCode: sitemap.statusCode,
+        parseError: sitemap.parseError,
+        entryCount: sitemap.entryCount,
+        byteSize: sitemap.byteSize,
+        httpUrlCount: sitemap.httpUrlCount,
+        isIndex: sitemap.isIndex,
+      };
+    }),
+  );
+  await executeInBatches(sitemapRows, (tx, row) => {
+    const { id: _id, auditId: _auditId, ...dataColumns } = row;
+    return tx
+      .insert(auditSitemaps)
+      .values(row)
+      .onConflictDoUpdate({ target: auditSitemaps.id, set: dataColumns });
+  });
 }
 
 async function insertIssues(auditId: string, issues: DetectedIssue[]) {
@@ -428,6 +506,7 @@ export const AuditRepository = {
   failAudit,
   getAuditForWorkflow,
   insertCrawledBatch,
+  insertSiteFiles,
   insertIssues,
   insertLighthouseResults,
   getAuditForProject,

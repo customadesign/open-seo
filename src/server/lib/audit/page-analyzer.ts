@@ -13,7 +13,7 @@
  */
 import { Parser } from "htmlparser2";
 import { normalizeUrl, isSameOrigin } from "./url-utils";
-import type { PageAnalysis, PageLink } from "./types";
+import type { PageAnalysis, PageLink, PageResponseHeaders } from "./types";
 
 const SKIPPED_LINK_PROTOCOLS = /^(javascript:|mailto:|tel:|#)/;
 /** Subtrees whose text is not visible content. */
@@ -76,6 +76,46 @@ function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+const utf8 = new TextEncoder();
+
+function utf8ByteLength(text: string): number {
+  return utf8.encode(text).byteLength;
+}
+
+function detectDoctype(html: string): boolean {
+  return /<!doctype\b/i.test(html.slice(0, 4_096));
+}
+
+function charsetFromContentType(content: string): string | null {
+  const match = content.match(/charset\s*=\s*["']?([^\s"';]+)/i);
+  return match?.[1]?.trim() || null;
+}
+
+function recordExternalImage(
+  src: string | undefined,
+  pageUrl: string,
+  pageHost: string | null,
+  externalImageSrcs: Set<string>,
+) {
+  if (!src) return;
+  const resolved = normalizeUrl(src, pageUrl);
+  if (!resolved || !pageHost) return;
+  try {
+    if (new URL(resolved).hostname.toLowerCase() !== pageHost) {
+      externalImageSrcs.add(resolved);
+    }
+  } catch {
+    // ignore unparseable image URLs
+  }
+}
+
+const EMPTY_RESPONSE_HEADERS: PageResponseHeaders = {
+  contentEncoding: null,
+  cacheControl: null,
+  xRobotsTag: null,
+  contentType: null,
+};
+
 /**
  * Analyze an HTML string and extract all SEO-relevant data.
  */
@@ -84,8 +124,13 @@ export function analyzeHtml(
   pageUrl: string,
   statusCode: number,
   responseTimeMs: number,
-  redirectUrl: string | null = null,
+  options: {
+    redirectUrl?: string | null;
+    responseHeaders?: PageResponseHeaders;
+  } = {},
 ): PageAnalysis {
+  const redirectUrl = options.redirectUrl ?? null;
+  const responseHeaders = options.responseHeaders ?? EMPTY_RESPONSE_HEADERS;
   let title: string | null = null;
   let titleDepth = 0;
   let titleDone = false;
@@ -114,6 +159,22 @@ export function analyzeHtml(
   const contentExternalLinkTargets = new Set<string>();
   const isHttpsPage = pageUrl.toLowerCase().startsWith("https://");
   const hreflangTags: string[] = [];
+  let charset: string | null = null;
+  let hasMetaRefresh = false;
+  let frameCount = 0;
+  let inlineScriptBytes = 0;
+  let inlineStyleBytes = 0;
+  let scriptDepth = 0;
+  let styleDepth = 0;
+  const scriptUrls = new Set<string>();
+  const stylesheetUrls = new Set<string>();
+  const externalImageSrcs = new Set<string>();
+  let pageHost: string | null = null;
+  try {
+    pageHost = new URL(pageUrl).hostname.toLowerCase();
+  } catch {
+    pageHost = null;
+  }
 
   const h1s: string[] = [];
   const headingOrder: number[] = [];
@@ -142,6 +203,16 @@ export function analyzeHtml(
 
   const handleMetaTag = (attribs: Record<string, string>) => {
     const content = attribs["content"];
+    if (attribs["charset"]?.trim()) {
+      charset ??= attribs["charset"].trim();
+    }
+    const httpEquiv = attribs["http-equiv"]?.toLowerCase();
+    if (httpEquiv === "content-type" && content) {
+      charset ??= charsetFromContentType(content);
+    }
+    if (httpEquiv === "refresh") {
+      hasMetaRefresh = true;
+    }
     if (attribs["name"] === "description") {
       metaDescription ??= content?.trim() ?? "";
     } else if (attribs["name"] === "robots") {
@@ -170,8 +241,13 @@ export function analyzeHtml(
     } else if (attribs["rel"] === "alternate" && attribs["hreflang"]) {
       hreflangTags.push(attribs["hreflang"]);
     }
-    if (attribs["rel"]?.split(/\s+/).includes("author")) {
+    const relTokens = attribs["rel"]?.split(/\s+/) ?? [];
+    if (relTokens.includes("author")) {
       hasAuthorSignal = true;
+    }
+    if (relTokens.includes("stylesheet") && attribs["href"]) {
+      const resolved = normalizeUrl(attribs["href"], pageUrl);
+      if (resolved) stylesheetUrls.add(resolved);
     }
   };
 
@@ -299,11 +375,22 @@ export function analyzeHtml(
               src: attribs["src"] ?? null,
               alt: "alt" in attribs ? attribs["alt"] : null,
             });
+            recordExternalImage(
+              attribs["src"],
+              pageUrl,
+              pageHost,
+              externalImageSrcs,
+            );
             if (openAnchor && attribs["alt"]?.trim()) {
               openAnchor.text.push(attribs["alt"]);
             }
             break;
           case "script":
+            scriptDepth += 1;
+            if (attribs["src"]) {
+              const resolved = normalizeUrl(attribs["src"], pageUrl);
+              if (resolved) scriptUrls.add(resolved);
+            }
             if (
               attribs["type"]?.split(";", 1)[0].trim().toLowerCase() ===
               "application/ld+json"
@@ -313,6 +400,14 @@ export function analyzeHtml(
               jsonLdChars = 0;
               jsonLdTruncated = false;
             }
+            break;
+          case "style":
+            styleDepth += 1;
+            break;
+          case "frame":
+          case "frameset":
+          case "iframe":
+            frameCount += 1;
             break;
           case "ol":
           case "ul":
@@ -360,8 +455,11 @@ export function analyzeHtml(
             jsonLdChars += Math.min(text.length, remaining);
           }
           if (text.length > remaining) jsonLdTruncated = true;
+          inlineScriptBytes += utf8ByteLength(text);
           return;
         }
+        if (scriptDepth > 0) inlineScriptBytes += utf8ByteLength(text);
+        if (styleDepth > 0) inlineStyleBytes += utf8ByteLength(text);
         if (suppressDepth > 0) return;
         if (titleDepth > 0) {
           if (title !== null) title += text;
@@ -376,7 +474,11 @@ export function analyzeHtml(
         }
       },
       onclosetag(name) {
-        if (name === "script") closeJsonLd();
+        if (name === "script") {
+          closeJsonLd();
+          if (scriptDepth > 0) scriptDepth -= 1;
+        }
+        if (name === "style" && styleDepth > 0) styleDepth -= 1;
         if (NON_CONTENT_TAGS.has(name) && suppressDepth > 0) {
           suppressDepth -= 1;
         }
@@ -450,5 +552,18 @@ export function analyzeHtml(
     mixedContentCount,
     contentExternalLinkTargets: Array.from(contentExternalLinkTargets),
     hreflangTags,
+    htmlBytes: utf8ByteLength(html),
+    hasDoctype: detectDoctype(html),
+    charset,
+    hasMetaRefresh,
+    frameCount,
+    scriptUrls: Array.from(scriptUrls),
+    stylesheetUrls: Array.from(stylesheetUrls),
+    inlineScriptBytes,
+    inlineStyleBytes,
+    textBytes: utf8ByteLength(bodyText),
+    imageCount: images.length,
+    externalImageSrcs: Array.from(externalImageSrcs),
+    responseHeaders,
   };
 }

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- page-reporter fixtures and per-check cases share one file */
 import { describe, expect, it } from "vitest";
 import { runPageReporters } from "@/server/lib/audit/issues/page-reporters";
 import {
@@ -63,6 +64,22 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     responseTimeMs: 200,
     crawlDepth: 1,
     inSitemap: true,
+    hasDoctype: true,
+    charset: "utf-8",
+    hasMetaRefresh: false,
+    frameCount: 0,
+    scriptUrls: [],
+    stylesheetUrls: [],
+    inlineScriptBytes: 0,
+    inlineStyleBytes: 0,
+    textBytes: 5_000,
+    externalImageSrcs: [],
+    responseHeaders: {
+      contentEncoding: "gzip",
+      cacheControl: null,
+      xRobotsTag: null,
+      contentType: "text/html",
+    },
     ...overrides,
   };
 }
@@ -285,6 +302,45 @@ describe("runPageReporters", () => {
         }),
       ),
     ).not.toContain("missing-entity-schema");
+  });
+
+  it("flags document, URL, and header capture checks", () => {
+    const types = issueTypes(
+      makePage({
+        url:
+          "https://example.com/too_long_path".padEnd(210, "x") +
+          "?a=1&b=2&c=3&d=4",
+        hasDoctype: false,
+        charset: null,
+        hasMetaRefresh: true,
+        frameCount: 2,
+        htmlBytes: 3 * 1024 * 1024,
+        textBytes: 100,
+        responseHeaders: {
+          contentEncoding: null,
+          cacheControl: null,
+          xRobotsTag: "noindex, nofollow",
+          contentType: "text/html",
+        },
+        xRobotsTag: "noindex, nofollow",
+      }),
+    );
+
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "missing-doctype",
+        "missing-charset",
+        "meta-refresh-present",
+        "page-has-frames",
+        "html-size-too-large",
+        "low-text-to-html-ratio",
+        "url-too-long",
+        "url-has-underscores",
+        "url-too-many-parameters",
+        "noindex-via-x-robots-tag",
+        "page-not-compressed",
+      ]),
+    );
   });
 });
 

@@ -61,4 +61,85 @@ describe("runSitewideChecks", () => {
       }),
     ).toEqual([]);
   });
+
+  it("flags robots and sitemap snapshot problems", () => {
+    const issues = runSitewideChecks({
+      origin: "https://example.com",
+      aiCrawlerAccess: [],
+      llmsTxt: { available: true, statusCode: 200 },
+      siteFiles: {
+        robots: {
+          found: true,
+          statusCode: 200,
+          parseError: "robots.txt looks like HTML",
+          hasSitemapDirective: false,
+          sitemapUrls: [],
+          disallowedPaths: [],
+        },
+        sitemaps: [
+          {
+            url: "https://example.com/sitemap.xml",
+            found: true,
+            statusCode: 200,
+            parseError: "not valid sitemap XML",
+            entryCount: 60_000,
+            byteSize: 51 * 1024 * 1024,
+            httpUrlCount: 3,
+            isIndex: false,
+          },
+        ],
+      },
+    });
+
+    expect(issues.map((issue) => issue.issueType)).toEqual(
+      expect.arrayContaining([
+        "robots-invalid",
+        "sitemap-not-in-robots",
+        "sitemap-invalid",
+        "sitemap-too-large",
+        "sitemap-http-urls-on-https-site",
+      ]),
+    );
+    expect(issues.map((issue) => issue.issueType)).not.toContain(
+      "robots-missing",
+    );
+    expect(issues.map((issue) => issue.issueType)).not.toContain(
+      "sitemap-missing",
+    );
+  });
+
+  it("flags a missing robots.txt and default sitemap", () => {
+    const issues = runSitewideChecks({
+      origin: "https://example.com",
+      aiCrawlerAccess: [],
+      llmsTxt: { available: true, statusCode: 200 },
+      siteFiles: {
+        robots: {
+          found: false,
+          statusCode: 404,
+          parseError: null,
+          hasSitemapDirective: false,
+          sitemapUrls: [],
+          disallowedPaths: [],
+        },
+        sitemaps: [
+          {
+            url: "https://example.com/sitemap.xml",
+            found: false,
+            statusCode: 404,
+            parseError: null,
+            entryCount: 0,
+            byteSize: 0,
+            httpUrlCount: 0,
+            isIndex: false,
+          },
+        ],
+      },
+    });
+
+    expect(issues.map((issue) => issue.issueType)).toEqual([
+      "robots-missing",
+      "sitemap-missing",
+    ]);
+  });
 });

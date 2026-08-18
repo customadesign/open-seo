@@ -120,6 +120,25 @@ export const auditPages = sqliteTable(
       .default("ok"),
     // Performance
     responseTimeMs: integer("response_time_ms"),
+    // Document / resource signals captured during crawl for later slices
+    htmlBytes: integer("html_bytes").notNull().default(0),
+    hasDoctype: integer("has_doctype", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    charset: text("charset"),
+    hasMetaRefresh: integer("has_meta_refresh", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    frameCount: integer("frame_count").notNull().default(0),
+    scriptUrlsJson: text("script_urls_json"),
+    stylesheetUrlsJson: text("stylesheet_urls_json"),
+    inlineScriptBytes: integer("inline_script_bytes").notNull().default(0),
+    inlineStyleBytes: integer("inline_style_bytes").notNull().default(0),
+    textBytes: integer("text_bytes").notNull().default(0),
+    externalImageSrcsJson: text("external_image_srcs_json"),
+    contentEncoding: text("content_encoding"),
+    cacheControl: text("cache_control"),
+    contentType: text("content_type"),
   },
   (table) => [index("audit_pages_audit_url_idx").on(table.auditId, table.url)],
 );
@@ -239,5 +258,66 @@ export const auditSchedules = sqliteTable(
   (table) => [
     uniqueIndex("audit_schedules_project_id_idx").on(table.projectId),
     index("audit_schedules_due_idx").on(table.isActive, table.nextRunAt),
+  ],
+);
+
+/**
+ * One robots.txt snapshot per audit run. Fetched once during discovery so
+ * later slices can read disallowed paths and sitemap directives without
+ * re-fetching.
+ */
+export const auditRobots = sqliteTable(
+  "audit_robots",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    found: integer("found", { mode: "boolean" }).notNull().default(false),
+    statusCode: integer("status_code"),
+    parseError: text("parse_error"),
+    hasSitemapDirective: integer("has_sitemap_directive", { mode: "boolean" })
+      .notNull()
+      .default(false),
+  },
+  (table) => [uniqueIndex("audit_robots_audit_id_idx").on(table.auditId)],
+);
+
+export const auditRobotsDisallows = sqliteTable(
+  "audit_robots_disallows",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    userAgent: text("user_agent").notNull(),
+    path: text("path").notNull(),
+  },
+  (table) => [index("audit_robots_disallows_audit_id_idx").on(table.auditId)],
+);
+
+/**
+ * One row per sitemap document fetched for an audit (default /sitemap.xml
+ * plus any Sitemap: URLs from robots.txt, including nested index children).
+ */
+export const auditSitemaps = sqliteTable(
+  "audit_sitemaps",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    found: integer("found", { mode: "boolean" }).notNull().default(false),
+    statusCode: integer("status_code"),
+    parseError: text("parse_error"),
+    entryCount: integer("entry_count").notNull().default(0),
+    byteSize: integer("byte_size").notNull().default(0),
+    httpUrlCount: integer("http_url_count").notNull().default(0),
+    isIndex: integer("is_index", { mode: "boolean" }).notNull().default(false),
+  },
+  (table) => [
+    index("audit_sitemaps_audit_id_idx").on(table.auditId),
+    uniqueIndex("audit_sitemaps_audit_url_idx").on(table.auditId, table.url),
   ],
 );
