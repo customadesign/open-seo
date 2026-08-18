@@ -9,6 +9,7 @@ import { Ga4DashboardSummaryService } from "./Ga4DashboardSummaryService";
 
 const mocks = vi.hoisted(() => ({
   getByProjectId: vi.fn(),
+  recordDashboardChanges: vi.fn(),
   runReport:
     vi.fn<(request: Ga4RunReportRequest) => Promise<Ga4RunReportResponse>>(),
   batchRunReports:
@@ -23,6 +24,12 @@ vi.mock("@/server/features/ga4/repositories/Ga4ConnectionRepository", () => ({
 
 vi.mock("@/server/lib/ga4Client", () => ({
   createGa4DataClient: () => ({ batchRunReports: mocks.batchRunReports }),
+}));
+
+vi.mock("./Ga4ChangeEventService", () => ({
+  Ga4ChangeEventService: {
+    recordDashboardChanges: mocks.recordDashboardChanges,
+  },
 }));
 
 function responseFor(
@@ -48,6 +55,7 @@ function responseFor(
 describe("GA4 dashboard conversion events", () => {
   beforeEach(() => {
     mocks.getByProjectId.mockResolvedValue(makeGa4Connection());
+    mocks.recordDashboardChanges.mockResolvedValue({ recorded: 0 });
     mocks.batchRunReports.mockImplementation(async (requests) => ({
       reports: await Promise.all(
         requests.map((request) => mocks.runReport(request)),

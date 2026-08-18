@@ -15,6 +15,7 @@ import {
   type NormalizedGa4Report,
   normalizeGa4Response,
 } from "./Ga4ReportNormalization";
+import { Ga4ChangeEventService } from "./Ga4ChangeEventService";
 import { mapGa4ReportError, resolveGa4DateRange } from "./Ga4ReportingService";
 
 const DASHBOARD_METRICS = [
@@ -225,15 +226,33 @@ async function getDashboardGa4Summary(
     const conversionEvents = conversionEventBreakdown(conversions);
     const conversionEventsTruncated =
       conversions.totalRowCount > conversions.rows.length;
+    const period = {
+      startDate: currentDateRange.startDate,
+      endDate: currentDateRange.endDate,
+      previousStartDate: previousDateRange.startDate,
+      previousEndDate: previousDateRange.endDate,
+    };
+
+    try {
+      await Ga4ChangeEventService.recordDashboardChanges({
+        projectId: input.projectId,
+        propertyId: connection.propertyId,
+        period,
+        current: currentMetrics,
+        previous: previousMetrics,
+        currentMetadata: current.reportMetadata,
+        previousMetadata: previous.reportMetadata,
+      });
+    } catch (error) {
+      console.error(
+        `Project ${input.projectId}: failed to record GA4 change events`,
+        error,
+      );
+    }
 
     return {
       status: "ok" as const,
-      period: {
-        startDate: currentDateRange.startDate,
-        endDate: currentDateRange.endDate,
-        previousStartDate: previousDateRange.startDate,
-        previousEndDate: previousDateRange.endDate,
-      },
+      period,
       property: {
         id: connection.propertyId,
         displayName: connection.propertyDisplayName,

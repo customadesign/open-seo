@@ -14,6 +14,7 @@ import { Ga4DashboardSummaryService } from "./Ga4DashboardSummaryService";
 
 const mocks = vi.hoisted(() => ({
   getByProjectId: vi.fn(),
+  recordDashboardChanges: vi.fn(),
   runReport:
     vi.fn<(request: Ga4RunReportRequest) => Promise<Ga4RunReportResponse>>(),
   batchRunReports:
@@ -28,6 +29,12 @@ vi.mock("@/server/features/ga4/repositories/Ga4ConnectionRepository", () => ({
 
 vi.mock("@/server/lib/ga4Client", () => ({
   createGa4DataClient: () => ({ batchRunReports: mocks.batchRunReports }),
+}));
+
+vi.mock("./Ga4ChangeEventService", () => ({
+  Ga4ChangeEventService: {
+    recordDashboardChanges: mocks.recordDashboardChanges,
+  },
 }));
 
 const connection = makeGa4Connection();
@@ -86,6 +93,7 @@ function listResponse(
 describe("Ga4DashboardSummaryService", () => {
   beforeEach(() => {
     mocks.getByProjectId.mockResolvedValue(connection);
+    mocks.recordDashboardChanges.mockResolvedValue({ recorded: 0 });
     mocks.batchRunReports.mockImplementation(async (requests) => ({
       reports: await Promise.all(
         requests.map((request) => mocks.runReport(request)),
@@ -328,6 +336,25 @@ describe("Ga4DashboardSummaryService", () => {
       code: "ga4_quota_exhausted",
       retryAfterSeconds: 90,
     });
+  });
+
+  it("still returns the dashboard summary when change-event recording fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.recordDashboardChanges.mockRejectedValueOnce(
+      new Error("change event write failed"),
+    );
+    mocks.runReport.mockImplementation(async (request) =>
+      request.dimensions.length > 0
+        ? responseFor(request, { rowCount: 0 })
+        : aggregateResponse(request, ["80", "5", "0.0625", "0.625"]),
+    );
+
+    const result = await Ga4DashboardSummaryService.getDashboardGa4Summary({
+      projectId: "project_1",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(result.metrics.visits).toBe(80);
   });
 });
 
