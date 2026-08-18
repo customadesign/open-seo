@@ -143,7 +143,7 @@ function buildEvent(input: {
     eventType: `ga4.${copy.eventKey}.${gained ? "increase" : "decline"}`,
     severity: gained ? "opportunity" : "warning",
     title: `${copy.noun} ${gained ? "rose" : "fell"} ${magnitude}`,
-    summary: `${copy.noun} moved from ${values} versus ${formatRange(input.period.previousStartDate, input.period.previousEndDate)} compared with ${formatRange(input.period.startDate, input.period.endDate)}.`,
+    summary: `${copy.noun} moved from ${values}. Current period: ${formatRange(input.period.startDate, input.period.endDate)}. Previous period: ${formatRange(input.period.previousStartDate, input.period.previousEndDate)}.`,
     metricKey: input.metricKey,
     previousNumericValue: input.previous,
     currentNumericValue: input.current,

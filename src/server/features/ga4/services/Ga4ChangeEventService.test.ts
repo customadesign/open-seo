@@ -223,8 +223,12 @@ describe("analyzeGa4DashboardChanges", () => {
       title: "Sessions fell 30%",
     });
     expect(event?.summary).toContain("80 → 56");
-    expect(event?.summary).toContain("2026-06-11 to 2026-07-08");
-    expect(event?.summary).toContain("2026-07-09 to 2026-08-05");
+    expect(event?.summary).toContain(
+      "Current period: 2026-07-09 to 2026-08-05",
+    );
+    expect(event?.summary).toContain(
+      "Previous period: 2026-06-11 to 2026-07-08",
+    );
   });
 
   it("builds a deterministic dedupe key and stays within four events", () => {

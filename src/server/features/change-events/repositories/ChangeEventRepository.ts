@@ -5,7 +5,7 @@ import {
   eq,
   gte,
   isNull,
-  lte,
+  lt,
   type InferInsertModel,
 } from "drizzle-orm";
 import { db } from "@/db";
@@ -95,7 +95,7 @@ function reportPeriodWhere(input: {
   return and(
     eq(projectChangeEvents.projectId, input.projectId),
     gte(projectChangeEvents.occurredAt, input.periodStart),
-    lte(projectChangeEvents.occurredAt, input.periodEnd),
+    lt(projectChangeEvents.occurredAt, input.periodEnd),
   );
 }
 
@@ -103,7 +103,9 @@ function clampedReportLimit(limit: number) {
   return Math.min(Math.max(Math.trunc(limit), 1), CHANGE_EVENT_REPORT_LIMIT);
 }
 
-/** Immutable project events for a report period. Never joins per-user state. */
+/** Immutable project events for [periodStart, periodEnd). Never joins per-user
+ * state, and the half-open interval prevents adjacent digests duplicating a
+ * boundary event. */
 async function listForReportPeriod(input: {
   projectId: string;
   periodStart: string;

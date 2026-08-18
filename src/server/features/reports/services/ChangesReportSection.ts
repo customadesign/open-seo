@@ -3,16 +3,9 @@ import type { ReportSectionLoadResult } from "../ReportSnapshotAssembler";
 type ReportChangeEvent = {
   occurredAt: string;
   source: string;
-  eventType: string;
   severity: string;
   title: string;
   summary: string;
-  entityType: string | null;
-  entityId: string | null;
-  metricKey: string | null;
-  previousNumericValue: number | null;
-  currentNumericValue: number | null;
-  unit: string | null;
 };
 
 type ReportChangeGroup = {
@@ -59,16 +52,9 @@ export function toChangesSectionResult(
       events: events.map((event) => ({
         occurredAt: event.occurredAt,
         source: event.source,
-        eventType: event.eventType,
         severity: event.severity,
         title: event.title,
         summary: event.summary,
-        entityType: event.entityType,
-        entityId: event.entityId,
-        metricKey: event.metricKey,
-        previousNumericValue: event.previousNumericValue,
-        currentNumericValue: event.currentNumericValue,
-        unit: event.unit,
       })),
     },
   };

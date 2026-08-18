@@ -202,7 +202,7 @@ describe("ChangeEventRepository report period queries", () => {
     ]);
   });
 
-  it("includes events on both period endpoints and excludes neighbors", async () => {
+  it("includes the start and excludes the end of a report period", async () => {
     await insertReportEvent({
       id: "event-before",
       occurredAt: "2026-08-10T23:59:59.999Z",
@@ -225,7 +225,6 @@ describe("ChangeEventRepository report period queries", () => {
       limit: 50,
     });
     expect(rows.map((row) => row.id)).toEqual([
-      "event-end",
       "event-1",
       "event-2",
       "event-start",

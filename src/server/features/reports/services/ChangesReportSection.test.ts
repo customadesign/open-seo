@@ -65,9 +65,6 @@ describe("toChangesSectionResult", () => {
             title: "Ranks dropped",
             source: "rank_tracking",
             severity: "critical",
-            metricKey: "issue_count",
-            previousNumericValue: 1,
-            currentNumericValue: 2,
           }),
           expect.objectContaining({
             title: "New issues",
@@ -77,5 +74,18 @@ describe("toChangesSectionResult", () => {
         ],
       },
     });
+    if (result.status !== "available") throw new Error("Expected report data");
+    if (
+      typeof result.data !== "object" ||
+      result.data === null ||
+      !("events" in result.data) ||
+      !Array.isArray(result.data.events)
+    ) {
+      throw new Error("Expected change-event rows");
+    }
+    const rows = result.data.events;
+    expect(rows[0]).not.toHaveProperty("eventType");
+    expect(rows[0]).not.toHaveProperty("entityId");
+    expect(rows[0]).not.toHaveProperty("metricKey");
   });
 });
