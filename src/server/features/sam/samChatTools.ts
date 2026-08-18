@@ -9,6 +9,14 @@ import { estimateBacklinksBulkAnalysisTool } from "@/server/mcp/tools/estimate-b
 import { getBacklinksAnchorsTool } from "@/server/mcp/tools/get-backlinks-anchors";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
+import {
+  estimateBacklinkGapTool,
+  getBacklinkGapTool,
+} from "@/server/mcp/tools/backlink-gap-tools";
+import {
+  estimateKeywordGapTool,
+  getKeywordGapTool,
+} from "@/server/mcp/tools/keyword-gap-tools";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
 import { getDomainOverviewTool } from "@/server/mcp/tools/get-domain-overview";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
@@ -220,6 +228,10 @@ export function buildSamMcpTools(
       estimateBacklinksBulkAnalysisTool,
     ),
     analyze_backlinks_bulk: adaptTool(analyzeBacklinksBulkTool),
+    estimate_keyword_gap: adaptTool(estimateKeywordGapTool),
+    get_keyword_gap: adaptTool(getKeywordGapTool),
+    estimate_backlink_gap: adaptTool(estimateBacklinkGapTool),
+    get_backlink_gap: adaptTool(getBacklinkGapTool),
     get_serp_results: adaptTool(getSerpResultsTool),
     get_rank_tracker: adaptTool(getRankTrackerTool),
     get_rank_cannibalization: adaptTool(getRankCannibalizationTool),
