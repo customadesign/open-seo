@@ -101,6 +101,16 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       rankOverview: meter(customer, (s) => s.fetchDomainRankOverview),
       rankedKeywords: meter(customer, (s) => s.fetchRankedKeywords),
       relevantPages: meter(customer, (s) => s.fetchRelevantPages),
+      competitors: meter(customer, (s) => s.fetchCompetitorsDomain),
+      subdomains: meter(customer, (s) => s.fetchSubdomains),
+      historicalRankOverview: meter(
+        customer,
+        (s) => s.fetchHistoricalRankOverview,
+      ),
+      bulkTrafficEstimation: meter(
+        customer,
+        (s) => s.fetchBulkTrafficEstimation,
+      ),
     },
     serp: {
       live: meter(customer, (s) => s.fetchLiveSerp),

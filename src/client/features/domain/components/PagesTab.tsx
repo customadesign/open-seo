@@ -16,6 +16,7 @@ import {
   useDomainRenderDebug,
 } from "@/client/features/domain/domainDebug";
 import { useDomainPagesQuery } from "@/client/features/domain/hooks/useDomainPagesQuery";
+import { useDomainPagesExtrasQuery } from "@/client/features/domain/hooks/useDomainReportQueries";
 import { useDomainPageFilterPreferences } from "@/client/features/domain/useDomainFilterPreferences";
 import {
   type DomainSortMode,
@@ -105,7 +106,32 @@ export function PagesTab({
     enabled: Boolean(domain),
   });
 
-  const rows = query.data?.pages ?? EMPTY_PAGES_ROWS;
+  const extrasQuery = useDomainPagesExtrasQuery({
+    projectId,
+    domain,
+    includeSubdomains: routeState.subdomains,
+    locationCode: routeState.sentLocationCode,
+  });
+  const extrasByUrl = useMemo(() => {
+    const map = new Map(
+      (extrasQuery.data?.pages ?? []).map((page) => [page.page, page]),
+    );
+    return map;
+  }, [extrasQuery.data?.pages]);
+
+  const rows = useMemo(() => {
+    const pages = query.data?.pages ?? EMPTY_PAGES_ROWS;
+    return pages.map((page) => {
+      const extra = extrasByUrl.get(page.page);
+      if (!extra) return page;
+      return {
+        ...page,
+        status: extra.status,
+        previousTraffic: extra.previousTraffic,
+        trafficDelta: extra.trafficDelta,
+      };
+    });
+  }, [extrasByUrl, query.data?.pages]);
   const totalCount = query.data?.totalCount ?? null;
   const hasNextPage = query.data?.hasMore ?? false;
   const isLoading = query.isFetching;
@@ -242,6 +268,16 @@ export function PagesTab({
           onSortClick={onSortClick}
         />
       </DomainTableTabSurface>
+      {extrasQuery.data ? (
+        <div className="px-4 py-3 text-sm text-base-content/70 border-t border-base-300">
+          Page changes compare this month&apos;s top 100 pages
+          {extrasQuery.data.previousPeriod
+            ? ` with ${extrasQuery.data.previousPeriod}`
+            : " — a previous month is needed before new/lost pages appear"}
+          . DataForSEO only serves Google organic pages, so there is no source
+          filter.
+        </div>
+      ) : null}
     </>
   );
 }

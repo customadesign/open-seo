@@ -37,6 +37,7 @@ const DEFAULT_DOMAIN_SEARCH = {
   pMaxTraffic: undefined,
   pMinVol: undefined,
   pMaxVol: undefined,
+  compare: "",
 } as const;
 
 export const Route = createFileRoute("/_project/p/$projectId/domain")({

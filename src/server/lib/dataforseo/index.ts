@@ -43,6 +43,10 @@ export type {
   LabsKeywordDataItem,
   DomainRankedKeywordItem,
   RelevantPagesItem,
+  CompetitorsDomainItem,
+  SubdomainsItem,
+  HistoricalRankOverviewItem,
+  BulkTrafficEstimationItem,
 } from "@/server/lib/dataforseo/labs";
 
 export type { AdsKeywordIdeaItem } from "@/server/lib/dataforseo/google-ads";

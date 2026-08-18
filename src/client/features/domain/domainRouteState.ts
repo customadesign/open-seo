@@ -38,6 +38,7 @@ export type DomainOverviewRouteState = {
   appliedPageFilters: PagesFilterValues;
   hasAppliedKeywordFilters: boolean;
   hasAppliedPageFilters: boolean;
+  compareDomains: string[];
 };
 
 function numberToFilterString(value: number | undefined): string {
@@ -95,7 +96,20 @@ export function getDomainRouteState(
     },
     hasAppliedKeywordFilters: hasKeywordSearchFilters(search),
     hasAppliedPageFilters: hasPageSearchFilters(search),
+    compareDomains: parseCompareDomains(search.compare),
   };
+}
+
+function parseCompareDomains(value: string | undefined): string[] {
+  if (!value) return [];
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ].slice(0, 4);
 }
 
 function hasKeywordSearchFilters(search: DomainSearchParams): boolean {

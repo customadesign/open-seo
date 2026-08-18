@@ -3,6 +3,7 @@ export function getFixtureOverview(domain: string) {
     domain,
     organicTraffic: 373,
     organicKeywords: 307,
+    trafficCost: 128.4,
     backlinks: null,
     referringDomains: null,
     hasData: true,

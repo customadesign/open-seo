@@ -95,6 +95,15 @@ export function formatMetric(
   return formatRounded(value);
 }
 
+export function formatCurrency(value: number | null | undefined) {
+  if (value == null) return "-";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 type ExportTable = { headers: string[]; rows: (string | number | null)[][] };
 
 export function keywordsToTable(rows: KeywordRow[]): ExportTable {

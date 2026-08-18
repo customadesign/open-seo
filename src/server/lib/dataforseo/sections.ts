@@ -26,7 +26,9 @@ export {
 
 export {
   fetchBulkTrafficEstimation,
+  fetchCompetitorsDomain,
   fetchDomainRankOverview,
+  fetchHistoricalRankOverview,
   fetchKeywordIdeas,
   fetchKeywordOverview,
   fetchKeywordSuggestions,
@@ -34,6 +36,7 @@ export {
   fetchRelatedKeywords,
   fetchRelevantPages,
   fetchSerpCompetitors,
+  fetchSubdomains,
 } from "@/server/lib/dataforseo/labs";
 
 export {

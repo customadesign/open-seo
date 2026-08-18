@@ -23,11 +23,19 @@ import { DomainHistorySection } from "@/client/features/domain/components/Domain
 import { DomainSearchCard } from "@/client/features/domain/components/DomainSearchCard";
 import { KeywordsTab } from "@/client/features/domain/components/KeywordsTab";
 import { PagesTab } from "@/client/features/domain/components/PagesTab";
+import { PositionChangesTab } from "@/client/features/domain/components/PositionChangesTab";
+import { CompetitorsTab } from "@/client/features/domain/components/CompetitorsTab";
+import { IntentTab } from "@/client/features/domain/components/IntentTab";
+import { SerpFeaturesTab } from "@/client/features/domain/components/SerpFeaturesTab";
+import { SubdomainsTab } from "@/client/features/domain/components/SubdomainsTab";
+import { CompareTab } from "@/client/features/domain/components/CompareTab";
 import { StatCard } from "@/client/features/domain/components/StatCard";
+import { DOMAIN_REPORT_TABS } from "@/client/features/domain/types";
 import { SearchTabStrip } from "@/client/features/search-tabs/SearchTabStrip";
 import type { SearchTabInput } from "@/client/features/search-tabs/types";
 import { useSearchTabNavigation } from "@/client/features/search-tabs/useSearchTabNavigation";
 import {
+  formatCurrency,
   formatMetric,
   getDefaultSortOrder,
   normalizeDomainTarget,
@@ -111,7 +119,7 @@ function getTabSearchUpdate(
 
   const fallbackSortNeeded = KEYWORDS_ONLY_SORTS.has(currentSort);
   const update: DomainSearchUpdate = {
-    tab: "pages",
+    tab: nextTab,
     page: undefined,
   };
   if (fallbackSortNeeded) {
@@ -250,6 +258,15 @@ function useDomainOverviewState({
       setSearchParams(getTabSearchUpdate(nextTab, routeState.sort));
     },
     [routeState.sort, setSearchParams],
+  );
+
+  const handleCompareDomainsChange = useCallback(
+    (domains: string[]) => {
+      setSearchParams({
+        compare: domains.length > 0 ? domains.join(",") : undefined,
+      });
+    },
+    [setSearchParams],
   );
 
   const handleHistorySelect = useCallback(
@@ -402,6 +419,7 @@ function useDomainOverviewState({
     applySort,
     applyLocationChange,
     handleTabChange,
+    handleCompareDomainsChange,
     handleSortColumnClick,
     handleHistorySelect,
     handleSearchSubmit,
@@ -548,7 +566,7 @@ export function DomainOverviewPage({
         ) : (
           <>
             {tabControls}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <StatCard
                 label="Estimated Organic Traffic"
                 value={formatMetric(
@@ -563,6 +581,14 @@ export function DomainOverviewPage({
                   state.overview.hasData,
                 )}
               />
+              <StatCard
+                label="Traffic Cost"
+                value={
+                  state.overview.hasData
+                    ? formatCurrency(state.overview.trafficCost)
+                    : "Not enough data"
+                }
+              />
             </div>
 
             {!state.overview.hasData ? (
@@ -576,25 +602,22 @@ export function DomainOverviewPage({
 
             <div className="border border-base-300 rounded-xl bg-base-100 overflow-hidden">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 py-3 border-b border-base-300">
-                <div role="tablist" className="tabs tabs-border w-fit">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={routeState.tab === "keywords"}
-                    className={`tab ${routeState.tab === "keywords" ? "tab-active" : ""}`}
-                    onClick={() => state.handleTabChange("keywords")}
-                  >
-                    Top Keywords
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={routeState.tab === "pages"}
-                    className={`tab ${routeState.tab === "pages" ? "tab-active" : ""}`}
-                    onClick={() => state.handleTabChange("pages")}
-                  >
-                    Top Pages
-                  </button>
+                <div
+                  role="tablist"
+                  className="tabs tabs-border w-full flex-wrap"
+                >
+                  {DOMAIN_REPORT_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={routeState.tab === tab.id}
+                      className={`tab ${routeState.tab === tab.id ? "tab-active" : ""}`}
+                      onClick={() => state.handleTabChange(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -610,7 +633,7 @@ export function DomainOverviewPage({
                   onPageChange={state.goToPage}
                   onPageSizeChange={state.setPageSize}
                 />
-              ) : (
+              ) : routeState.tab === "pages" ? (
                 <PagesTab
                   key="pages"
                   projectId={projectId}
@@ -620,6 +643,49 @@ export function DomainOverviewPage({
                   onSortClick={state.handleSortColumnClick}
                   onPageChange={state.goToPage}
                   onPageSizeChange={state.setPageSize}
+                />
+              ) : routeState.tab === "changes" ? (
+                <PositionChangesTab
+                  projectId={projectId}
+                  domain={state.overview.domain}
+                  includeSubdomains={routeState.subdomains}
+                  locationCode={routeState.sentLocationCode}
+                />
+              ) : routeState.tab === "competitors" ? (
+                <CompetitorsTab
+                  projectId={projectId}
+                  domain={state.overview.domain}
+                  includeSubdomains={routeState.subdomains}
+                  locationCode={routeState.sentLocationCode}
+                />
+              ) : routeState.tab === "intent" ? (
+                <IntentTab
+                  projectId={projectId}
+                  domain={state.overview.domain}
+                  includeSubdomains={routeState.subdomains}
+                  locationCode={routeState.sentLocationCode}
+                />
+              ) : routeState.tab === "features" ? (
+                <SerpFeaturesTab
+                  projectId={projectId}
+                  domain={state.overview.domain}
+                  includeSubdomains={routeState.subdomains}
+                  locationCode={routeState.sentLocationCode}
+                />
+              ) : routeState.tab === "subdomains" ? (
+                <SubdomainsTab
+                  projectId={projectId}
+                  domain={state.overview.domain}
+                  locationCode={routeState.sentLocationCode}
+                />
+              ) : (
+                <CompareTab
+                  projectId={projectId}
+                  domain={state.overview.domain}
+                  includeSubdomains={routeState.subdomains}
+                  locationCode={routeState.sentLocationCode}
+                  compareDomains={routeState.compareDomains}
+                  onCompareDomainsChange={state.handleCompareDomainsChange}
                 />
               )}
             </div>
