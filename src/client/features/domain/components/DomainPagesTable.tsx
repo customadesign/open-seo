@@ -75,6 +75,17 @@ function DomainPagesTableComponent({
         ),
         cell: ({ getValue }) => formatNumber(getValue()),
       }),
+      pageColumnHelper.accessor("status", {
+        header: () => "Status",
+        cell: ({ getValue }) => {
+          const status = getValue();
+          return status ? <span className="capitalize">{status}</span> : "-";
+        },
+      }),
+      pageColumnHelper.accessor("trafficDelta", {
+        header: () => "Traffic Δ",
+        cell: ({ getValue }) => formatNumber(getValue()),
+      }),
     ],
     [currentSortOrder, domain, onSortClick, sortMode],
   );

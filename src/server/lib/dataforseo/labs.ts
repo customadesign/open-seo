@@ -31,6 +31,12 @@ type DomainMetricsItem = DataforseoLabsDomainRankOverviewLiveItem;
 export type RelevantPagesItem = DataforseoLabsRelevantPagesLiveItem;
 export type KeywordOverviewItem = DataforseoLabsGoogleKeywordOverviewLiveItem;
 type SerpCompetitorItem = DataforseoLabsSerpCompetitorsLiveItem;
+export type {
+  BulkTrafficEstimationItem,
+  CompetitorsDomainItem,
+  HistoricalRankOverviewItem,
+  SubdomainsItem,
+} from "@/server/lib/dataforseo/labs-domain-reports";
 
 // Ranked keywords is the one Labs endpoint the SDK types loosely: its
 // `ranked_serp_element.serp_item` is the base element item, so the url / etv /
@@ -38,10 +44,22 @@ type SerpCompetitorItem = DataforseoLabsSerpCompetitorsLiveItem;
 // domain-keyword mapper stays type-safe.
 const rankedSerpItemSchema = z
   .object({
+    type: z.string().nullable().optional(),
     url: z.string().nullable().optional(),
     relative_url: z.string().nullable().optional(),
     rank_absolute: z.number().nullable().optional(),
     etv: z.number().nullable().optional(),
+    estimated_paid_traffic_cost: z.number().nullable().optional(),
+    rank_changes: z
+      .object({
+        previous_rank_absolute: z.number().nullable().optional(),
+        is_new: z.boolean().nullable().optional(),
+        is_up: z.boolean().nullable().optional(),
+        is_down: z.boolean().nullable().optional(),
+      })
+      .passthrough()
+      .nullable()
+      .optional(),
   })
   .passthrough();
 
@@ -66,6 +84,13 @@ const domainRankedKeywordItemSchema = z
           .passthrough()
           .nullable()
           .optional(),
+        search_intent_info: z
+          .object({
+            main_intent: z.string().nullable().optional(),
+          })
+          .passthrough()
+          .nullable()
+          .optional(),
       })
       .passthrough()
       .nullable()
@@ -77,6 +102,10 @@ const domainRankedKeywordItemSchema = z
         relative_url: z.string().nullable().optional(),
         rank_absolute: z.number().nullable().optional(),
         etv: z.number().nullable().optional(),
+        serp_item_types: z.array(z.string()).nullable().optional(),
+        is_lost: z.boolean().nullable().optional(),
+        last_updated_time: z.string().nullable().optional(),
+        previous_updated_time: z.string().nullable().optional(),
       })
       .passthrough()
       .nullable()
@@ -212,6 +241,7 @@ export async function fetchRankedKeywords(input: {
   filters?: unknown[];
   itemTypes?: DataforseoLabsItemType[];
   includeSubdomains?: boolean;
+  historicalSerpMode?: "live" | "lost" | "all";
 }): Promise<DataforseoApiResponse<RankedKeywordsPage>> {
   const response = await labsApi().googleRankedKeywordsLive([
     new DataforseoLabsGoogleRankedKeywordsLiveRequestInfo({
@@ -224,6 +254,7 @@ export async function fetchRankedKeywords(input: {
       filters: input.filters,
       item_types: input.itemTypes,
       include_subdomains: input.includeSubdomains,
+      historical_serp_mode: input.historicalSerpMode,
     }),
   ]);
   const task = assertOk(response);
@@ -322,3 +353,10 @@ export async function fetchSerpCompetitors(input: {
     billing: buildTaskBilling(task),
   };
 }
+
+export {
+  fetchBulkTrafficEstimation,
+  fetchCompetitorsDomain,
+  fetchHistoricalRankOverview,
+  fetchSubdomains,
+} from "@/server/lib/dataforseo/labs-domain-reports";

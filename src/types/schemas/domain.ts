@@ -69,7 +69,16 @@ export const domainOverviewSchema = z.object({
 
 const domainSortModes = ["rank", "traffic", "volume", "score", "cpc"] as const;
 const domainSortOrders = ["asc", "desc"] as const;
-const domainTabs = ["keywords", "pages"] as const;
+const domainTabs = [
+  "keywords",
+  "pages",
+  "changes",
+  "competitors",
+  "intent",
+  "features",
+  "subdomains",
+  "compare",
+] as const;
 
 export const domainKeywordSuggestionsSchema = z.object({
   projectId: z.string().uuid(),
@@ -201,6 +210,23 @@ export const domainSearchSchema = z.object({
   pMaxTraffic: filterNumberParam,
   pMinVol: filterNumberParam,
   pMaxVol: filterNumberParam,
+  compare: filterStringParam,
 });
 
 export type DomainSearchParams = z.infer<typeof domainSearchSchema>;
+
+export const domainReportRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  domain: z.string().min(1).max(255),
+  includeSubdomains: z.boolean().default(true),
+  locationCode: z.number().int().positive().optional(),
+  languageCode: z.string().min(2).max(8).optional(),
+});
+
+export const domainCompareRequestSchema = domainReportRequestSchema.extend({
+  domains: z.array(z.string().min(1).max(255)).min(1).max(5),
+});
+
+export const domainBrandTokenRequestSchema = domainReportRequestSchema.extend({
+  token: z.string().min(1).max(64),
+});
