@@ -85,6 +85,33 @@ A prebuilt `dist/` is layered on top afterwards so the container does not spend
 minutes running `pnpm run build` at startup (see `docker-entrypoint.sh`). That
 layer comes from the same commit as the base.
 
+Shipping `dist/` alone is not enough. The entrypoint rebuilds unless
+`dist/.openseo-build-env` matches a hash of the build-relevant container env,
+because vite inlines those values into the bundle. The first real deploy shipped
+`dist/` without that marker, rebuilt anyway, and took ~230s to become healthy —
+the prebuilt layer bought nothing. `deploy.sh` now reproduces the fingerprint
+from the env the container will see (compose literals plus matching keys in the
+NAS `.env`) and writes the marker into the image.
+
+Keep that key list in sync with `docker-entrypoint.sh`. A mismatch is safe: the
+entrypoint simply rebuilds, as it did before. The tell is startup time — a
+matching marker starts in seconds, a missing one takes minutes.
+
+## Startup order
+
+The scheduler declares `depends_on: condition: service_healthy`, and compose
+waits only briefly. On a cold start that needs minutes, `docker compose up -d`
+reports `dependency failed to start`, exits non-zero, and anything chained after
+it never runs. On the first real deploy that left the app healthy, the stamp
+unwritten, and the scheduler down.
+
+`deploy.sh` therefore brings up `open-seo` alone, polls `/api/health` for up to
+six minutes, writes the stamp, and only then starts the scheduler — verifying it
+by looking for the process in the host process table, which needs neither docker
+nor sudo. A healthy app with a dead scheduler exits non-zero with instructions,
+because scheduled work silently not running is the failure mode most likely to
+go unnoticed.
+
 ## The stack
 
 `deploy/nas/compose.yaml` is the source of truth for what runs on the box, and

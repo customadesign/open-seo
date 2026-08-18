@@ -137,6 +137,31 @@ ctx="$(mktemp -d)"
 trap 'rm -rf "$ctx"' EXIT
 cp -R dist "$ctx/dist"
 : > "$ctx/.dockerignore"
+
+# docker-entrypoint.sh rebuilds unless dist/.openseo-build-env matches a hash of
+# the build-relevant container env, because vite inlines those values into the
+# bundle. Shipping dist without the marker means every start rebuilds and the
+# prebuilt layer buys nothing -- which is exactly what happened on the first
+# real deploy: ~230s to become healthy, and compose gave up waiting.
+#
+# Reproduce the entrypoint's fingerprint from the env the container will
+# actually see: the values compose sets literally, plus matching keys from the
+# NAS .env. Keep the key list in sync with docker-entrypoint.sh. A mismatch is
+# safe -- the entrypoint just rebuilds, the same as having no marker at all.
+echo "==> Computing build fingerprint"
+#
+# compose sets AUTH_MODE and VITE_SHOW_DEVTOOLS literally, and those win over
+# env_file, so they are excluded from the .env-derived half to avoid emitting a
+# key twice. `sort` (not `sort -u`) matches the entrypoint exactly.
+fingerprint="$(
+  {
+    echo "AUTH_MODE=local_noauth"
+    echo "VITE_SHOW_DEVTOOLS=false"
+    remote "grep -E '^(VITE_|BYPASS_EMAIL_VERIFICATION|POSTHOG_PUBLIC_KEY|POSTHOG_HOST|TURNSTILE_SITE_KEY|POSTHOG_SOURCEMAPS)=' '$NAS_DIR/.env' 2>/dev/null | grep -vE '^VITE_SHOW_DEVTOOLS=' || true"
+  } | sort | shasum -a 256 | cut -d' ' -f1
+)"
+printf '%s' "$fingerprint" > "$ctx/dist/.openseo-build-env"
+
 cat > "$ctx/Dockerfile" <<DOCKERFILE
 FROM $tag-base
 WORKDIR /app
@@ -165,13 +190,18 @@ fi
 echo "==> Loading and restarting (sudo password may be requested)"
 current="$(remote "grep '^OPEN_SEO_IMAGE=' '$NAS_DIR/.env' | cut -d= -f2-" | tr -d '[:space:]')"
 current_sha="$(remote "cat '$STAMP' 2>/dev/null || true" | tr -d '[:space:]')"
+# Start the app alone first. The scheduler declares depends_on
+# condition: service_healthy, and compose waits only briefly -- on a start that
+# needs minutes (migrations, or a bundle rebuild when the fingerprint misses)
+# compose reports "dependency failed to start", exits non-zero, and everything
+# chained after it is skipped. That is how the first real deploy left the stamp
+# unwritten and the scheduler down while the app itself came up fine.
 ssh -t "$NAS_HOST" "cd '$NAS_DIR' \
   && sudo docker load -i '$tarball' \
   && printf '%s' '$current' > .previous-image \
   && printf '%s' '$current_sha' > .previous-sha \
   && sed -i 's|^OPEN_SEO_IMAGE=.*|OPEN_SEO_IMAGE=$tag|' .env \
-  && sudo docker compose -f '$COMPOSE_FILE' up -d \
-  && printf '%s' '$sha' > '$STAMP' \
+  && sudo docker compose -f '$COMPOSE_FILE' up -d open-seo \
   && rm -f '$tarball'"
 
 # The container healthcheck would be the better signal, but reading it needs
@@ -180,15 +210,40 @@ ssh -t "$NAS_HOST" "cd '$NAS_DIR' \
 echo "==> Waiting for health"
 port="$(remote "grep '^PORT=' '$NAS_DIR/.env' | cut -d= -f2-" | tr -d '[:space:]')"
 port="${port:-3001}"
-for _ in $(seq 1 60); do
+# A cold start runs migrations and, on a fingerprint miss, a full bundle
+# rebuild. 6 minutes covers the ~230s observed on the first real deploy with
+# room to spare.
+healthy=0
+for _ in $(seq 1 72); do
   if remote "curl -sf --max-time 5 http://127.0.0.1:$port/api/health >/dev/null"; then
-    echo "open-seo healthy on $tag"
-    exit 0
+    healthy=1
+    break
   fi
   sleep 5
 done
 
-echo "Timed out waiting for health. Check:" >&2
-echo "  ssh $NAS_HOST \"cd $NAS_DIR && sudo docker compose -f $COMPOSE_FILE logs --tail=50\"" >&2
-echo "Roll back: $0 --rollback" >&2
-exit 1
+if [ "$healthy" != 1 ]; then
+  echo "Timed out waiting for health. Check:" >&2
+  echo "  ssh $NAS_HOST \"cd $NAS_DIR && sudo docker compose -f $COMPOSE_FILE logs --tail=50\"" >&2
+  echo "Roll back: $0 --rollback" >&2
+  exit 1
+fi
+
+# The app is up, so record it before touching the sidecar: a scheduler that
+# fails to start is worth reporting, but it does not change which commit is
+# serving traffic, and a missing stamp disarms the guard on the next deploy.
+remote "printf '%s' '$sha' > '$STAMP'"
+
+echo "==> Starting scheduler"
+ssh -t "$NAS_HOST" "cd '$NAS_DIR' && sudo docker compose -f '$COMPOSE_FILE' up -d open-seo-scheduler"
+
+# Container processes are visible in the host process table, so this needs
+# neither docker nor sudo.
+if [ "$(remote "ps -eo args | grep -c '[s]elfhost-scheduler'" | tr -d '[:space:]')" = "0" ]; then
+  echo "WARNING: open-seo is healthy on $tag, but the scheduler is not running." >&2
+  echo "Scheduled rank checks, geo-grids and monthly reports will not fire." >&2
+  echo "  ssh $NAS_HOST \"cd $NAS_DIR && sudo docker compose -f $COMPOSE_FILE up -d open-seo-scheduler\"" >&2
+  exit 1
+fi
+
+echo "open-seo healthy on $tag, scheduler running"
