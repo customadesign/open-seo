@@ -45,6 +45,8 @@ export {
 
 export { fetchLighthouseResult } from "@/server/lib/dataforseo/lighthouse";
 
+export { fetchAiVisibilityAnswer } from "@/server/lib/dataforseo/ai-visibility";
+
 export {
   fetchLlmAggregatedMetrics,
   fetchLlmCrossAggregatedMetrics,

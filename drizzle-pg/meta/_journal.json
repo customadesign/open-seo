@@ -169,6 +169,13 @@
       "when": 1786961497248,
       "tag": "0023_famous_prima",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787002309791,
+      "tag": "0024_dashboard_metric_parity",
+      "breakpoints": true
     }
   ]
 }

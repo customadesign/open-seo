@@ -4,17 +4,27 @@ import { backlinkSnapshots } from "@/db/schema";
 
 type BacklinkSnapshot = typeof backlinkSnapshots.$inferSelect;
 
+/** Newest first. Two rows is what the dashboard needs: latest and its delta. */
+async function getRecentForProject(
+  projectId: string,
+  limit: number,
+): Promise<BacklinkSnapshot[]> {
+  return (
+    db
+      .select()
+      .from(backlinkSnapshots)
+      .where(eq(backlinkSnapshots.projectId, projectId))
+      // id, not capturedAt: autoincrement is monotonic and immune to the
+      // sqlite-vs-pg timestamp text-format difference.
+      .orderBy(desc(backlinkSnapshots.id))
+      .limit(limit)
+  );
+}
+
 async function getLatestForProject(
   projectId: string,
 ): Promise<BacklinkSnapshot | null> {
-  const rows = await db
-    .select()
-    .from(backlinkSnapshots)
-    .where(eq(backlinkSnapshots.projectId, projectId))
-    // id, not capturedAt: autoincrement is monotonic and immune to the
-    // sqlite-vs-pg timestamp text-format difference.
-    .orderBy(desc(backlinkSnapshots.id))
-    .limit(1);
+  const rows = await getRecentForProject(projectId, 1);
   return rows[0] ?? null;
 }
 
@@ -29,6 +39,7 @@ async function insert(
 }
 
 export const BacklinkSnapshotRepository = {
+  getRecentForProject,
   getLatestForProject,
   insert,
 };

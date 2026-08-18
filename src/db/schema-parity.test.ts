@@ -4,6 +4,7 @@ import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
 import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
+import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as sqliteApp from "./app.schema";
 import * as sqliteAudit from "./audit.schema";
 import * as sqliteSam from "./sam.schema";
@@ -15,6 +16,7 @@ import * as sqliteTelemetry from "./telemetry.schema";
 import * as sqliteGoogleAds from "./google-ads.schema";
 import * as sqliteLocalSeo from "./local-seo.schema";
 import * as sqliteReports from "./report.schema";
+import * as pgAiVisibility from "./pg/ai-visibility.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -148,6 +150,7 @@ function checkNames(table: Table, dialect: Dialect): string[] {
 }
 
 const sqliteAppTables = tablesFrom(
+  sqliteAiVisibility,
   sqliteApp,
   sqliteAudit,
   sqliteSam,
@@ -160,6 +163,7 @@ const sqliteAppTables = tablesFrom(
   sqliteReports,
 );
 const pgAppTables = tablesFrom(
+  pgAiVisibility,
   pgApp,
   pgAudit,
   pgSam,

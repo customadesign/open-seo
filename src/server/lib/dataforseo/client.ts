@@ -131,6 +131,16 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       ),
       llmResponse: meter(customer, (s) => s.fetchLlmResponse),
     },
+    aiVisibility: {
+      // Google AI Mode is a /serp path, which the path→feature map would bill
+      // as keyword research; pin every provider to the prompt-response feature
+      // so one tracked run reports as one line item.
+      answer: meter(
+        customer,
+        (s) => s.fetchAiVisibilityAnswer,
+        "ai_prompt_responses",
+      ),
+    },
   } as const;
 }
 

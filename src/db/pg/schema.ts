@@ -1,3 +1,4 @@
+export * from "./ai-visibility.schema";
 export * from "./app.schema";
 export * from "./audit.schema";
 export * from "./sam.schema";

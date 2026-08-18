@@ -10,6 +10,7 @@ data, or sensitive paths.
 
 ## Open
 
+- [ ] `2026-08-18T00:42:30Z` — `codex` — Running the repository's expected Graphify-first codebase lookup creates a large untracked `graphify-out/` tree when no cached graph exists, obscuring the actual feature diff. Add `graphify-out/` to `.gitignore` or document a required external output path for generated graph artifacts.
 - [ ] `2026-08-17T11:30:41Z` — `codex` — `node scripts/import-semrush-rank-history.mjs --help` fails with the misleading error `--help requires a value` because the importer has no help-mode branch. Add normal `--help` output that documents the required database, archive, mapping, audit, and apply flags.
 - [ ] `2026-08-16T22:39:11Z` — `codex` — Copying self-host deployment data from a macOS SMB mount with `cp -a` emits an `Operation not permitted` warning for every attempted `chflags`, even though file contents copy successfully and the database passes integrity checks. Document a quieter SMB-safe backup command that preserves the metadata OpenSEO actually needs without attempting unsupported BSD flags.
 - [ ] `2026-08-16T22:30:24Z` — `codex` — `pnpm db:generate` completes D1 generation and then fails PostgreSQL generation in non-TTY/CI shells when Drizzle detects possible table renames, with no repository-documented deterministic answer path. Document the required TTY flow or add a repo wrapper that records explicit create-versus-rename choices.

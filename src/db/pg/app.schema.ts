@@ -507,3 +507,25 @@ export const backlinkSnapshots = pgTable(
     ),
   ],
 );
+
+export const domainOverviewSnapshots = pgTable(
+  "domain_overview_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    locationCode: integer("location_code").notNull(),
+    languageCode: text("language_code").notNull(),
+    organicTraffic: bigint("organic_traffic", { mode: "number" }),
+    organicKeywords: bigint("organic_keywords", { mode: "number" }),
+    capturedAt: timestampColumn("captured_at").notNull().default(isoNow),
+  },
+  (table) => [
+    index("domain_overview_snapshots_project_captured_idx").on(
+      table.projectId,
+      table.capturedAt,
+    ),
+  ],
+);
