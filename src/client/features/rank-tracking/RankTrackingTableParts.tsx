@@ -1,5 +1,10 @@
 import { Sparkles } from "lucide-react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import {
+  FloatingTooltip,
+  useFloatingTooltip,
+} from "@/client/features/keywords/components";
 import { buildCsv, downloadCsv } from "@/client/lib/csv";
 import { exportTableToSheets } from "@/client/lib/exportToSheets";
 import { captureClientEvent } from "@/client/lib/posthog";
@@ -9,45 +14,111 @@ import type {
   RankTrackingRow,
 } from "@/types/schemas/rank-tracking";
 
-const FEATURE_SHORT_LABELS: Record<string, string> = {
-  featured_snippet: "FS",
-  people_also_ask: "PAA",
-  ai_overview: "AI",
-  local_pack: "Local",
-  knowledge_panel: "KP",
-  video: "Video",
-  images: "Img",
-  shopping: "Shop",
-  top_stories: "News",
+// The badges are abbreviations, so the tooltip has to say both what the feature
+// is and what it means for this keyword — abbreviation alone is unreadable to
+// anyone who does not already know SERP terminology. This map is also the
+// allowlist: feature keys arrive raw from DataForSEO and unlisted ones are dropped.
+const FEATURE_DETAILS: Record<
+  string,
+  { short: string; label: string; description: string }
+> = {
+  featured_snippet: {
+    short: "FS",
+    label: "Featured Snippet",
+    description:
+      "Google pulls an answer box to the top of the results. Ranking #1 does not win it — the page that answers the query most directly does.",
+  },
+  people_also_ask: {
+    short: "PAA",
+    label: "People Also Ask",
+    description:
+      "A block of expandable related questions sits in the results. Answering those questions on your page can earn extra placement above competitors.",
+  },
+  ai_overview: {
+    short: "AI",
+    label: "AI Overview",
+    description:
+      "Google shows an AI-written summary above the results. It pushes organic listings down and often answers the query outright, so clicks can fall even when your position holds.",
+  },
+  local_pack: {
+    short: "Local",
+    label: "Local Pack",
+    description:
+      "A map with three nearby business listings appears above the organic results. It is won through your Google Business Profile, reviews, and proximity to the searcher — not by your page's ranking.",
+  },
+  knowledge_panel: {
+    short: "KP",
+    label: "Knowledge Panel",
+    description:
+      "A side panel of facts about a business, person, or thing. It signals Google treats the query as being about a known entity.",
+  },
+  video: {
+    short: "Video",
+    label: "Video results",
+    description:
+      "Videos (usually YouTube) rank on this query. Searchers want to be shown, not told — video content can outrank text here.",
+  },
+  images: {
+    short: "Img",
+    label: "Image results",
+    description:
+      "An image block appears in the results. Well-named, described images on your page can pick up traffic this way.",
+  },
+  shopping: {
+    short: "Shop",
+    label: "Shopping results",
+    description:
+      "Paid product listings with prices appear at the top. Commercial intent is high and paid results take the prime space.",
+  },
+  top_stories: {
+    short: "News",
+    label: "Top Stories",
+    description:
+      "A news carousel appears, meaning Google reads this query as time-sensitive. Fresh content is favored over evergreen pages.",
+  },
 };
 
-const FEATURE_TOOLTIPS: Record<string, string> = {
-  featured_snippet:
-    "Featured Snippet — highlighted answer box at top of results",
-  people_also_ask: "People Also Ask — expandable related questions",
-  ai_overview: "AI Overview — AI-generated summary at top of search",
-  local_pack: "Local Pack — map with local business listings",
-  knowledge_panel: "Knowledge Panel — info box about an entity",
-  video: "Video — video results shown in the SERP",
-  images: "Images — image results shown in the SERP",
-  shopping: "Shopping — product listings with prices",
-  top_stories: "Top Stories — news articles carousel",
-};
+function SerpFeatureBadge({ feature }: { feature: string }) {
+  const tooltip = useFloatingTooltip<HTMLSpanElement>({ delayMs: 0 });
+  const details = FEATURE_DETAILS[feature];
+
+  return (
+    <span
+      ref={tooltip.triggerRef}
+      className="badge badge-xs gap-0.5 cursor-help bg-base-300 border-0 text-base-content/70"
+      tabIndex={0}
+      aria-label={`${details.label} SERP feature`}
+      aria-describedby={tooltip.isOpen ? tooltip.tooltipId : undefined}
+      onMouseEnter={tooltip.open}
+      onMouseLeave={tooltip.close}
+      onFocus={tooltip.open}
+      onBlur={tooltip.close}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") tooltip.close();
+      }}
+    >
+      {feature === "ai_overview" && <Sparkles className="size-2.5" />}
+      {details.short}
+      {tooltip.isOpen && typeof document !== "undefined"
+        ? createPortal(
+            <FloatingTooltip id={tooltip.tooltipId} position={tooltip.position}>
+              <span className="block font-semibold">{details.label}</span>
+              <span className="mt-1 block">{details.description}</span>
+            </FloatingTooltip>,
+            document.body,
+          )
+        : null}
+    </span>
+  );
+}
 
 export function SerpFeatureTags({ features }: { features: string[] }) {
-  const notable = features.filter((f) => f in FEATURE_SHORT_LABELS);
+  const notable = features.filter((f) => f in FEATURE_DETAILS);
   if (notable.length === 0) return null;
   return (
     <div className="flex gap-1 flex-wrap">
       {notable.map((f) => (
-        <span
-          key={f}
-          className="badge badge-xs gap-0.5 cursor-help bg-base-300 border-0 text-base-content/70"
-          title={FEATURE_TOOLTIPS[f] ?? f}
-        >
-          {f === "ai_overview" && <Sparkles className="size-2.5" />}
-          {FEATURE_SHORT_LABELS[f]}
-        </span>
+        <SerpFeatureBadge key={f} feature={f} />
       ))}
     </div>
   );
