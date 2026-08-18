@@ -542,6 +542,334 @@ export const AUDIT_ISSUE_TYPES = {
     howToFix:
       "Enable gzip or Brotli compression for text responses on the origin or CDN, then confirm a browser or curl request receives Content-Encoding: gzip or br.",
   },
+  "broken-external-link": {
+    severity: "warning",
+    title: "Broken external link",
+    explanation:
+      "This page links to an external URL that returned a 4xx or 5xx status. Broken outbound links waste user trust and are a quality signal crawlers notice on otherwise useful pages.",
+    howToFix:
+      "Update the href to a live destination, replace it with a closer equivalent, or remove the link if the resource is gone.",
+  },
+  "external-link-403": {
+    severity: "info",
+    title: "External link returns 403",
+    explanation:
+      "An outbound link returned HTTP 403 Forbidden. The destination may block unknown crawlers, require a login, or have been restricted. Users in a browser might still get through, but the target is not reliably public.",
+    howToFix:
+      "Confirm the destination is meant to be public. If it is, ask the owner to allowlist crawlers or switch to a public URL. If it is gated, link to a public page instead.",
+  },
+  "too-many-on-page-links": {
+    severity: "warning",
+    title: "Page has too many links",
+    explanation:
+      "The page has more than 3,000 distinct href targets. Extremely link-dense pages dilute anchor relevance, slow rendering, and are hard for users and crawlers to scan.",
+    howToFix:
+      "Keep the main navigation, then cut or paginate long link lists. Move archives, tag clouds, and related-item dumps onto dedicated index pages.",
+  },
+  "link-url-too-long": {
+    severity: "info",
+    title: "Link URL is longer than 2,000 characters",
+    explanation:
+      "An outgoing href is longer than 2,000 characters. Very long URLs break in some clients, get truncated in reports, and are usually stacked tracking or filter parameters.",
+    howToFix:
+      "Point the link at a short, stable URL. Move tracking into analytics events or strip it from the public href.",
+  },
+  "internal-nofollow-outgoing": {
+    severity: "warning",
+    title: "Internal link is marked nofollow",
+    explanation:
+      "This page uses rel=nofollow on an outgoing internal link. That tells crawlers not to follow a path you otherwise control, which wastes internal equity and can hide pages you want indexed.",
+    howToFix:
+      "Remove nofollow from internal links unless the destination is deliberately untrusted (user-generated URLs, login walls). Use noindex on the target if it should stay out of the index.",
+  },
+  "external-nofollow-outgoing": {
+    severity: "info",
+    title: "External link is marked nofollow",
+    explanation:
+      "This page uses rel=nofollow on an outgoing external link. That is often intentional for untrusted or paid destinations; it is listed so you can confirm the policy is deliberate.",
+    howToFix:
+      "Keep nofollow on user-generated, sponsored, or untrusted links. Remove it from citations and partner links you want crawlers to treat as a normal reference.",
+  },
+  "resource-as-page-link": {
+    severity: "info",
+    title: "A file resource is linked as a page",
+    explanation:
+      "An <a href> points at a stylesheet, script, or image. Crawlers treat that as a page URL, which wastes crawl budget and rarely helps users who expected a document.",
+    howToFix:
+      "Load styles and scripts with <link> and <script>, and images with <img> or <picture>. If people need to download the file, link to a real HTML page that presents it.",
+  },
+  "single-incoming-internal-link": {
+    severity: "info",
+    title: "Page has only one incoming internal link",
+    explanation:
+      "Exactly one crawled page links here. That is better than an orphan, but the URL is still easy to isolate: one template change can cut it off from the rest of the site.",
+    howToFix:
+      "Add a second contextual link from a related hub, category, or article so the page is not a single-edge dead-end.",
+  },
+  "malformed-link-url": {
+    severity: "warning",
+    title: "Link URL is malformed",
+    explanation:
+      "An href could not be parsed as an HTTP(S) URL, so it cannot be crawled or followed. Typical causes are missing schemes, broken template output, or unescaped spaces.",
+    howToFix:
+      "Fix the href so it resolves to a valid absolute or root-relative HTTP(S) URL. Remove the link if the destination is not a web page.",
+  },
+  "broken-internal-image": {
+    severity: "warning",
+    title: "Broken internal image",
+    explanation:
+      "An image on this page points at an internal URL that returned a 4xx or 5xx status. Broken images waste layout space and drop from image search.",
+    howToFix:
+      "Restore the file, update the src to the live path, or remove the <img> if the asset is gone.",
+  },
+  "broken-external-image": {
+    severity: "warning",
+    title: "Broken external image",
+    explanation:
+      "An image on this page points at an external URL that returned a 4xx or 5xx status. Hotlinked assets disappear when the remote host changes or blocks you.",
+    howToFix:
+      "Host the image yourself, or update the src to a URL you control that returns 200.",
+  },
+  "unminified-javascript": {
+    severity: "info",
+    title: "JavaScript file is not minified",
+    explanation:
+      "A JavaScript file still looks like source (many newlines relative to its size). Unminified scripts cost extra bytes on every visit.",
+    howToFix:
+      "Serve a minified production build and keep the readable source in your repository, not on the public origin.",
+  },
+  "unminified-css": {
+    severity: "info",
+    title: "Stylesheet is not minified",
+    explanation:
+      "A CSS file still looks like source (many newlines relative to its size). Unminified stylesheets add weight to first render.",
+    howToFix:
+      "Serve minified CSS from your build pipeline or CDN. Keep comments and nesting in the source files, not the public asset.",
+  },
+  "uncompressed-javascript": {
+    severity: "warning",
+    title: "JavaScript is served uncompressed",
+    explanation:
+      "A JavaScript response was delivered uncompressed (Content-Encoding is identity, or Content-Length matches the decoded body). A missing Content-Encoding header alone is not treated as proof — some runtimes strip it after they decompress.",
+    howToFix:
+      "Enable gzip or Brotli for JavaScript on the origin or CDN, then confirm Content-Encoding is gzip or br.",
+  },
+  "uncompressed-css": {
+    severity: "warning",
+    title: "Stylesheet is served uncompressed",
+    explanation:
+      "A CSS response was delivered uncompressed (Content-Encoding is identity, or Content-Length matches the decoded body). A missing Content-Encoding header alone is not treated as proof.",
+    howToFix:
+      "Enable gzip or Brotli for CSS on the origin or CDN, then confirm Content-Encoding is gzip or br.",
+  },
+  "uncached-javascript": {
+    severity: "warning",
+    title: "JavaScript has no cache policy",
+    explanation:
+      "A JavaScript response has neither Cache-Control nor Expires. Browsers must re-download it on every visit, which slows repeat views.",
+    howToFix:
+      "Set Cache-Control with a long max-age (and a content hash in the filename) or a shorter max-age if the URL is not versioned.",
+  },
+  "uncached-css": {
+    severity: "warning",
+    title: "Stylesheet has no cache policy",
+    explanation:
+      "A CSS response has neither Cache-Control nor Expires. Browsers must re-download it on every visit.",
+    howToFix:
+      "Set Cache-Control with a long max-age (and a content hash in the filename) or a shorter max-age if the URL is not versioned.",
+  },
+  "broken-internal-javascript": {
+    severity: "critical",
+    title: "Broken internal JavaScript file",
+    explanation:
+      "A script on this origin returned a 4xx or 5xx status. Missing scripts can break rendering, tracking, and interactivity.",
+    howToFix:
+      "Restore the file at that URL or update the script src to the live build artifact.",
+  },
+  "broken-internal-css": {
+    severity: "critical",
+    title: "Broken internal stylesheet",
+    explanation:
+      "A stylesheet on this origin returned a 4xx or 5xx status. Missing CSS often ships an unstyled page.",
+    howToFix:
+      "Restore the file at that URL or update the link href to the live stylesheet.",
+  },
+  "broken-external-javascript": {
+    severity: "warning",
+    title: "Broken external JavaScript file",
+    explanation:
+      "A third-party script returned a 4xx or 5xx status. The page may lose a feature, and the failed request still costs time.",
+    howToFix:
+      "Update or remove the script tag. Prefer a versioned URL you control over an unversioned third-party path.",
+  },
+  "broken-external-css": {
+    severity: "warning",
+    title: "Broken external stylesheet",
+    explanation:
+      "A third-party stylesheet returned a 4xx or 5xx status. Layout that depends on it will break.",
+    howToFix:
+      "Update or remove the link tag, or vendor the CSS so it is not a remote single point of failure.",
+  },
+  "page-assets-too-large": {
+    severity: "warning",
+    title: "JavaScript and CSS together exceed 500 KB",
+    explanation:
+      "The page's JavaScript and CSS (inline plus the files we could fetch) add up to more than 500 KB. Large style and script payloads delay first render and interactivity.",
+    howToFix:
+      "Split unused code, defer non-critical scripts, and drop unused CSS. Measure the production bundles, not the source tree.",
+  },
+  "too-many-page-assets": {
+    severity: "warning",
+    title: "Page loads too many JavaScript and CSS files",
+    explanation:
+      "The page references more than 20 script and stylesheet files. Each file is a separate request and connection, which hurts first render on mobile.",
+    howToFix:
+      "Bundle or HTTP/2-push fewer files, and inline only the critical CSS. Keep third-party tags on a budget.",
+  },
+  "temporary-redirect": {
+    severity: "info",
+    title: "URL uses a temporary (302/307) redirect",
+    explanation:
+      "This URL responds with a temporary redirect. Search engines may keep the original URL in the index instead of passing signals to the destination.",
+    howToFix:
+      "If the move is permanent, use 301 or 308 and update internal links to the destination. Keep 302/307 only for truly temporary hops.",
+  },
+  "permanent-redirect": {
+    severity: "info",
+    title: "URL is a permanent (301/308) redirect",
+    explanation:
+      "This URL permanently redirects somewhere else. That is usually correct; this is an inventory notice so leftover hops can be cleaned up.",
+    howToFix:
+      "Leave the redirect if old URLs still get traffic. Point internal links, canonicals, and the sitemap at the final URL so crawlers do not need the hop.",
+  },
+  "broken-canonical": {
+    severity: "warning",
+    title: "Canonical target is broken or unreachable",
+    explanation:
+      "The page's canonical URL returned a 4xx/5xx status or could not be fetched. Search engines then have to guess the preferred URL.",
+    howToFix:
+      "Point rel=canonical at a live 200 URL — usually the page itself — and confirm that URL is reachable without authentication.",
+  },
+  "www-resolve-issue": {
+    severity: "warning",
+    title: "WWW and apex both serve 200",
+    explanation:
+      "Both the www and non-www hostnames return 200 without redirecting to one another. That splits crawl signals and cookies across two origins.",
+    howToFix:
+      "Pick one hostname as canonical. 301 the other to it, and keep canonicals, sitemaps, and internal links on the chosen host.",
+  },
+  "http-homepage-not-secure": {
+    severity: "critical",
+    title: "HTTP homepage does not redirect to HTTPS",
+    explanation:
+      "The HTTP homepage did not redirect to the HTTPS homepage and does not declare it as canonical. Users and crawlers can stay on the insecure origin.",
+    howToFix:
+      "301 every HTTP URL — at least the homepage — to its HTTPS equivalent, and serve HSTS once HTTPS is stable.",
+  },
+  "hreflang-value-error": {
+    severity: "warning",
+    title: "hreflang value is not a valid language code",
+    explanation:
+      "An hreflang attribute is not a valid language or language-region code (and is not x-default). Invalid values are ignored, so the alternate is not applied.",
+    howToFix:
+      "Use BCP 47 tags such as en, en-GB, or zh-Hans, or x-default for the fallback. Do not invent codes or put URLs in the hreflang attribute.",
+  },
+  "hreflang-conflict": {
+    severity: "warning",
+    title: "hreflang annotations conflict on the page",
+    explanation:
+      "The page declares the same language more than once with different targets, or lists the same target under conflicting languages. Crawlers cannot tell which alternate to trust.",
+    howToFix:
+      "Keep one href per language code on the page, including a single x-default. Generate the set from one template so it cannot drift.",
+  },
+  "incorrect-hreflang-link": {
+    severity: "warning",
+    title: "hreflang target is missing, not 200, or not reciprocal",
+    explanation:
+      "An hreflang href is missing, does not return 200, or the target page does not point back with a matching alternate. Non-reciprocal clusters are ignored.",
+    howToFix:
+      "Every page in the set should list every other page, including itself, with the same language codes, and every href should resolve to 200.",
+  },
+  "hreflang-language-mismatch": {
+    severity: "info",
+    title: "hreflang language does not match the page language",
+    explanation:
+      "The language this page claims in hreflang disagrees with html lang (or with a language we could read from the URL/content signals we already have). That confuses which alternate belongs here.",
+    howToFix:
+      "Make html lang, the self-referencing hreflang, and the visible language the same BCP 47 tag.",
+  },
+  "dns-resolution-failure": {
+    severity: "critical",
+    title: "DNS resolution failed",
+    explanation:
+      "The crawler could not resolve this hostname. The URL is unreachable until DNS answers, so the page cannot be audited or indexed.",
+    howToFix:
+      "Check the hostname's A/AAAA records and nameservers. If the host is gone, remove the URL from sitemaps and internal links.",
+  },
+  "malformed-url-failure": {
+    severity: "warning",
+    title: "URL is malformed and could not be fetched",
+    explanation:
+      "The crawler was asked to fetch a URL that is not a valid HTTP(S) address. The request never left the client.",
+    howToFix:
+      "Correct the URL in the sitemap or link that produced it. Only enqueue http: and https: URLs with a valid host.",
+  },
+  "duplicate-h1-title": {
+    severity: "info",
+    title: "H1 and title tag are identical",
+    explanation:
+      "The H1 repeats the title tag verbatim. They can share a topic, but identical text wastes a chance to add a second, user-facing phrasing.",
+    howToFix:
+      "Keep the title scan-friendly for search results and write an H1 that reads naturally on the page. They should agree, not copy each other.",
+  },
+  "content-optimisation-needed": {
+    severity: "info",
+    title: "Page needs content optimisation",
+    explanation:
+      "The page is indexable and not thin, but its on-page package is still incomplete: it sits in a mid-length word-count band and is missing two or more of a unique H1, a meta description, a heading below H1, or a list/table. This is a deterministic structure check, not an editorial rewrite request.",
+    howToFix:
+      "Add a single clear H1, a unique meta description, at least one H2, and a list or table where it helps the reader scan the page.",
+  },
+  "too-much-content": {
+    severity: "info",
+    title: "Page contains more than 5,000 words",
+    explanation:
+      "The visible word count is above 5,000. Very long unpaginated documents are harder to scan, slower to render, and often mix several intents on one URL.",
+    howToFix:
+      "Split distinct topics onto their own URLs, or add a table of contents and clearer headings if the length is intentional.",
+  },
+  "outdated-content": {
+    severity: "info",
+    title: "Content date is older than 12 months",
+    explanation:
+      "The newest published or updated date we found on the page is more than 365 days old. Time-sensitive claims may be stale. Pages with no parseable date are not flagged here.",
+    howToFix:
+      "Review the page, update anything that has changed, and set an honest dateModified (visible and in markup). Do not bump the date without a real review.",
+  },
+  "low-semantic-html": {
+    severity: "info",
+    title: "Page uses little or no semantic HTML",
+    explanation:
+      "The document has no landmark or sectioning elements (main, article, nav, header, footer, section, aside). Assistive tech and some parsers then have to guess the page structure.",
+    howToFix:
+      "Wrap the primary content in <main> or <article>, and use header, nav, and footer for the chrome instead of unlabelled divs.",
+  },
+  "llms-txt-formatting": {
+    severity: "info",
+    title: "llms.txt has formatting issues",
+    explanation:
+      "A /llms.txt file was found, but it is not a usable plain-text map (for example it is HTML, empty, or has no headings or links). Presence without a readable format does not help AI agents.",
+    howToFix:
+      "Serve a UTF-8 text/plain file that starts with a heading, uses markdown-style links to canonical public URLs, and is not wrapped in HTML.",
+  },
+  "missing-hsts": {
+    severity: "warning",
+    title: "HTTPS response is missing HSTS",
+    explanation:
+      "The HTTPS response has no Strict-Transport-Security header. Browsers will not remember to upgrade future HTTP requests, so users can still be sent to the insecure origin.",
+    howToFix:
+      "Send Strict-Transport-Security on HTTPS responses (start with a modest max-age, then raise it). Only enable includeSubDomains once every subdomain is on HTTPS.",
+  },
 } as const satisfies Record<string, BaseAuditIssueDescriptor>;
 
 export type AuditIssueType = keyof typeof AUDIT_ISSUE_TYPES;
@@ -605,6 +933,47 @@ const CATEGORIES: Partial<Record<AuditIssueType, AuditIssueCategory>> = {
   "url-too-many-parameters": "technical",
   "noindex-via-x-robots-tag": "indexability",
   "page-not-compressed": "performance",
+  "broken-external-link": "architecture",
+  "external-link-403": "architecture",
+  "too-many-on-page-links": "architecture",
+  "link-url-too-long": "architecture",
+  "internal-nofollow-outgoing": "architecture",
+  "external-nofollow-outgoing": "architecture",
+  "resource-as-page-link": "architecture",
+  "single-incoming-internal-link": "architecture",
+  "malformed-link-url": "architecture",
+  "broken-internal-image": "content",
+  "broken-external-image": "content",
+  "unminified-javascript": "performance",
+  "unminified-css": "performance",
+  "uncompressed-javascript": "performance",
+  "uncompressed-css": "performance",
+  "uncached-javascript": "performance",
+  "uncached-css": "performance",
+  "broken-internal-javascript": "performance",
+  "broken-internal-css": "performance",
+  "broken-external-javascript": "performance",
+  "broken-external-css": "performance",
+  "page-assets-too-large": "performance",
+  "too-many-page-assets": "performance",
+  "temporary-redirect": "crawlability",
+  "permanent-redirect": "crawlability",
+  "broken-canonical": "indexability",
+  "www-resolve-issue": "crawlability",
+  "http-homepage-not-secure": "technical",
+  "hreflang-value-error": "indexability",
+  "hreflang-conflict": "indexability",
+  "incorrect-hreflang-link": "indexability",
+  "hreflang-language-mismatch": "indexability",
+  "dns-resolution-failure": "crawlability",
+  "malformed-url-failure": "crawlability",
+  "duplicate-h1-title": "on-page",
+  "content-optimisation-needed": "content",
+  "too-much-content": "content",
+  "outdated-content": "content",
+  "low-semantic-html": "content",
+  "llms-txt-formatting": "geo",
+  "missing-hsts": "technical",
 };
 
 const GUIDANCE_OVERRIDES: Partial<
@@ -669,6 +1038,41 @@ const GUIDANCE_OVERRIDES: Partial<
     effort: "small",
   },
   "canonicalized-page": {
+    fixOrder: "monitor",
+    impact: "low",
+    effort: "small",
+  },
+  "broken-internal-javascript": {
+    fixOrder: "now",
+    impact: "high",
+    effort: "small",
+  },
+  "broken-internal-css": {
+    fixOrder: "now",
+    impact: "high",
+    effort: "small",
+  },
+  "http-homepage-not-secure": {
+    fixOrder: "now",
+    impact: "high",
+    effort: "medium",
+  },
+  "dns-resolution-failure": {
+    fixOrder: "now",
+    impact: "high",
+    effort: "medium",
+  },
+  "permanent-redirect": {
+    fixOrder: "monitor",
+    impact: "low",
+    effort: "small",
+  },
+  "external-link-403": {
+    fixOrder: "improve",
+    impact: "low",
+    effort: "small",
+  },
+  "external-nofollow-outgoing": {
     fixOrder: "monitor",
     impact: "low",
     effort: "small",
