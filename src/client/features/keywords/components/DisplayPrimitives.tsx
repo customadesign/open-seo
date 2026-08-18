@@ -19,7 +19,9 @@ export type SortField =
   | "searchVolume"
   | "cpc"
   | "competition"
-  | "keywordDifficulty";
+  | "keywordDifficulty"
+  | "wordCount"
+  | "metricsUpdatedAt";
 export type SortDir = "asc" | "desc";
 
 export function HeaderHelpLabel({

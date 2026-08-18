@@ -3,9 +3,8 @@ import {
   useKeywordControlsForm,
   type KeywordControlsValues,
 } from "@/client/features/keywords/hooks/useKeywordControlsForm";
-import { useKeywordFiltering } from "@/client/features/keywords/hooks/useKeywordFiltering";
 import { useLocalKeywordFilters } from "@/client/features/keywords/hooks/useLocalKeywordFilters";
-import { useKeywordResearchData } from "@/client/features/keywords/hooks/useKeywordResearchData";
+import { useKeywordMagicData } from "@/client/features/keywords/hooks/useKeywordMagicData";
 import { useKeywordSelection } from "@/client/features/keywords/hooks/useKeywordSelection";
 import { useKeywordSerpAnalysis } from "@/client/features/keywords/hooks/useKeywordSerpAnalysis";
 import { captureClientEvent } from "@/client/lib/posthog";
@@ -16,6 +15,11 @@ import {
 } from "@/client/features/keywords/keywordResearchTypes";
 import type { KeywordResearchRow } from "@/types/keywords";
 import type { SortDir, SortField } from "@/client/features/keywords/components";
+import type { KeywordMagicMatchType } from "@/shared/keyword-magic";
+import {
+  KEYWORD_MAGIC_DEFAULT_KEYWORDS,
+  type KeywordMagicScale,
+} from "@/shared/keyword-magic";
 import {
   buildKeywordSearchKey,
   getNextSortParams,
@@ -39,6 +43,15 @@ export type KeywordResearchControllerInput = {
   clickstream: boolean;
   sortField: SortField;
   sortDir: SortDir;
+  matchType?: KeywordMagicMatchType;
+  clusterId?: string;
+  page?: number;
+  pageSize?: 50 | 100 | 300 | 500;
+  scale?: KeywordMagicScale;
+  runId?: string;
+  minWordCount?: string;
+  maxWordCount?: string;
+  serpFeatures?: string;
   /**
    * Called when the user submits the search form. Lets the caller decide
    * whether the submission opens tabs or just rewrites the URL — the
@@ -86,29 +99,47 @@ export function useKeywordResearchController(
     removeHistoryItem,
   } = useSearchHistory(input.projectId);
 
+  const matchType = input.matchType ?? "all";
+  const page = input.page ?? 1;
+  const pageSize = input.pageSize ?? 50;
+  const scale = input.scale ?? KEYWORD_MAGIC_DEFAULT_KEYWORDS;
   const {
     rows,
+    clusters,
+    totalCount,
+    hasMore,
+    estimate,
+    needsApproval,
     hasSearched,
     lastSearchError,
-    lastResultSource,
-    lastUsedFallback,
     lastSearchKeyword,
     lastSearchLocationCode,
     researchError,
     researchMutationError,
-    researchQuery,
     searchedKeyword,
     isLoading,
     retryResearch,
-  } = useKeywordResearchData(
+    approveAndRun,
+    run,
+  } = useKeywordMagicData(
     {
       projectId: input.projectId,
       keywordInput: input.keywordInput,
       locationCode,
       displayedLocationCode,
-      resultLimit: input.resultLimit,
-      mode: input.keywordMode,
       clickstream: input.clickstream,
+      maxKeywords: scale,
+      matchType,
+      clusterId: input.clusterId,
+      page,
+      pageSize,
+      sortField: input.sortField,
+      sortDir: input.sortDir,
+      filters: filterValues,
+      minWordCount: input.minWordCount,
+      maxWordCount: input.maxWordCount,
+      serpFeatures: input.serpFeatures,
+      runId: input.runId,
     },
     addSearch,
   );
@@ -159,7 +190,7 @@ export function useKeywordResearchController(
   }, [activeSearchKey, clearActiveKeywordResult]);
 
   useEffect(() => {
-    if (!activeSearchKey || !researchQuery.isSuccess) return;
+    if (!activeSearchKey || isLoading) return;
     if (handledSerpSearchKeyRef.current === activeSearchKey) return;
 
     handledSerpSearchKeyRef.current = activeSearchKey;
@@ -167,19 +198,17 @@ export function useKeywordResearchController(
     setSerpPage(0);
   }, [
     activeSearchKey,
-    researchQuery.isSuccess,
+    isLoading,
     rows.length,
     searchedKeyword,
     setSerpKeyword,
     setSerpPage,
   ]);
 
-  const { filteredRows, activeFilterCount } = useKeywordFiltering({
-    rows,
-    filters: filterValues,
-    sortField: input.sortField,
-    sortDir: input.sortDir,
-  });
+  const filteredRows = rows;
+  const activeFilterCount = Object.values(filterValues).filter(
+    (value) => value.trim() !== "",
+  ).length;
 
   const { showApproximateMatchNotice, overviewKeyword } =
     useKeywordOverviewState({
@@ -193,7 +222,7 @@ export function useKeywordResearchController(
     });
 
   const retrySearch = useCallback(() => {
-    void retryResearch();
+    retryResearch();
   }, [retryResearch]);
 
   const handleSearchSubmit = useCallback(
@@ -233,6 +262,7 @@ export function useKeywordResearchController(
   };
 
   return {
+    projectId: input.projectId,
     activeFilterCount,
     activeSerpKeyword,
     confirmSave,
@@ -241,6 +271,7 @@ export function useKeywordResearchController(
     sheetsExportRows,
     filteredRows,
     filtersForm,
+    filterValues,
     handleRowClick,
     handleSaveKeywords,
     handleSearchSubmit,
@@ -248,11 +279,26 @@ export function useKeywordResearchController(
     history,
     historyLoaded,
     isLoading,
-    lastResultSource,
+    lastResultSource: run?.provider ?? "related",
     lastSearchError,
     lastSearchKeyword,
     lastSearchLocationCode,
-    lastUsedFallback,
+    lastUsedFallback: false,
+    clusters,
+    totalCount,
+    hasMore,
+    estimate,
+    needsApproval,
+    approveAndRun,
+    matchType,
+    clusterId: input.clusterId,
+    page,
+    pageSize,
+    scale,
+    runId: run?.id ?? null,
+    minWordCount: input.minWordCount,
+    maxWordCount: input.maxWordCount,
+    serpFeatures: input.serpFeatures,
     mobileTab: uiState.mobileTab,
     overviewKeyword,
     removeHistoryItem,

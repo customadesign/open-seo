@@ -4,9 +4,14 @@ import {
   isResultLimit,
   normalizeKeywordMode,
   normalizeLegacyKeywordSearch,
+  normalizeMatchType,
   normalizeSortDir,
   normalizeSortField,
 } from "@/client/features/keywords/keywordSearchParams";
+import {
+  KEYWORD_MAGIC_DEFAULT_KEYWORDS,
+  clampKeywordMagicScale,
+} from "@/shared/keyword-magic";
 import { keywordsSearchSchema } from "@/types/schemas/keywords";
 
 export const Route = createFileRoute("/_project/p/$projectId/keywords")({
@@ -35,6 +40,12 @@ function KeywordResearchPageRoute() {
     mode: keywordMode = "auto",
     sort: sortField = "searchVolume",
     order: sortDir = "desc",
+    match: matchType,
+    cluster: clusterId,
+    page,
+    size: pageSize,
+    scale,
+    run: runId,
   } = search;
   return (
     <KeywordResearchPage
@@ -46,6 +57,17 @@ function KeywordResearchPageRoute() {
       clickstream={search.cs ?? false}
       sortField={normalizeSortField(sortField)}
       sortDir={normalizeSortDir(sortDir)}
+      matchType={normalizeMatchType(matchType)}
+      clusterId={clusterId}
+      page={page}
+      pageSize={pageSize}
+      scale={
+        scale ? clampKeywordMagicScale(scale) : KEYWORD_MAGIC_DEFAULT_KEYWORDS
+      }
+      runId={runId}
+      minWordCount={search.minWords}
+      maxWordCount={search.maxWords}
+      serpFeatures={search.serp}
     />
   );
 }

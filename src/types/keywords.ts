@@ -19,6 +19,10 @@ export type KeywordResearchRow = {
   cpc: number | null;
   competition: number | null;
   intent: KeywordIntent;
+  wordCount?: number;
+  serpFeatures?: string[];
+  metricsUpdatedAt?: string | null;
+  clusterName?: string | null;
 };
 
 export type SavedKeywordRow = {
