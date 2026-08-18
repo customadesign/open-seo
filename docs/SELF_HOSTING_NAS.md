@@ -47,6 +47,25 @@ The stamp is only as good as the deploys that write it. An image loaded by hand
 leaves the stamp stale, and the next guarded deploy will compare against the
 wrong commit; deploy through the script.
 
+## NAS quirks worth knowing
+
+**SSH is restricted to the local network.** Control Panel -> Terminal -> SSH ->
+Advanced settings is set to "Local network access only", so the tailnet
+hostname authenticates nowhere. Use the LAN address; a wrong password is not
+what the rejection means.
+
+**SFTP is disabled, and modern `scp` speaks SFTP.** `scp` fails with
+`No such file or directory` on a path that demonstrably exists, which reads as
+a permissions or typo problem and is neither. `deploy.sh` pipes the image
+through `ssh 'cat > file'`, which needs no subsystem. `scp -O` also works if
+you are copying something by hand.
+
+**`docker` requires sudo.** The account is in `admin`, not `docker`, and the
+socket is `root:docker 0660`. `deploy.sh` checks for a usable sudo before
+building rather than after shipping ~800MB. Adding the account to `docker`
+would remove the prompt, at the cost of making it root-equivalent on a box
+holding client data.
+
 ## Why the image is built from the commit
 
 Images were previously built `FROM` the last deployed image, layering a fresh
@@ -58,7 +77,9 @@ time, one clean rebuild away from disappearing.
 
 `deploy.sh` builds the base from `Dockerfile.selfhost` at the target commit, so
 the image is reproducible from that sha alone. Docker's layer cache keeps this
-cheap: `pnpm install` only re-runs when `pnpm-lock.yaml` changes.
+cheap: `pnpm install` only re-runs when `pnpm-lock.yaml` changes. It costs
+nothing in size either — a commit-pinned base measures ~763MB against ~801MB
+for the equivalent layered image.
 
 A prebuilt `dist/` is layered on top afterwards so the container does not spend
 minutes running `pnpm run build` at startup (see `docker-entrypoint.sh`). That
