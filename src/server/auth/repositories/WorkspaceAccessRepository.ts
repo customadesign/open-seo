@@ -83,6 +83,17 @@ async function getHostedPrincipal(
   };
 }
 
+/** Just the user ids in a workspace — no access-profile join, because callers
+ *  that only need "who is in this workspace" run on hot paths. */
+async function listMemberUserIds(organizationId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, organizationId));
+
+  return rows.map((row) => row.userId);
+}
+
 async function listOrganizationMembers(
   organizationId: string,
 ): Promise<ManagedWorkspaceMember[]> {
@@ -271,6 +282,7 @@ async function updateMemberAccess(input: {
 
 export const WorkspaceAccessRepository = {
   getHostedPrincipal,
+  listMemberUserIds,
   listOrganizationMembers,
   findUserIdByEmail,
   createIssuedMember,

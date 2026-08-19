@@ -29,7 +29,7 @@ export const getGoogleAdsConnection = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const [connection, currentUserHasGrant, configured] = await Promise.all([
       GoogleAdsService.getConnection(context.projectId),
-      GoogleAdsService.userHasGrant(context.userId),
+      GoogleAdsService.userHasGrant(context.userId, context.organizationId),
       hasGoogleAdsConfig(),
     ]);
     return {
@@ -52,7 +52,10 @@ export const listGoogleAdsCustomers = createServerFn({ method: "POST" })
       return { accounts: [], setupRequired: true as const };
     }
     const [result, connection] = await Promise.all([
-      GoogleAdsService.listCustomersForUser(context.userId),
+      GoogleAdsService.listCustomersForUser(
+        context.userId,
+        context.organizationId,
+      ),
       GoogleAdsService.getConnection(context.projectId),
     ]);
     return {

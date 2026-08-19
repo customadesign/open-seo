@@ -31,7 +31,12 @@ const startSelfHostedLinkSchema = z.object({
 export const getGscGrantStatus = createServerFn({ method: "GET" })
   .middleware(requireWorkspaceOwner)
   .handler(async ({ context }) => {
-    return { connected: await GscService.userHasGrant(context.userId) };
+    return {
+      connected: await GscService.userHasGrant(
+        context.userId,
+        context.organizationId,
+      ),
+    };
   });
 
 export const getGscConnection = createServerFn({ method: "POST" })
@@ -41,7 +46,7 @@ export const getGscConnection = createServerFn({ method: "POST" })
     const [connection, currentUserHasGrant, hosted, gscConfigured] =
       await Promise.all([
         GscService.getConnection(context.projectId),
-        GscService.userHasGrant(context.userId),
+        GscService.userHasGrant(context.userId, context.organizationId),
         isHostedServerAuthMode(),
         hasSelfHostedGoogleOAuthConfig(),
       ]);
@@ -60,7 +65,10 @@ export const listGscSites = createServerFn({ method: "POST" })
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const [siteList, connection] = await Promise.all([
-      GscService.listSitesForUserWithGrantStatus(context.userId),
+      GscService.listSitesForUserWithGrantStatus(
+        context.userId,
+        context.organizationId,
+      ),
       GscService.getConnection(context.projectId),
     ]);
     let legacySelectionMatched = false;

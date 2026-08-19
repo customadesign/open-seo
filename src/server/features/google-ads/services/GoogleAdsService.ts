@@ -1,10 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { account } from "@/db/schema";
 import { GoogleAdsConnectionRepository } from "@/server/features/google-ads/repositories/GoogleAdsConnectionRepository";
 import { AppError } from "@/server/lib/errors";
 import { createGoogleAdsClient } from "@/server/lib/googleAdsClient";
+import { resolveGrantUserIds } from "@/server/features/google/grantScope";
 import {
   GoogleAdsApiError,
   GoogleAdsTokenError,
@@ -63,13 +64,21 @@ function comparison(current: number | null, previous: number | null) {
   };
 }
 
-async function listGrantsForUser(userId: string) {
+/** Grants the caller may use, each carrying the user it belongs to — tokens are
+ *  minted against the grant's owner, which on a shared workspace is often not
+ *  the person making the request. */
+async function listGrantsForUser(userId: string, organizationId: string) {
+  const grantUserIds = await resolveGrantUserIds(userId, organizationId);
   return db
-    .select({ id: account.id, accountId: account.accountId })
+    .select({
+      id: account.id,
+      accountId: account.accountId,
+      userId: account.userId,
+    })
     .from(account)
     .where(
       and(
-        eq(account.userId, userId),
+        inArray(account.userId, grantUserIds),
         eq(account.providerId, GOOGLE_ADS_OAUTH_PROVIDER_ID),
       ),
     );
@@ -82,12 +91,12 @@ function requiresReconnect(error: unknown): boolean {
   );
 }
 
-async function listCustomersForUser(userId: string) {
-  const grants = await listGrantsForUser(userId);
+async function listCustomersForUser(userId: string, organizationId: string) {
+  const grants = await listGrantsForUser(userId, organizationId);
   const accounts = await Promise.all(
     grants.map(async (grant) => {
       const client = createGoogleAdsClient({
-        userId,
+        userId: grant.userId,
         googleAdsAccountId: grant.accountId,
       });
       try {
@@ -126,12 +135,13 @@ async function setCustomer(input: {
   accountId: string;
   customerId: string;
 }) {
-  const grants = await listGrantsForUser(input.userId);
-  if (!grants.some((grant) => grant.accountId === input.accountId)) {
+  const grants = await listGrantsForUser(input.userId, input.organizationId);
+  const grant = grants.find((row) => row.accountId === input.accountId);
+  if (!grant) {
     throw new AppError("NOT_FOUND", "That Google account is not connected.");
   }
   const client = createGoogleAdsClient({
-    userId: input.userId,
+    userId: grant.userId,
     googleAdsAccountId: input.accountId,
   });
   const customer = (await client.listCustomers()).find(
@@ -151,7 +161,7 @@ async function setCustomer(input: {
     currencyCode: customer.currencyCode,
     timeZone: customer.timeZone,
     loginCustomerId: customer.loginCustomerId,
-    connectedByUserId: input.userId,
+    connectedByUserId: grant.userId,
     googleAdsAccountId: input.accountId,
     connectedAccountEmail: await client.getUserInfoEmail().catch(() => null),
   });
@@ -274,8 +284,8 @@ async function getPerformanceReport(input: {
 
 export const GoogleAdsService = {
   getConnection: GoogleAdsConnectionRepository.getByProjectId,
-  async userHasGrant(userId: string) {
-    return (await listGrantsForUser(userId)).length > 0;
+  async userHasGrant(userId: string, organizationId: string) {
+    return (await listGrantsForUser(userId, organizationId)).length > 0;
   },
   listCustomersForUser,
   setCustomer,

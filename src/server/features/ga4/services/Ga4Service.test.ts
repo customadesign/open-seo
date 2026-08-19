@@ -4,7 +4,9 @@ import { Ga4AdminApiError, Ga4TokenError } from "@/server/lib/ga4Errors";
 import { Ga4Service } from "./Ga4Service";
 
 const mocks = vi.hoisted(() => {
-  const state: { grants: Array<{ id: string; accountId: string }> } = {
+  const state: {
+    grants: Array<{ id: string; accountId: string; userId: string }>;
+  } = {
     grants: [],
   };
   const listProperties = vi.fn();
@@ -67,7 +69,7 @@ function collectSqlParams(value: unknown): unknown[] {
 
 describe("Ga4Service", () => {
   beforeEach(() => {
-    mocks.state.grants = [{ id: "grant-a", accountId: "sub-a" }];
+    mocks.state.grants = [{ id: "grant-a", accountId: "sub-a", userId: "u1" }];
     mocks.deleteByProjectId.mockResolvedValue(undefined);
   });
 
@@ -110,7 +112,7 @@ describe("Ga4Service", () => {
   });
 
   it("passes a null email through when userinfo fails on an account switch", async () => {
-    mocks.state.grants = [{ id: "grant-b", accountId: "sub-b" }];
+    mocks.state.grants = [{ id: "grant-b", accountId: "sub-b", userId: "u2" }];
     mocks.listProperties.mockResolvedValue([
       {
         propertyId: "properties/22",
@@ -170,8 +172,8 @@ describe("Ga4Service", () => {
 
   it("distinguishes expired grants from inaccessible property discovery", async () => {
     mocks.state.grants = [
-      { id: "grant-a", accountId: "sub-a" },
-      { id: "grant-b", accountId: "sub-b" },
+      { id: "grant-a", accountId: "sub-a", userId: "u1" },
+      { id: "grant-b", accountId: "sub-b", userId: "u1" },
     ];
     mocks.listProperties
       .mockRejectedValueOnce(new Ga4TokenError("revoked"))
@@ -181,7 +183,7 @@ describe("Ga4Service", () => {
       .mockImplementation(() => undefined);
 
     await expect(
-      Ga4Service.listPropertiesForUserWithGrantStatus("u1"),
+      Ga4Service.listPropertiesForUserWithGrantStatus("u1", "org-1"),
     ).resolves.toEqual({
       accounts: [
         {

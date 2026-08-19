@@ -5,7 +5,9 @@ import { GscApiError, GscTokenError } from "@/server/lib/gscErrors";
 import { GscService } from "./GscService";
 
 const mocks = vi.hoisted(() => {
-  const state: { selectRows: Array<{ id: string; accountId: string }> } = {
+  const state: {
+    selectRows: Array<{ id: string; accountId: string; userId: string }>;
+  } = {
     selectRows: [],
   };
   type GscClientOptions = { userId: string; gscAccountId?: string };
@@ -83,11 +85,38 @@ function collectSqlParams(value: unknown): unknown[] {
 
 describe("GscService.setSite", () => {
   beforeEach(() => {
-    mocks.state.selectRows = [{ id: "grant-a", accountId: "sub-a" }];
+    mocks.state.selectRows = [
+      { id: "grant-a", accountId: "sub-a", userId: "u1" },
+    ];
     mocks.listSites.mockReset();
     mocks.getUserInfoEmail.mockReset();
     mocks.createGscClient.mockClear();
     mocks.upsert.mockReset();
+  });
+
+  it("mints the token as the grant's owner, not the caller", async () => {
+    // On a shared workspace the usable grant often belongs to someone else —
+    // the retired `local-admin` user, or a colleague. Both the API client and
+    // the stored connection must name that owner, because the read path later
+    // mints tokens from connectedByUserId and the caller holds no grant.
+    mocks.state.selectRows = [
+      { id: "grant-a", accountId: "sub-a", userId: "local-admin" },
+    ];
+    mocks.listSites.mockResolvedValue([
+      { siteUrl: "https://x/", permissionLevel: "siteOwner" },
+    ]);
+    mocks.getUserInfoEmail.mockResolvedValue("client@example.com");
+    mocks.upsert.mockResolvedValue({ siteUrl: "https://x/" });
+
+    await GscService.setSite({ ...baseInput, siteUrl: "https://x/" });
+
+    expect(mocks.createGscClient).toHaveBeenCalledWith({
+      userId: "local-admin",
+      gscAccountId: "sub-a",
+    });
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ connectedByUserId: "local-admin" }),
+    );
   });
 
   it("upserts a verified property with the selected grant and userinfo email", async () => {
@@ -175,8 +204,8 @@ describe("GscService.setSite", () => {
 describe("GscService.listSitesForUserWithGrantStatus", () => {
   beforeEach(() => {
     mocks.state.selectRows = [
-      { id: "grant-a", accountId: "sub-a" },
-      { id: "grant-b", accountId: "sub-b" },
+      { id: "grant-a", accountId: "sub-a", userId: "u1" },
+      { id: "grant-b", accountId: "sub-b", userId: "u1" },
     ];
     mocks.listSites.mockReset();
     mocks.getUserInfoEmail.mockReset();
@@ -197,7 +226,7 @@ describe("GscService.listSitesForUserWithGrantStatus", () => {
     );
 
     await expect(
-      GscService.listSitesForUserWithGrantStatus("u1"),
+      GscService.listSitesForUserWithGrantStatus("u1", "org-1"),
     ).resolves.toEqual({
       accounts: [
         {
@@ -222,14 +251,16 @@ describe("GscService.listSitesForUserWithGrantStatus", () => {
   });
 
   it("keeps userinfo failures non-fatal", async () => {
-    mocks.state.selectRows = [{ id: "grant-a", accountId: "sub-a" }];
+    mocks.state.selectRows = [
+      { id: "grant-a", accountId: "sub-a", userId: "u1" },
+    ];
     mocks.getUserInfoEmail.mockRejectedValue(new Error("userinfo unavailable"));
     mocks.listSites.mockResolvedValue([
       { siteUrl: "https://x/", permissionLevel: "siteOwner" },
     ]);
 
     await expect(
-      GscService.listSitesForUserWithGrantStatus("u1"),
+      GscService.listSitesForUserWithGrantStatus("u1", "org-1"),
     ).resolves.toEqual({
       accounts: [
         {
@@ -243,14 +274,16 @@ describe("GscService.listSitesForUserWithGrantStatus", () => {
   });
 
   it("marks a grant for reconnect on a GSC 403 without deleting it", async () => {
-    mocks.state.selectRows = [{ id: "grant-a", accountId: "sub-a" }];
+    mocks.state.selectRows = [
+      { id: "grant-a", accountId: "sub-a", userId: "u1" },
+    ];
     mocks.getUserInfoEmail.mockResolvedValue("a@example.com");
     mocks.listSites.mockRejectedValue(
       new GscApiError(403, "Search Console denied access"),
     );
 
     await expect(
-      GscService.listSitesForUserWithGrantStatus("u1"),
+      GscService.listSitesForUserWithGrantStatus("u1", "org-1"),
     ).resolves.toEqual({
       accounts: [
         {
@@ -282,7 +315,7 @@ describe("GscService.listSitesForUserWithGrantStatus", () => {
       .mockImplementation(() => undefined);
 
     await expect(
-      GscService.listSitesForUserWithGrantStatus("u1"),
+      GscService.listSitesForUserWithGrantStatus("u1", "org-1"),
     ).resolves.toEqual({
       accounts: [
         {

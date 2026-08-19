@@ -74,7 +74,7 @@ export const getGa4Connection = createServerFn({ method: "POST" })
     const [connection, currentUserHasGrant, hosted, ga4Configured] =
       await Promise.all([
         Ga4Service.getConnection(context.projectId),
-        Ga4Service.userHasGrant(context.userId),
+        Ga4Service.userHasGrant(context.userId, context.organizationId),
         isHostedServerAuthMode(),
         hasSelfHostedGoogleOAuthConfig(),
       ]);
@@ -96,7 +96,10 @@ export const listGa4Properties = createServerFn({ method: "POST" })
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const [propertyList, connection] = await Promise.all([
-      Ga4Service.listPropertiesForUserWithGrantStatus(context.userId),
+      Ga4Service.listPropertiesForUserWithGrantStatus(
+        context.userId,
+        context.organizationId,
+      ),
       Ga4Service.getConnection(context.projectId),
     ]);
     return {

@@ -1,10 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { account } from "@/db/schema";
 import { AppError } from "@/server/lib/errors";
 import { createGa4AdminClient } from "@/server/lib/ga4Client";
 import { Ga4AdminApiError, Ga4TokenError } from "@/server/lib/ga4Errors";
 import { GA4_OAUTH_PROVIDER_ID } from "@/shared/ga4";
+import { resolveGrantUserIds } from "@/server/features/google/grantScope";
 import {
   Ga4ConnectionRepository,
   type Ga4Connection,
@@ -14,20 +15,31 @@ async function getConnection(projectId: string): Promise<Ga4Connection | null> {
   return Ga4ConnectionRepository.getByProjectId(projectId);
 }
 
-async function listGrantsForUser(userId: string) {
+/** Grants the caller may use, each carrying the user it belongs to — tokens are
+ *  minted against the grant's owner, which on a shared workspace is often not
+ *  the person making the request. */
+async function listGrantsForUser(userId: string, organizationId: string) {
+  const grantUserIds = await resolveGrantUserIds(userId, organizationId);
   return db
-    .select({ id: account.id, accountId: account.accountId })
+    .select({
+      id: account.id,
+      accountId: account.accountId,
+      userId: account.userId,
+    })
     .from(account)
     .where(
       and(
-        eq(account.userId, userId),
+        inArray(account.userId, grantUserIds),
         eq(account.providerId, GA4_OAUTH_PROVIDER_ID),
       ),
     );
 }
 
-async function userHasGrant(userId: string): Promise<boolean> {
-  const grants = await listGrantsForUser(userId);
+async function userHasGrant(
+  userId: string,
+  organizationId: string,
+): Promise<boolean> {
+  const grants = await listGrantsForUser(userId, organizationId);
   return grants.length > 0;
 }
 
@@ -38,12 +50,15 @@ function requiresReconnect(error: unknown): boolean {
   );
 }
 
-async function listPropertiesForUserWithGrantStatus(userId: string) {
-  const grants = await listGrantsForUser(userId);
+async function listPropertiesForUserWithGrantStatus(
+  userId: string,
+  organizationId: string,
+) {
+  const grants = await listGrantsForUser(userId, organizationId);
   const accounts = await Promise.all(
     grants.map(async (grant) => {
       const client = createGa4AdminClient({
-        userId,
+        userId: grant.userId,
         ga4AccountId: grant.accountId,
       });
       try {
@@ -90,8 +105,9 @@ async function setProperty(input: {
   accountId: string;
   userId: string;
 }): Promise<Ga4Connection> {
-  const grants = await listGrantsForUser(input.userId);
-  if (!grants.some((grant) => grant.accountId === input.accountId)) {
+  const grants = await listGrantsForUser(input.userId, input.organizationId);
+  const grant = grants.find((row) => row.accountId === input.accountId);
+  if (!grant) {
     throw new AppError(
       "NOT_FOUND",
       "That Google account isn't connected to your OpenSEO account.",
@@ -99,7 +115,7 @@ async function setProperty(input: {
   }
 
   const client = createGa4AdminClient({
-    userId: input.userId,
+    userId: grant.userId,
     ga4AccountId: input.accountId,
   });
   const properties = await client.listProperties();
@@ -127,7 +143,7 @@ async function setProperty(input: {
     propertyDisplayName: property.displayName,
     propertyTimeZone: property.timeZone,
     propertyCurrencyCode: property.currencyCode,
-    connectedByUserId: input.userId,
+    connectedByUserId: grant.userId,
     ga4AccountId: input.accountId,
     connectedAccountEmail,
   });
