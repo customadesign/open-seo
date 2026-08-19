@@ -46,6 +46,9 @@ export const estimateOnPageRunSchema = z.object({
 
 export const runOnPageCheckerSchema = z.object({
   projectId: projectIdField,
+  // Approved ceiling from the estimate step. Fail-closed like the gap services:
+  // omitting it means no approval, so a direct API caller cannot skip the quote.
+  maxCostCredits: z.number().int().min(0).optional(),
 });
 
 export const onPageBucketSchema = z.enum(ON_PAGE_BUCKETS);

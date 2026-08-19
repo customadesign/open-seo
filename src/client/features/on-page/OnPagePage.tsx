@@ -94,7 +94,12 @@ function OnPageOverview({ projectId }: { projectId: string }) {
   });
 
   const runMutation = useMutation({
-    mutationFn: () => runOnPageChecker({ data: { projectId } }),
+    // Approve exactly the quote the dialog showed. The server re-estimates and
+    // rejects the run if the real cost has moved above it.
+    mutationFn: () =>
+      runOnPageChecker({
+        data: { projectId, maxCostCredits: estimateQuery.data?.costCredits },
+      }),
     onSuccess: async (result) => {
       setConfirmOpen(false);
       await invalidate();

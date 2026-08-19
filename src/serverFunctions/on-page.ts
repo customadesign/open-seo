@@ -77,8 +77,12 @@ export const estimateOnPageRun = createServerFn({ method: "POST" })
 export const runOnPageChecker = createServerFn({ method: "POST" })
   .middleware(requireProjectUse)
   .validator(runOnPageCheckerSchema)
-  .handler(async ({ context }) => {
-    const result = await OnPageService.runChecker(context.projectId, context);
+  .handler(async ({ data, context }) => {
+    const result = await OnPageService.runChecker(
+      context.projectId,
+      context,
+      data.maxCostCredits,
+    );
     waitUntil(
       captureServerEvent({
         distinctId: context.userId,

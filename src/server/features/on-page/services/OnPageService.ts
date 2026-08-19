@@ -6,6 +6,7 @@ import {
   ON_PAGE_PRIORITY_RANK,
   isOnPagePriority,
   normalizeOnPageKeyword,
+  onPageCostApprovalError,
   type OnPageBucket,
 } from "@/shared/on-page";
 import { OnPageRepository } from "../repositories/OnPageRepository";
@@ -188,9 +189,24 @@ async function estimateRun(projectId: string) {
 async function runChecker(
   projectId: string,
   billingCustomer: BillingCustomerContext,
+  maxCostCredits?: number,
 ) {
   const startedAt = new Date().toISOString();
   const targets = await loadTargets(projectId);
+
+  // Fail-closed on the approved ceiling, matching KeywordGapService. The UI
+  // already shows the estimate; this stops a direct API caller skipping it.
+  const quote = await estimateOnPageRunCost(targets);
+  if (
+    quote.costCredits > 0 &&
+    (maxCostCredits == null || quote.costCredits > maxCostCredits)
+  ) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      onPageCostApprovalError(quote.costCredits, maxCostCredits ?? 0),
+    );
+  }
+
   const contentPages = targets.slice(0, MAX_ON_PAGE_PAGES_PER_RUN);
   const detected: DetectedOnPageIdea[] = [];
   let serpFetches = 0;

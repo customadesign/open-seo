@@ -113,6 +113,13 @@ export function normalizeOnPageKeyword(input: string): string {
 }
 
 /** Live SERP cost for uncached (keyword, location, language) triples. */
+export function onPageCostApprovalError(
+  costCredits: number,
+  maxCostCredits: number,
+) {
+  return `This run costs ${costCredits} credits, above the approved maximum of ${maxCostCredits}. Re-estimate and approve the updated amount.`;
+}
+
 export function estimateOnPageSerpCredits(uncachedKeywordCount: number) {
   return estimateRankCheckTaskCredits(
     uncachedKeywordCount,

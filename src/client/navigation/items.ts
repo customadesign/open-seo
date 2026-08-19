@@ -7,6 +7,7 @@ import {
   FileBarChart,
   GitCompare,
   Globe,
+  History,
   LayoutDashboard,
   Link2,
   Unlink,
@@ -101,6 +102,11 @@ const projectNavItems = [
     icon: FileBarChart,
   },
   {
+    to: "/p/$projectId/changes" as const,
+    label: "Changes",
+    icon: History,
+  },
+  {
     to: "/p/$projectId/ai-visibility" as const,
     label: "AI Visibility",
     icon: Eye,
@@ -179,6 +185,7 @@ export function getProjectNavGroups(
         byPath("/p/$projectId/on-page"),
         byPath("/p/$projectId/ai-visibility"),
         byPath("/p/$projectId/reports"),
+        byPath("/p/$projectId/changes"),
       ],
     },
   ];
@@ -201,7 +208,10 @@ export function getProjectNavGroups(
                 item.to === "/p/$projectId/audit" ||
                 item.to === "/p/$projectId/log-files" ||
                 item.to === "/p/$projectId/on-page" ||
-                item.to === "/p/$projectId/reports",
+                item.to === "/p/$projectId/reports" ||
+                // Read-only feed of what changed; the server still gates the
+                // mark-read/dismiss mutations behind requireProjectUse.
+                item.to === "/p/$projectId/changes",
             ),
           }
         : group,

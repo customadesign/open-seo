@@ -61,6 +61,38 @@ async function listForProject(input: {
     .limit(input.limit);
 }
 
+/** One event with the caller's own read/dismiss state. Unlike the feed this does
+ * not filter out dismissed events: dismissing hides a row from the list, it does
+ * not delete it, so a bookmark or a link out of a report digest must still open. */
+async function findForUser(input: {
+  eventId: string;
+  projectId: string;
+  userId: string;
+}) {
+  const [row] = await db
+    .select({
+      event: projectChangeEvents,
+      readAt: projectChangeEventStates.readAt,
+      dismissedAt: projectChangeEventStates.dismissedAt,
+    })
+    .from(projectChangeEvents)
+    .leftJoin(
+      projectChangeEventStates,
+      and(
+        eq(projectChangeEventStates.eventId, projectChangeEvents.id),
+        eq(projectChangeEventStates.userId, input.userId),
+      ),
+    )
+    .where(
+      and(
+        eq(projectChangeEvents.id, input.eventId),
+        eq(projectChangeEvents.projectId, input.projectId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 async function countUnread(projectId: string, userId: string) {
   const [row] = await db
     .select({ total: count() })
@@ -138,6 +170,7 @@ async function setState(input: {
 export const ChangeEventRepository = {
   insert,
   listForProject,
+  findForUser,
   countUnread,
   setState,
 };

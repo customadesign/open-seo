@@ -22,6 +22,17 @@ export const getChangeEvents = createServerFn({ method: "POST" })
     }),
   );
 
+export const getChangeEvent = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(changeEventActionSchema)
+  .handler(({ data, context }) =>
+    ChangeEventService.getEvent({
+      eventId: data.eventId,
+      projectId: context.projectId,
+      userId: context.userId,
+    }),
+  );
+
 export const markChangeEventRead = createServerFn({ method: "POST" })
   .middleware(requireProjectUse)
   .validator(changeEventActionSchema)
