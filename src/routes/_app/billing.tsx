@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useCustomer } from "autumn-js/react";
 import { useState } from "react";
 import { useSession } from "@/lib/auth-client";
@@ -28,8 +28,13 @@ export const Route = createFileRoute("/_app/billing")({
   beforeLoad: () => {
     // Hosted auth is also how a single-tenant self-host gets real sessions, so
     // the mode alone no longer implies there is anything to bill.
+    //
+    // Redirect rather than notFound(): several credit/plan CTAs still link
+    // here (dashboard metric cards, keyword research, the free-plan banner),
+    // and a 404 on a link the app itself rendered reads as a broken app. The
+    // same predicate already redirects in _authenticated.onboarding.chat.tsx.
     if (!isHostedClientAuthMode() || isSingleTenantOnClient()) {
-      throw notFound();
+      throw redirect({ to: "/" });
     }
   },
   component: BillingPage,

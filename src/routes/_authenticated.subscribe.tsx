@@ -1,4 +1,10 @@
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+// Aliased: this route already destructures a `redirect` search param.
+import {
+  Link,
+  createFileRoute,
+  redirect as routerRedirect,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useCustomer } from "autumn-js/react";
 import { useEffect, useState } from "react";
 import { ArrowRight, Settings, User } from "lucide-react";
@@ -6,6 +12,7 @@ import { ThemePreferenceMenuItems } from "@/client/components/ThemePreferenceMen
 import { captureClientEvent } from "@/client/lib/posthog";
 import { signOutAndRedirect, useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { isSingleTenantOnClient } from "@/lib/auth-policy";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { getSubscribeRouteState } from "@/client/features/billing/route-state";
 import { getCustomerPlanStatus } from "@/client/features/billing/plan-detection";
@@ -30,6 +37,14 @@ const PLAN_FEATURES = [
 const FINALIZING_TIMEOUT_MS = 30_000;
 
 export const Route = createFileRoute("/_authenticated/subscribe")({
+  beforeLoad: () => {
+    // Nothing to subscribe to on a single-tenant deployment, and _app/index.tsx
+    // navigates here on PAYMENT_REQUIRED — so leaving it live would strand an
+    // employee on a paywall for a plan that cannot be bought.
+    if (isSingleTenantOnClient()) {
+      throw routerRedirect({ to: "/" });
+    }
+  },
   validateSearch: (
     search: Record<string, unknown>,
   ): { upgrade?: true; redirect?: string; checkout?: "success" } => ({
