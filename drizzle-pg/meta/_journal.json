@@ -225,6 +225,13 @@
       "when": 1787113000000,
       "tag": "0031_wandering_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787200000000,
+      "tag": "0032_login_attempt_lockout",
+      "breakpoints": true
     }
   ]
 }

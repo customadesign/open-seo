@@ -10,6 +10,10 @@ import {
 import { getFieldError, getFormError } from "@/client/lib/forms";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { authClient } from "@/lib/auth-client";
+import {
+  isPublicSignupDisabledOnClient,
+  isSocialLoginDisabledOnClient,
+} from "@/lib/auth-policy";
 import { getSignInSearch, getVerifyEmailSearch } from "@/lib/auth-redirect";
 import { z } from "zod";
 
@@ -30,7 +34,11 @@ function SignInPage() {
     search.redirect,
   );
   const authCallbackURL = redirectTo;
-  const [showEmailForm, setShowEmailForm] = useState(false);
+  const socialDisabled = isSocialLoginDisabledOnClient();
+  const signupDisabled = isPublicSignupDisabledOnClient();
+  // Nothing to choose between when Google is off, so skip the chooser step and
+  // open on the credential form.
+  const [showEmailForm, setShowEmailForm] = useState(socialDisabled);
   const [isStartingGoogle, setIsStartingGoogle] = useState(false);
   const [socialError, setSocialError] = useState<string | null>(null);
 
@@ -126,7 +134,7 @@ function SignInPage() {
         isHostedMode ? (
           <div
             className={
-              showEmailForm
+              showEmailForm && !signupDisabled
                 ? "flex justify-between text-sm text-base-content/50"
                 : "text-sm text-base-content/50"
             }
@@ -140,18 +148,20 @@ function SignInPage() {
                 Forgot password?
               </Link>
             ) : null}
-            <Link
-              to="/sign-up"
-              search={getSignInSearch(redirectTo)}
-              className="text-base-content underline underline-offset-2 hover:text-base-content/80 transition-colors"
-            >
-              Create account
-            </Link>
+            {signupDisabled ? null : (
+              <Link
+                to="/sign-up"
+                search={getSignInSearch(redirectTo)}
+                className="text-base-content underline underline-offset-2 hover:text-base-content/80 transition-colors"
+              >
+                Create account
+              </Link>
+            )}
           </div>
         ) : null
       }
     >
-      {!showEmailForm ? (
+      {!showEmailForm && !socialDisabled ? (
         <>
           <AuthMethodChooser
             googleLabel="Continue with Google"

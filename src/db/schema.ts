@@ -4,6 +4,7 @@ import * as sqliteApp from "./app.schema";
 import * as sqliteAudit from "./audit.schema";
 import * as sqliteSam from "./sam.schema";
 import * as sqliteAuth from "./better-auth-schema";
+import * as sqliteLoginAttempt from "./login-attempt.schema";
 import * as sqliteBilling from "./billing.schema";
 import * as sqliteGa4 from "./ga4.schema";
 import * as sqliteGsc from "./gsc.schema";
@@ -25,6 +26,7 @@ import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
 import * as pgAuth from "./pg/better-auth-schema";
+import * as pgLoginAttempt from "./pg/login-attempt.schema";
 import * as pgBilling from "./pg/billing.schema";
 import * as pgGa4 from "./pg/ga4.schema";
 import * as pgGsc from "./pg/gsc.schema";
@@ -57,6 +59,7 @@ type AppSchema = typeof sqliteAiVisibility &
   typeof sqliteAudit &
   typeof sqliteSam &
   typeof sqliteAuth &
+  typeof sqliteLoginAttempt &
   typeof sqliteBilling &
   typeof sqliteGa4 &
   typeof sqliteGsc &
@@ -82,6 +85,7 @@ const runtimeSchema =
         ...pgAudit,
         ...pgSam,
         ...pgAuth,
+        ...pgLoginAttempt,
         ...pgBilling,
         ...pgGa4,
         ...pgGsc,
@@ -105,6 +109,7 @@ const runtimeSchema =
         ...sqliteAudit,
         ...sqliteSam,
         ...sqliteAuth,
+        ...sqliteLoginAttempt,
         ...sqliteBilling,
         ...sqliteGa4,
         ...sqliteGsc,
@@ -220,4 +225,5 @@ export const {
   domainResearchSnapshots,
   domainResearchPages,
   domainSerpFeatureMonths,
+  authLoginAttempt,
 } = schema;

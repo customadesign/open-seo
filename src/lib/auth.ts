@@ -18,6 +18,11 @@ import {
   createOnePagePmSsoPlugin,
   hasOnePagePmSsoConfig,
 } from "@/lib/auth-onepagepm-sso";
+import { createLoginLockoutPlugin } from "@/lib/auth-login-lockout";
+import {
+  isPublicSignupDisabled as isPublicSignupDisabledFor,
+  isSocialLoginDisabled as isSocialLoginDisabledFor,
+} from "@/lib/auth-policy";
 import { createBaseAuthConfig } from "@/lib/auth-config";
 import {
   getHostedTurnstileSecretKey,
@@ -111,7 +116,12 @@ function createAuth() {
     plugins: [
       ...baseAuthConfig.plugins,
       ...(isHostedAuthMode(env.AUTH_MODE)
-        ? [createApiKeyPlugin(), createWorkspaceAccessControlPlugin()]
+        ? [
+            createApiKeyPlugin(),
+            createWorkspaceAccessControlPlugin(),
+            // Only hosted mode exposes a password form to lock.
+            createLoginLockoutPlugin(),
+          ]
         : []),
       ...(isHostedAuthMode(env.AUTH_MODE) && hasOnePagePmSsoConfig()
         ? [createOnePagePmSsoPlugin()]
@@ -251,7 +261,19 @@ function getHostedSecret() {
 // known group and are reached through the OnePagePM handoff, so registration
 // is closed unless a deployment explicitly opts in.
 export function isPublicSignupDisabled() {
-  return Reflect.get(env, "DISABLE_PUBLIC_SIGNUP") !== "false";
+  return isPublicSignupDisabledFor(
+    Reflect.get(env, "DISABLE_PUBLIC_SIGNUP") as string | undefined,
+  );
+}
+
+// Google sign-in is the only social provider. A deployment that wants email and
+// password to be the sole credential path sets DISABLE_SOCIAL_LOGIN=true, which
+// unregisters the provider outright rather than only hiding its button — the
+// /sign-in/social endpoint would otherwise still accept requests.
+export function isSocialLoginDisabled() {
+  return isSocialLoginDisabledFor(
+    Reflect.get(env, "DISABLE_SOCIAL_LOGIN") as string | undefined,
+  );
 }
 
 function getSocialProviders() {
@@ -260,7 +282,7 @@ function getSocialProviders() {
   // (createBaseAuthConfig) with its own creds — so it must NOT require the
   // social-login config here, otherwise getAuth() construction would be coupled
   // to GSC creds rather than just BETTER_AUTH_SECRET.
-  if (!isHostedAuthMode(env.AUTH_MODE)) {
+  if (!isHostedAuthMode(env.AUTH_MODE) || isSocialLoginDisabled()) {
     return {};
   }
 
@@ -314,7 +336,9 @@ export function hasHostedAuthConfig() {
   try {
     getHostedBaseUrl();
     getHostedSecret();
-    getGoogleSocialProviderConfig();
+    if (!isSocialLoginDisabled()) {
+      getGoogleSocialProviderConfig();
+    }
     return (
       hasHostedTurnstileConfig(env) &&
       (Reflect.get(env, "BYPASS_EMAIL_VERIFICATION") === "true" ||

@@ -6,6 +6,7 @@ export * from "../app.schema";
 export * from "../audit.schema";
 export * from "../sam.schema";
 export * from "../better-auth-schema";
+export * from "../login-attempt.schema";
 export * from "../billing.schema";
 export * from "../ga4.schema";
 export * from "../gsc.schema";

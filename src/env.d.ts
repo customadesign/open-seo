@@ -31,6 +31,9 @@ declare namespace Cloudflare {
     // Set to "false" only on a deployment that genuinely wants open public
     // registration. Anything else (including unset) closes /sign-up/email.
     DISABLE_PUBLIC_SIGNUP?: string;
+    // Set to "true" to unregister the Google social provider entirely, leaving
+    // email and password as the only credential path. Unset keeps Google on.
+    DISABLE_SOCIAL_LOGIN?: string;
     DATABASE_PROVIDER?: "d1" | "postgres";
     HYPERDRIVE?: {
       connectionString: string;
@@ -78,6 +81,8 @@ interface ImportMetaEnv {
   readonly AUTH_MODE?: "cloudflare_access" | "local_noauth" | "hosted";
   readonly DATABASE_PROVIDER?: "d1" | "postgres";
   readonly BYPASS_EMAIL_VERIFICATION?: string;
+  readonly DISABLE_PUBLIC_SIGNUP?: string;
+  readonly DISABLE_SOCIAL_LOGIN?: string;
   readonly POSTHOG_PUBLIC_KEY?: string;
   readonly POSTHOG_HOST?: string;
   readonly TURNSTILE_SITE_KEY?: string;
