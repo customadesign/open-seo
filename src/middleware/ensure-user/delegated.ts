@@ -1,5 +1,7 @@
+import { env } from "cloudflare:workers";
 import { db } from "@/db";
 import { user } from "@/db/schema";
+import { isSingleTenant } from "@/lib/auth-policy";
 import {
   ensureDelegatedOrganizationForUser,
   ensureSharedWorkspaceOrganization,
@@ -71,6 +73,13 @@ async function resolveDelegatedContext(
     // Delegated auth (Cloudflare Access / local) has no unverified state.
     emailVerified: true,
     organizationId,
+    access: {
+      memberId: null,
+      role: "owner",
+      projectScope: "all",
+      projectIds: [],
+      delegated: true,
+    },
   };
 }
 
@@ -89,9 +98,27 @@ export async function resolveSharedWorkspaceContext(
     userEmail: ensuredEmail,
     emailVerified: true,
     organizationId,
+    access: {
+      memberId: null,
+      role: "owner",
+      projectScope: "all",
+      projectIds: [],
+      delegated: true,
+    },
   };
 }
 
 export async function resolveLocalNoAuthContext(): Promise<EnsuredUserContext> {
+  // A single-tenant deployment has one workspace whichever mode it is running,
+  // so dropping back to local_noauth (the escape hatch when hosted auth is
+  // misconfigured) must land on the same data rather than an empty per-user
+  // workspace.
+  if (isSingleTenant(Reflect.get(env, "SINGLE_TENANT") as string | undefined)) {
+    return resolveSharedWorkspaceContext(
+      LOCAL_ADMIN_USER_ID,
+      LOCAL_ADMIN_EMAIL,
+    );
+  }
+
   return resolveDelegatedContext(LOCAL_ADMIN_USER_ID, LOCAL_ADMIN_EMAIL);
 }

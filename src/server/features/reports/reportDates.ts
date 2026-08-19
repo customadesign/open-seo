@@ -1,0 +1,309 @@
+type ReportRunFrequency = "daily" | "weekly" | "monthly";
+
+type LocalDateTime = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+function formatter(timeZone: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+}
+
+export function isValidTimeZone(timeZone: string): boolean {
+  try {
+    formatter(timeZone).format(new Date(0));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function localParts(date: Date, timeZone: string): LocalDateTime {
+  const values = Object.fromEntries(
+    formatter(timeZone)
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  return {
+    year: values.year,
+    month: values.month,
+    day: values.day,
+    hour: values.hour,
+    minute: values.minute,
+    second: values.second,
+  };
+}
+
+function partsAsUtc(parts: LocalDateTime): number {
+  return Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  );
+}
+
+function fromLocalParts(parts: LocalDateTime, timeZone: string): Date {
+  let guess = partsAsUtc(parts);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const observed = localParts(new Date(guess), timeZone);
+    const correction = partsAsUtc(parts) - partsAsUtc(observed);
+    if (correction === 0) break;
+    guess += correction;
+  }
+  return new Date(guess);
+}
+
+function shiftMonth(year: number, month: number, delta: number) {
+  const date = new Date(Date.UTC(year, month - 1 + delta, 1));
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+function dateString(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function lastDay(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+export function previousFullCalendarMonth(
+  at: Date,
+  timeZone: string,
+): {
+  periodStart: string;
+  periodEnd: string;
+  compareStart: string;
+  compareEnd: string;
+} {
+  if (!isValidTimeZone(timeZone)) throw new Error("Invalid report timezone");
+  const local = localParts(at, timeZone);
+  const current = shiftMonth(local.year, local.month, -1);
+  const previous = shiftMonth(local.year, local.month, -2);
+  return {
+    periodStart: dateString(current.year, current.month, 1),
+    periodEnd: dateString(
+      current.year,
+      current.month,
+      lastDay(current.year, current.month),
+    ),
+    compareStart: dateString(previous.year, previous.month, 1),
+    compareEnd: dateString(
+      previous.year,
+      previous.month,
+      lastDay(previous.year, previous.month),
+    ),
+  };
+}
+
+export function comparisonPeriod(periodStart: string, periodEnd: string) {
+  const start = new Date(`${periodStart}T00:00:00Z`);
+  const end = new Date(`${periodEnd}T00:00:00Z`);
+  const durationDays =
+    Math.round((end.valueOf() - start.valueOf()) / 86_400_000) + 1;
+  const compareEnd = new Date(start.valueOf() - 86_400_000);
+  const compareStart = new Date(
+    compareEnd.valueOf() - (durationDays - 1) * 86_400_000,
+  );
+  return {
+    compareStart: compareStart.toISOString().slice(0, 10),
+    compareEnd: compareEnd.toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * Collapse every occurrence a stopped deployment missed into one claim: the
+ * latest occurrence that has already passed, plus the first one still ahead.
+ *
+ * Advancing a single occurrence per tick would make an overdue schedule due
+ * again immediately, so each cron tick would start another report until the
+ * schedule caught up — 48 runs for a daily profile idle for 48 days. Reporting
+ * on the newest missed occurrence only — the caller still decides whether its
+ * period is current — keeps that to one report.
+ */
+export function resolveDueOccurrence(input: {
+  scheduledFor: Date;
+  now: Date;
+  timeZone: string;
+  frequency: ReportRunFrequency;
+  runDay?: number | null;
+  runWeekday?: number | null;
+  runHour: number;
+}): { occurrence: string; nextRunAt: string } {
+  let occurrence = input.scheduledFor;
+  // Bounded so a corrupt anchor can't spin the cron tick through thousands of
+  // time-zone conversions. Anything past the bound falls through to the next
+  // occurrence after `now`, which the caller then rejects as stale.
+  const maxSteps = { daily: 1_100, weekly: 550, monthly: 240 }[input.frequency];
+  for (let step = 0; step < maxSteps; step += 1) {
+    const next = new Date(nextDeliveryRun({ ...input, after: occurrence }));
+    if (next > input.now) {
+      return {
+        occurrence: occurrence.toISOString(),
+        nextRunAt: next.toISOString(),
+      };
+    }
+    occurrence = next;
+  }
+  return {
+    occurrence: occurrence.toISOString(),
+    nextRunAt: nextDeliveryRun({ ...input, after: input.now }),
+  };
+}
+
+/** Monthly report settings carry no weekday, so they collapse through the same
+ * loop with the frequency pinned. */
+export function resolveDueMonthlyOccurrence(input: {
+  scheduledFor: Date;
+  now: Date;
+  timeZone: string;
+  runDay: number;
+  runHour: number;
+}): { occurrence: string; nextRunAt: string } {
+  return resolveDueOccurrence({ ...input, frequency: "monthly" });
+}
+
+export function nextMonthlyRun(input: {
+  after: Date;
+  timeZone: string;
+  runDay: number;
+  runHour: number;
+}): string {
+  if (!isValidTimeZone(input.timeZone))
+    throw new Error("Invalid report timezone");
+  const local = localParts(input.after, input.timeZone);
+  let target = {
+    year: local.year,
+    month: local.month,
+    day: input.runDay,
+    hour: input.runHour,
+    minute: 0,
+    second: 0,
+  };
+  let instant = fromLocalParts(target, input.timeZone);
+  if (instant.valueOf() <= input.after.valueOf()) {
+    const next = shiftMonth(target.year, target.month, 1);
+    target = { ...target, ...next };
+    instant = fromLocalParts(target, input.timeZone);
+  }
+  return instant.toISOString();
+}
+
+function dayOfWeek(year: number, month: number, day: number): number {
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
+function shiftDays(
+  parts: { year: number; month: number; day: number },
+  delta: number,
+) {
+  const date = new Date(
+    Date.UTC(parts.year, parts.month - 1, parts.day + delta),
+  );
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+/**
+ * Next wall-clock instant a delivery profile is due, in its own time zone.
+ * Working in local parts (rather than adding fixed milliseconds) is what keeps
+ * a 09:00 schedule at 09:00 across a DST transition.
+ */
+export function nextDeliveryRun(input: {
+  after: Date;
+  timeZone: string;
+  frequency: ReportRunFrequency;
+  runDay?: number | null;
+  runWeekday?: number | null;
+  runHour: number;
+}): string {
+  if (!isValidTimeZone(input.timeZone)) {
+    throw new Error("Invalid report timezone");
+  }
+  const local = localParts(input.after, input.timeZone);
+  const base = { hour: input.runHour, minute: 0, second: 0 };
+
+  if (input.frequency === "monthly") {
+    return nextMonthlyRun({
+      after: input.after,
+      timeZone: input.timeZone,
+      runDay: input.runDay ?? 1,
+      runHour: input.runHour,
+    });
+  }
+
+  if (input.frequency === "weekly") {
+    const target = input.runWeekday ?? 1;
+    let day = { year: local.year, month: local.month, day: local.day };
+    const forward = (target - dayOfWeek(day.year, day.month, day.day) + 7) % 7;
+    day = shiftDays(day, forward);
+    let instant = fromLocalParts({ ...day, ...base }, input.timeZone);
+    if (instant.valueOf() <= input.after.valueOf()) {
+      instant = fromLocalParts(
+        { ...shiftDays(day, 7), ...base },
+        input.timeZone,
+      );
+    }
+    return instant.toISOString();
+  }
+
+  const today = { year: local.year, month: local.month, day: local.day };
+  let instant = fromLocalParts({ ...today, ...base }, input.timeZone);
+  if (instant.valueOf() <= input.after.valueOf()) {
+    instant = fromLocalParts(
+      { ...shiftDays(today, 1), ...base },
+      input.timeZone,
+    );
+  }
+  return instant.toISOString();
+}
+
+/**
+ * Reporting window for a scheduled delivery: the last complete period before
+ * `at`, plus the equally long window before it for period-over-period change.
+ */
+export function deliveryPeriod(
+  frequency: ReportRunFrequency,
+  at: Date,
+  timeZone: string,
+): {
+  periodStart: string;
+  periodEnd: string;
+  compareStart: string;
+  compareEnd: string;
+} {
+  if (!isValidTimeZone(timeZone)) throw new Error("Invalid report timezone");
+  if (frequency === "monthly") return previousFullCalendarMonth(at, timeZone);
+
+  const local = localParts(at, timeZone);
+  const today = { year: local.year, month: local.month, day: local.day };
+  const length = frequency === "weekly" ? 7 : 1;
+  const end = shiftDays(today, -1);
+  const start = shiftDays(today, -length);
+  const periodStart = dateString(start.year, start.month, start.day);
+  const periodEnd = dateString(end.year, end.month, end.day);
+  return {
+    periodStart,
+    periodEnd,
+    ...comparisonPeriod(periodStart, periodEnd),
+  };
+}

@@ -18,8 +18,10 @@ import {
   MCP_ROUTE,
   type McpProps,
 } from "@/server/mcp/context";
+import { canUseProjectTools } from "@/shared/workspace-access";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { createOpenSeoMcpServer } from "@/server/mcp/server";
+import { resolveMcpWorkspacePrincipal } from "@/server/mcp/workspace-access";
 
 // Mirrors the agents SDK's DEFAULT_CORS_OPTIONS so legacy responses carry the
 // same CORS surface as the modern handler's.
@@ -156,6 +158,14 @@ export async function handleAuthenticatedOpenSeoMcpRequest(
     return new Response("MCP scope required", { status: 403 });
   }
 
+  const identity = result.data[MCP_AUTH_CONTEXT_PROP];
+  const access = await resolveMcpWorkspacePrincipal(identity);
+  if (!access || !canUseProjectTools(access)) {
+    return new Response("MCP access is unavailable for this account", {
+      status: 403,
+    });
+  }
+
   return createRequestHandler(result.data, [
     new URL(getHostedBaseUrl()).hostname,
   ])(request, env, ctx);
@@ -181,6 +191,7 @@ export async function handleSelfHostedOpenSeoMcpRequest(
     userEmail: identity.userEmail,
     organizationId: identity.organizationId,
     baseUrl: getPublicOrigin(request),
+    delegated: true,
   });
 
   return createRequestHandler(props)(request, env, ctx);

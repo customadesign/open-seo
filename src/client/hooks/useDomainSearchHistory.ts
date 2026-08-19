@@ -3,7 +3,15 @@ import { useLocalHistoryStore } from "@/client/hooks/useLocalHistoryStore";
 import { jsonCodec } from "@/shared/json";
 
 type DomainSortMode = "rank" | "traffic" | "volume" | "score" | "cpc";
-type DomainTab = "keywords" | "pages";
+type DomainTab =
+  | "keywords"
+  | "pages"
+  | "changes"
+  | "competitors"
+  | "intent"
+  | "features"
+  | "subdomains"
+  | "compare";
 
 export interface DomainSearchHistoryItem {
   domain: string;
@@ -22,7 +30,16 @@ const domainSearchHistoryItemSchema = z.object({
   domain: z.string(),
   subdomains: z.boolean(),
   sort: z.enum(["rank", "traffic", "volume", "score", "cpc"]),
-  tab: z.enum(["keywords", "pages"]),
+  tab: z.enum([
+    "keywords",
+    "pages",
+    "changes",
+    "competitors",
+    "intent",
+    "features",
+    "subdomains",
+    "compare",
+  ]),
   locationCode: z.number().int().positive().optional(),
   timestamp: z.number(),
 });

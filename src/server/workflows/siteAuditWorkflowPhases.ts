@@ -1,6 +1,16 @@
+/* eslint-disable max-lines -- discovery, lighthouse, and finalize live in one workflow module */
 import type { WorkflowStep } from "cloudflare:workers";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
-import { discoverUrls, parseRobotsTxt } from "@/server/lib/audit/discovery";
+import {
+  discoverUrls,
+  parseRobotsTxt,
+  type AiCrawlerAccess,
+  type LlmsTxtStatus,
+} from "@/server/lib/audit/discovery";
+import {
+  compactSiteFiles,
+  type CompactSiteFilesSnapshot,
+} from "@/server/lib/audit/site-files";
 import {
   fetchLighthouseResult,
   selectLighthouseSample,
@@ -13,9 +23,13 @@ import {
 } from "@/server/lib/audit/url-utils";
 import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { AuditChangeEventService } from "@/server/features/audit/services/AuditChangeEventService";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import { runMultipageChecks } from "@/server/lib/audit/issues/multipage";
+import { runOriginVariantChecks } from "@/server/lib/audit/issues/origin-checks";
+import { runResourceChecks } from "@/server/lib/audit/issues/run-resource-checks";
+import { runSitewideChecks } from "@/server/lib/audit/issues/sitewide";
 import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
 import type { AuditConfig } from "@/server/lib/audit/types";
 import { captureServerEvent } from "@/server/lib/posthog";
@@ -47,6 +61,14 @@ type AuditPhasesParams = {
   projectId: string;
   startUrl: string;
   config: AuditConfig;
+};
+
+type DiscoveryPhaseResult = {
+  robotsText: string | null;
+  seededCount: number;
+  aiCrawlerAccess: AiCrawlerAccess[];
+  llmsTxt: LlmsTxtStatus;
+  siteFiles: CompactSiteFilesSnapshot;
 };
 
 export async function runAuditPhases(
@@ -100,6 +122,7 @@ export async function runAuditPhases(
     startUrl,
     config,
     crawl,
+    discovery,
   });
 }
 
@@ -114,53 +137,65 @@ async function runDiscoveryPhase(
   },
 ) {
   const { auditId, workflowInstanceId, origin, startUrl, maxPages } = input;
-  // "-v2": the checkpoint shape changed (seeds now live in the scratchpad DO
-  // instead of the step return). A pre-refactor instance replayed under this
-  // code must re-run discovery — resuming from the old cached {sitemapUrls}
-  // shape would leave the scratchpad empty and finalize a zero-page audit.
-  return pgStep(step, "discover-urls-v2", DISCOVERY_STEP, async () => {
-    const result = await discoverUrls(origin, maxPages);
-    const robots = parseRobotsTxt(origin, result.robotsText);
-    const scratchpad = getAuditScratchpad(auditId);
+  // "-v4": v3 checkpointed AI crawler access and llms.txt; v4 also stores
+  // the robots/sitemap snapshot for sitewide checks. Re-run older shapes
+  // so finalize never reads missing site-file signals.
+  return pgStep(
+    step,
+    "discover-urls-v4",
+    DISCOVERY_STEP,
+    async (): Promise<DiscoveryPhaseResult> => {
+      const result = await discoverUrls(origin, maxPages);
+      const robots = parseRobotsTxt(origin, result.robotsText);
+      const siteFiles = compactSiteFiles(result.siteFiles);
+      const scratchpad = getAuditScratchpad(auditId);
 
-    // Seeds go straight into the scratchpad frontier — nothing large is
-    // returned as step state (an uncapped seed list used to blow the ~1MiB
-    // step-output limit on big sitemaps).
-    let seededCount = 0;
-    const normalizedStart = normalizeUrl(startUrl) ?? startUrl;
-    if (
-      robots.isAllowed(normalizedStart) &&
-      isSameOrigin(normalizedStart, origin)
-    ) {
-      await scratchpad.seedStart(normalizedStart);
-      seededCount += 1;
-    }
+      // Seeds go straight into the scratchpad frontier — nothing large is
+      // returned as step state (an uncapped seed list used to blow the ~1MiB
+      // step-output limit on big sitemaps).
+      let seededCount = 0;
+      const normalizedStart = normalizeUrl(startUrl) ?? startUrl;
+      if (
+        robots.isAllowed(normalizedStart) &&
+        isSameOrigin(normalizedStart, origin)
+      ) {
+        await scratchpad.seedStart(normalizedStart);
+        seededCount += 1;
+      }
 
-    // The start URL is deliberately not excluded here: seedSitemapUrls
-    // upserts, so a start URL that also appears in the sitemap keeps its
-    // link-queue position but gains the in-sitemap flag.
-    const seen = new Set<string>();
-    const seeds: string[] = [];
-    for (const url of result.urls) {
-      const normalized = normalizeUrl(url);
-      if (!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      if (!isSameOrigin(normalized, origin)) continue;
-      if (!isCrawlableUrl(normalized)) continue;
-      if (!robots.isAllowed(normalized)) continue;
-      seeds.push(normalized);
-    }
-    for (let i = 0; i < seeds.length; i += SEED_RPC_BATCH) {
-      await scratchpad.seedSitemapUrls(seeds.slice(i, i + SEED_RPC_BATCH));
-    }
-    seededCount += seeds.filter((seed) => seed !== normalizedStart).length;
+      // The start URL is deliberately not excluded here: seedSitemapUrls
+      // upserts, so a start URL that also appears in the sitemap keeps its
+      // link-queue position but gains the in-sitemap flag.
+      const seen = new Set<string>();
+      const seeds: string[] = [];
+      for (const url of result.urls) {
+        const normalized = normalizeUrl(url);
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        if (!isSameOrigin(normalized, origin)) continue;
+        if (!isCrawlableUrl(normalized)) continue;
+        if (!robots.isAllowed(normalized)) continue;
+        seeds.push(normalized);
+      }
+      for (let i = 0; i < seeds.length; i += SEED_RPC_BATCH) {
+        await scratchpad.seedSitemapUrls(seeds.slice(i, i + SEED_RPC_BATCH));
+      }
+      seededCount += seeds.filter((seed) => seed !== normalizedStart).length;
 
-    await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
-      pagesTotal: Math.min(seededCount, maxPages),
-      currentPhase: "crawling",
-    });
-    return { robotsText: result.robotsText, seededCount };
-  });
+      await AuditRepository.insertSiteFiles(auditId, siteFiles);
+      await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
+        pagesTotal: Math.min(seededCount, maxPages),
+        currentPhase: "crawling",
+      });
+      return {
+        robotsText: result.robotsText,
+        seededCount,
+        aiCrawlerAccess: result.aiCrawlerAccess,
+        llmsTxt: result.llmsTxt,
+        siteFiles,
+      };
+    },
+  );
 }
 
 type LighthousePhaseParams = {
@@ -324,6 +359,7 @@ async function finalizeAudit(args: {
   startUrl: string;
   config: AuditConfig;
   crawl: CrawlPhaseResult;
+  discovery: DiscoveryPhaseResult;
 }) {
   const {
     step,
@@ -334,6 +370,7 @@ async function finalizeAudit(args: {
     startUrl,
     config,
     crawl,
+    discovery,
   } = args;
 
   await pgStep(step, "multipage-checks", MULTIPAGE_CHECKS_STEP, async () => {
@@ -354,9 +391,30 @@ async function finalizeAudit(args: {
     }
 
     const issues = await runMultipageChecks({ auditId });
+    issues.push(
+      ...runSitewideChecks({
+        origin: getOrigin(startUrl),
+        aiCrawlerAccess: discovery.aiCrawlerAccess,
+        llmsTxt: discovery.llmsTxt,
+        siteFiles: discovery.siteFiles,
+      }),
+    );
     issues.push(...(await runScratchpadLinkChecks(auditId, startUrl, crawl)));
+    const scratchpad = getAuditScratchpad(auditId);
+    const externalLinks = await scratchpad.listExternalLinks();
+    const resource = await runResourceChecks({
+      auditId,
+      origin: getOrigin(startUrl),
+      externalLinks,
+    });
+    issues.push(...resource.issues);
+    issues.push(...(await runOriginVariantChecks({ startUrl })));
     await AuditRepository.insertIssues(auditId, issues);
-    return { issueCount: issues.length };
+    return {
+      issueCount: issues.length,
+      resourceProbesAttempted: resource.budget.attempted,
+      resourceProbesSkippedByCap: resource.budget.skippedByCap,
+    };
   });
 
   await pgStep(step, "finalize", DB_STEP, async () => {
@@ -383,6 +441,10 @@ async function finalizeAudit(args: {
     // Crawl scratch state (frontier, links, mirror) is no longer needed.
     await getAuditScratchpad(auditId).destroy();
   });
+
+  await pgStep(step, "audit-change-events", DB_STEP, () =>
+    AuditChangeEventService.recordForCompletedAudit({ auditId, projectId }),
+  );
 }
 
 /**
@@ -395,13 +457,14 @@ async function runScratchpadLinkChecks(
   crawl: CrawlPhaseResult,
 ): Promise<DetectedIssue[]> {
   const scratchpad = getAuditScratchpad(auditId);
-  const { brokenLinks, orphanPages } = await scratchpad.runFinalizeChecks({
-    // Page rows store normalized URLs; normalize the start URL the same way
-    // so the orphan exclusion matches.
-    startUrl: normalizeUrl(startUrl) ?? startUrl,
-    // Orphan detection only makes sense when the crawl wasn't truncated.
-    crawlCompleted: crawl.completed,
-  });
+  const { brokenLinks, orphanPages, singleInboundPages } =
+    await scratchpad.runFinalizeChecks({
+      // Page rows store normalized URLs; normalize the start URL the same way
+      // so the orphan exclusion matches.
+      startUrl: normalizeUrl(startUrl) ?? startUrl,
+      // Orphan detection only makes sense when the crawl wasn't truncated.
+      crawlCompleted: crawl.completed,
+    });
 
   return [
     ...brokenLinks.map((row) => ({
@@ -413,6 +476,11 @@ async function runScratchpadLinkChecks(
     })),
     ...orphanPages.map((row) => ({
       issueType: "orphan-page" as const,
+      pageId: row.pageId,
+      pageUrl: row.url,
+    })),
+    ...singleInboundPages.map((row) => ({
+      issueType: "single-incoming-internal-link" as const,
       pageId: row.pageId,
       pageUrl: row.url,
     })),

@@ -9,8 +9,42 @@ import { analyzeHtml } from "@/server/lib/audit/page-analyzer";
 import { normalizeUrl, isSameOrigin } from "@/server/lib/audit/url-utils";
 import type { PageAnalysis, PageLink } from "@/server/lib/audit/types";
 
+type SemanticSignalKey =
+  | "structuredDataTypes"
+  | "invalidStructuredDataCount"
+  | "htmlLang"
+  | "hasViewportMeta"
+  | "questionHeadingCount"
+  | "listCount"
+  | "tableCount"
+  | "hasAuthorSignal"
+  | "hasDateSignal"
+  | "mixedContentCount"
+  | "contentExternalLinkTargets"
+  | "contentDate"
+  | "semanticElementCount"
+  | "malformedLinkHrefs"
+  | "hreflangLinks"
+  | "htmlBytes"
+  | "hasDoctype"
+  | "charset"
+  | "hasMetaRefresh"
+  | "frameCount"
+  | "scriptUrls"
+  | "stylesheetUrls"
+  | "inlineScriptBytes"
+  | "inlineStyleBytes"
+  | "textBytes"
+  | "imageCount"
+  | "externalImageSrcs"
+  | "responseHeaders";
+type LegacyPageAnalysis = Omit<PageAnalysis, SemanticSignalKey>;
+
 /** The previous cheerio implementation, verbatim (minus passthrough fields). */
-function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
+function analyzeHtmlWithCheerio(
+  html: string,
+  pageUrl: string,
+): LegacyPageAnalysis {
   const $ = cheerio.load(html);
 
   const title = $("title").first().text().trim();
@@ -112,7 +146,38 @@ const PAGE_URL = "https://example.com/blog/post";
 function expectParity(html: string) {
   const streamed = analyzeHtml(html, PAGE_URL, 200, 0);
   const reference = analyzeHtmlWithCheerio(html, PAGE_URL);
-  expect(streamed).toEqual(reference);
+  const {
+    structuredDataTypes: _structuredDataTypes,
+    invalidStructuredDataCount: _invalidStructuredDataCount,
+    htmlLang: _htmlLang,
+    hasViewportMeta: _hasViewportMeta,
+    questionHeadingCount: _questionHeadingCount,
+    listCount: _listCount,
+    tableCount: _tableCount,
+    hasAuthorSignal: _hasAuthorSignal,
+    hasDateSignal: _hasDateSignal,
+    mixedContentCount: _mixedContentCount,
+    contentExternalLinkTargets: _contentExternalLinkTargets,
+    contentDate: _contentDate,
+    semanticElementCount: _semanticElementCount,
+    malformedLinkHrefs: _malformedLinkHrefs,
+    hreflangLinks: _hreflangLinks,
+    htmlBytes: _htmlBytes,
+    hasDoctype: _hasDoctype,
+    charset: _charset,
+    hasMetaRefresh: _hasMetaRefresh,
+    frameCount: _frameCount,
+    scriptUrls: _scriptUrls,
+    stylesheetUrls: _stylesheetUrls,
+    inlineScriptBytes: _inlineScriptBytes,
+    inlineStyleBytes: _inlineStyleBytes,
+    textBytes: _textBytes,
+    imageCount: _imageCount,
+    externalImageSrcs: _externalImageSrcs,
+    responseHeaders: _responseHeaders,
+    ...legacyStreamed
+  } = streamed;
+  expect(legacyStreamed).toEqual(reference);
 }
 
 describe("analyzeHtml parity with the DOM reference", () => {
@@ -204,5 +269,127 @@ describe("analyzeHtml parity with the DOM reference", () => {
       </p>
       <ul><li>four</li><li>five</li></ul>
     </body>`);
+  });
+
+  it("extracts structured-data and answer-readiness signals", () => {
+    const result = analyzeHtml(
+      `<html lang="en"><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta property="article:modified_time" content="2026-08-13">
+        <script type="application/ld+json; charset=utf-8">{
+          "@graph": [
+            {"@type":"Organization"},
+            {"@type":["Article","CreativeWork"],"author":{"@type":"Person"}}
+          ]
+        }</script>
+        <script type="application/ld+json">{not valid}</script>
+      </head><body><nav><ul><li>Navigation</li></ul></nav><main>
+        <h1>Guide</h1><h2>How does this work?</h2>
+        <ol><li>First</li></ol><table><tr><td>Comparison</td></tr></table>
+        <img src="http://insecure.example/image.jpg" alt="Example">
+        <a href="http://source.example/research">Source</a>
+      </main><footer><a href="https://footer.example/">Footer</a></footer>
+      </body></html>`,
+      PAGE_URL,
+      200,
+      0,
+    );
+
+    expect(result).toMatchObject({
+      htmlLang: "en",
+      hasViewportMeta: true,
+      structuredDataTypes: [
+        "Article",
+        "CreativeWork",
+        "Organization",
+        "Person",
+      ],
+      invalidStructuredDataCount: 1,
+      questionHeadingCount: 1,
+      listCount: 1,
+      tableCount: 1,
+      hasAuthorSignal: true,
+      hasDateSignal: true,
+      mixedContentCount: 1,
+      contentExternalLinkTargets: ["http://source.example/research"],
+    });
+  });
+});
+
+describe("analyzeHtml document and resource signals", () => {
+  it("captures doctype, charset, frames, resources, and text size", () => {
+    const html = `<!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta http-equiv="refresh" content="5;url=/next">
+          <link rel="stylesheet" href="/app.css">
+          <style>.x{color:red}</style>
+        </head>
+        <body>
+          Hello world
+          <script src="/app.js"></script>
+          <script>console.log(1)</script>
+          <iframe src="/embed"></iframe>
+          <img src="https://cdn.example/pic.png" alt="pic">
+        </body>
+      </html>`;
+    const result = analyzeHtml(html, PAGE_URL, 200, 0);
+
+    expect(result.hasDoctype).toBe(true);
+    expect(result.charset).toBe("utf-8");
+    expect(result.hasMetaRefresh).toBe(true);
+    expect(result.frameCount).toBe(1);
+    expect(result.stylesheetUrls).toEqual(["https://example.com/app.css"]);
+    expect(result.scriptUrls).toEqual(["https://example.com/app.js"]);
+    expect(result.inlineStyleBytes).toBeGreaterThan(0);
+    expect(result.inlineScriptBytes).toBeGreaterThan(0);
+    expect(result.imageCount).toBe(1);
+    expect(result.externalImageSrcs).toEqual(["https://cdn.example/pic.png"]);
+    expect(result.textBytes).toBeGreaterThan(0);
+    expect(result.htmlBytes).toBeGreaterThan(result.textBytes);
+  });
+
+  it("reads charset from a content-type meta tag", () => {
+    const result = analyzeHtml(
+      `<html><head><meta http-equiv="content-type" content="text/html; charset=ISO-8859-1"></head><body>Hi</body></html>`,
+      PAGE_URL,
+      200,
+      0,
+    );
+    expect(result.hasDoctype).toBe(false);
+    expect(result.charset).toBe("ISO-8859-1");
+  });
+
+  it("captures malformed hrefs, hreflang hrefs, dates, and semantic tags", () => {
+    const result = analyzeHtml(
+      `<!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta property="article:published_time" content="2024-01-15">
+          <link rel="alternate" hreflang="en" href="https://example.com/en">
+          <link rel="alternate" hreflang="de" href="/de">
+        </head>
+        <body>
+          <main>
+            <article>
+              <h1>Hello</h1>
+              <a href="http://">Broken</a>
+              <time datetime="2024-06-01">June</time>
+            </article>
+          </main>
+        </body>
+      </html>`,
+      PAGE_URL,
+      200,
+      0,
+    );
+    expect(result.malformedLinkHrefs).toEqual(["http://"]);
+    expect(result.hreflangLinks).toEqual([
+      { lang: "en", href: "https://example.com/en" },
+      { lang: "de", href: "https://example.com/de" },
+    ]);
+    expect(result.contentDate).toBe("2024-06-01");
+    expect(result.semanticElementCount).toBeGreaterThanOrEqual(2);
   });
 });

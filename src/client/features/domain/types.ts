@@ -14,6 +14,9 @@ export type PageRow = {
   relativePath: string | null;
   organicTraffic: number | null;
   keywords: number | null;
+  status?: "new" | "lost" | "existing";
+  previousTraffic?: number | null;
+  trafficDelta?: number | null;
 };
 
 export type DomainFilterValues = {
@@ -64,7 +67,29 @@ export type DomainControlsValues = {
 
 export type DomainSortMode = DomainControlsValues["sort"];
 export type SortOrder = "asc" | "desc";
-export type DomainActiveTab = "keywords" | "pages";
+export type DomainActiveTab =
+  | "keywords"
+  | "pages"
+  | "changes"
+  | "competitors"
+  | "intent"
+  | "features"
+  | "subdomains"
+  | "compare";
+
+export const DOMAIN_REPORT_TABS: Array<{
+  id: DomainActiveTab;
+  label: string;
+}> = [
+  { id: "keywords", label: "Top Keywords" },
+  { id: "pages", label: "Top Pages" },
+  { id: "changes", label: "Position Changes" },
+  { id: "competitors", label: "Competitors" },
+  { id: "intent", label: "Intent" },
+  { id: "features", label: "SERP Features" },
+  { id: "subdomains", label: "Subdomains" },
+  { id: "compare", label: "Compare" },
+];
 
 export type DomainHistoryItem = {
   timestamp: number;

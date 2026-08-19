@@ -71,3 +71,76 @@ export function getKeywordResearchFixture(data: ResolvedResearchKeywordsInput) {
     },
   };
 }
+
+export function getKeywordMagicRunFixture(input: {
+  seed: string;
+  locationCode: number;
+  languageCode: string;
+  clickstream?: boolean;
+  maxKeywords?: number;
+}) {
+  return {
+    id: "e2e-keyword-magic",
+    seed: input.seed,
+    locationCode: input.locationCode,
+    languageCode: input.languageCode,
+    clickstream: input.clickstream ?? false,
+    maxKeywords: input.maxKeywords ?? 10_000,
+    keywordCount: 10,
+    provider: "labs" as const,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    expiresAt: "2099-01-01T00:00:00.000Z",
+  };
+}
+
+export function getKeywordMagicPageFixture(input: {
+  projectId: string;
+  runId?: string;
+  page?: number;
+  pageSize?: number;
+  seed?: string;
+}) {
+  const seed = input.seed ?? "keyword research";
+  const research = getKeywordResearchFixture({
+    projectId: input.projectId,
+    keywords: [seed],
+    locationCode: 2840,
+    languageCode: "en",
+    resultLimit: 150,
+    mode: "auto",
+    clickstream: false,
+  });
+  const rows = research.rows.map((row) => ({
+    keyword: row.keyword,
+    searchVolume: row.searchVolume,
+    cpc: row.cpc,
+    competition: row.competition,
+    keywordDifficulty: row.keywordDifficulty,
+    intent: row.intent,
+    wordCount: row.keyword.split(/\s+/).length,
+    serpFeatures: [] as string[],
+    metricsUpdatedAt: "2026-01-01T00:00:00.000Z",
+    clusterId: "e2e-cluster",
+    clusterName: "Keyword Research",
+  }));
+  return {
+    run: getKeywordMagicRunFixture({
+      seed,
+      locationCode: 2840,
+      languageCode: "en",
+    }),
+    rows,
+    clusters: [
+      {
+        id: "e2e-cluster",
+        name: "Keyword Research",
+        keywordCount: rows.length,
+      },
+    ],
+    totalCount: rows.length,
+    page: input.page ?? 1,
+    pageSize: input.pageSize ?? 50,
+    hasMore: false,
+    matchType: "all" as const,
+  };
+}

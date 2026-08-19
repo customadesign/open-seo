@@ -34,10 +34,19 @@ export const fetchRankCheckTaskResult: DataforseoSections["fetchRankCheckTaskRes
   async (input) =>
     (await loadDataforseoSections()).fetchRankCheckTaskResult(input);
 
+/** Same deal for AI visibility task collection: free at DataForSEO. */
+export const fetchAiVisibilityTaskResult: DataforseoSections["fetchAiVisibilityTaskResult"] =
+  async (input) =>
+    (await loadDataforseoSections()).fetchAiVisibilityTaskResult(input);
+
 export type {
   LabsKeywordDataItem,
   DomainRankedKeywordItem,
   RelevantPagesItem,
+  CompetitorsDomainItem,
+  SubdomainsItem,
+  HistoricalRankOverviewItem,
+  BulkTrafficEstimationItem,
 } from "@/server/lib/dataforseo/labs";
 
 export type { AdsKeywordIdeaItem } from "@/server/lib/dataforseo/google-ads";
@@ -55,4 +64,9 @@ export type {
   ReferringDomainItem,
   DomainPageSummaryItem,
   BacklinksHistoryItem,
+  BacklinksAnchorItem,
+  BacklinksNewLostTimeseriesItem,
+  BacklinksBulkRankItem,
+  BacklinksBulkBacklinksItem,
+  BacklinksBulkReferringDomainsItem,
 } from "@/server/lib/dataforseo/backlinks";

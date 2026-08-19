@@ -73,8 +73,13 @@ The execution order is designed for safe retries:
    Autumn plus its linked Stripe customer.
 2. Call the Worker endpoint, which terminates active site-audit and rank-check
    Workflow instances, revokes Google grants, and erases chat/scratchpad
-   Durable Objects, R2 audit payloads, KV progress entries, and MCP OAuth
-   grants/tokens.
+   Durable Objects, every R2 object the projects point at (Lighthouse payloads,
+   AI visibility evidence, rendered report PDFs — see
+   `scripts/gdpr-r2-inventory.ts`), KV progress entries, and MCP OAuth
+   grants/tokens. R2 has no cascade, so those keys are collected during the
+   inventory, before the Postgres delete: a pointer column added to the schema
+   but not to that module leaves its objects in the bucket with nothing left to
+   name them.
 3. Delete the organizations and user in one Postgres transaction, relying on
    foreign-key cascades for project data, then verify the root rows are gone.
 

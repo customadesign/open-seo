@@ -85,6 +85,60 @@ export function BacklinksTrendChart({
   );
 }
 
+export function BacklinksAuthorityChart({
+  data,
+}: {
+  data: BacklinksOverviewData["trends"];
+}) {
+  const { containerRef, chartWidth } = useChartWidth();
+
+  if (data.length === 0) {
+    return <EmptyChartState />;
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="h-56 min-w-0"
+      aria-label="Authority score trend chart"
+    >
+      {chartWidth > 0 ? (
+        <LineChart
+          width={chartWidth}
+          height={224}
+          data={data}
+          margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="currentColor"
+            opacity={0.12}
+          />
+          <XAxis
+            dataKey="date"
+            tickFormatter={formatChartTick}
+            minTickGap={24}
+          />
+          <YAxis tickFormatter={formatAxisValue} width={60} domain={[0, 100]} />
+          <Tooltip
+            formatter={formatTooltipValue}
+            labelFormatter={formatChartLabel}
+          />
+          <Legend />
+          <Line
+            type="monotone"
+            dataKey="rank"
+            stroke="#7c3aed"
+            strokeWidth={2}
+            dot={false}
+            name="Authority score"
+          />
+        </LineChart>
+      ) : null}
+    </div>
+  );
+}
+
 export function BacklinksNewLostChart({
   data,
 }: {
@@ -140,6 +194,24 @@ export function BacklinksNewLostChart({
             strokeWidth={2}
             dot={false}
             name="New backlinks"
+          />
+          <Line
+            type="monotone"
+            dataKey="lostReferringDomains"
+            stroke="#fb7185"
+            strokeWidth={2}
+            strokeDasharray="4 4"
+            dot={false}
+            name="Lost referring domains"
+          />
+          <Line
+            type="monotone"
+            dataKey="newReferringDomains"
+            stroke="#4ade80"
+            strokeWidth={2}
+            strokeDasharray="4 4"
+            dot={false}
+            name="New referring domains"
           />
         </LineChart>
       ) : null}

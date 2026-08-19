@@ -80,6 +80,14 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       referringDomains: meter(customer, (s) => s.fetchReferringDomains),
       domainPages: meter(customer, (s) => s.fetchDomainPagesSummary),
       history: meter(customer, (s) => s.fetchBacklinksHistory),
+      anchors: meter(customer, (s) => s.fetchBacklinksAnchors),
+      timeseriesNewLost: meter(
+        customer,
+        (s) => s.fetchTimeseriesNewLostSummary,
+      ),
+      bulkRanks: meter(customer, (s) => s.fetchBulkRanks),
+      bulkBacklinks: meter(customer, (s) => s.fetchBulkBacklinks),
+      bulkReferringDomains: meter(customer, (s) => s.fetchBulkReferringDomains),
     },
     keywords: {
       related: meter(customer, (s) => s.fetchRelatedKeywords),
@@ -93,6 +101,16 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       rankOverview: meter(customer, (s) => s.fetchDomainRankOverview),
       rankedKeywords: meter(customer, (s) => s.fetchRankedKeywords),
       relevantPages: meter(customer, (s) => s.fetchRelevantPages),
+      competitors: meter(customer, (s) => s.fetchCompetitorsDomain),
+      subdomains: meter(customer, (s) => s.fetchSubdomains),
+      historicalRankOverview: meter(
+        customer,
+        (s) => s.fetchHistoricalRankOverview,
+      ),
+      bulkTrafficEstimation: meter(
+        customer,
+        (s) => s.fetchBulkTrafficEstimation,
+      ),
     },
     serp: {
       live: meter(customer, (s) => s.fetchLiveSerp),
@@ -117,6 +135,10 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         "rank_tracking",
       ),
       serpCompetitors: meter(customer, (s) => s.fetchSerpCompetitors),
+      bulkTrafficEstimation: meter(
+        customer,
+        (s) => s.fetchBulkTrafficEstimation,
+      ),
     },
     lighthouse: {
       live: meter(customer, (s) => s.fetchLighthouseResult),
@@ -130,6 +152,17 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         (s) => s.fetchLlmCrossAggregatedMetrics,
       ),
       llmResponse: meter(customer, (s) => s.fetchLlmResponse),
+    },
+    aiVisibility: {
+      // Posts up to MAX_AI_VISIBILITY_TASKS_PER_POST queued prompts; one
+      // metered charge covers the batch (task_post is charged at post time,
+      // collection is free). Collection is intentionally NOT on the client —
+      // metering it would bill the customer a second time.
+      taskPost: meter(
+        customer,
+        (s) => s.postAiVisibilityTasks,
+        "ai_visibility",
+      ),
     },
   } as const;
 }

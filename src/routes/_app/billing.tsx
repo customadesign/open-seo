@@ -1,8 +1,9 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useCustomer } from "autumn-js/react";
 import { useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { isSingleTenantOnClient } from "@/lib/auth-policy";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { buildCheckoutSuccessUrl } from "@/client/features/billing/checkout-url";
@@ -21,17 +22,27 @@ import {
   AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
   autumnSeoDataCreditsToUsd,
 } from "@/shared/billing";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 export const Route = createFileRoute("/_app/billing")({
   beforeLoad: () => {
-    if (!isHostedClientAuthMode()) {
-      throw notFound();
+    // Hosted auth is also how a single-tenant self-host gets real sessions, so
+    // the mode alone no longer implies there is anything to bill.
+    //
+    // Redirect rather than notFound(): several credit/plan CTAs still link
+    // here (dashboard metric cards, keyword research, the free-plan banner),
+    // and a 404 on a link the app itself rendered reads as a broken app. The
+    // same predicate already redirects in _authenticated.onboarding.chat.tsx.
+    if (!isHostedClientAuthMode() || isSingleTenantOnClient()) {
+      throw redirect({ to: "/" });
     }
   },
   component: BillingPage,
 });
 
 function BillingPage() {
+  const accessQuery = useWorkspaceAccess();
+  const canManageWorkspace = accessQuery.data?.canManageWorkspace === true;
   const { data: session, isPending: isSessionPending } = useSession();
   const [topUpAmount, setTopUpAmount] = useState("20");
   const [isPending, setIsPending] = useState(false);
@@ -39,9 +50,22 @@ function BillingPage() {
 
   const customerQuery = useCustomer({
     queryOptions: {
-      enabled: Boolean(session?.user?.id),
+      enabled: Boolean(session?.user?.id) && canManageWorkspace,
     },
   });
+
+  if (!accessQuery.data) return null;
+
+  if (!canManageWorkspace) {
+    return (
+      <div className="mx-auto w-full max-w-2xl space-y-2 p-4 py-10 md:p-6 md:py-12">
+        <h1 className="text-xl font-semibold">Billing</h1>
+        <p className="text-sm text-base-content/70">
+          Billing is managed by the workspace owner.
+        </p>
+      </div>
+    );
+  }
 
   const planStatus = getCustomerPlanStatus(customerQuery.data);
   const isFreePlan = planStatus === "free";

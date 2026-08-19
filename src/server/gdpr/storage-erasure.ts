@@ -180,6 +180,14 @@ async function eraseStorage(env: Env, payload: GdprStorageErasurePayload) {
     env.RANK_CHECK_WORKFLOW,
     payload.activeRankWorkflowIds,
   );
+  const aiVisibilityWorkflowsTerminated = await terminateWorkflows(
+    env.AI_VISIBILITY_WORKFLOW,
+    payload.activeAiVisibilityWorkflowIds,
+  );
+  const reportWorkflowsTerminated = await terminateWorkflows(
+    env.REPORT_WORKFLOW,
+    payload.activeReportWorkflowIds,
+  );
 
   const googleRevocations: GoogleRevocationResult[] = [];
   for (const account of payload.googleAccounts) {
@@ -224,6 +232,8 @@ async function eraseStorage(env: Env, payload: GdprStorageErasurePayload) {
     workflows: {
       auditTerminated: auditWorkflowsTerminated,
       rankTerminated: rankWorkflowsTerminated,
+      aiVisibilityTerminated: aiVisibilityWorkflowsTerminated,
+      reportTerminated: reportWorkflowsTerminated,
     },
     durableObjects: {
       sam: payload.samSessionIds.length,

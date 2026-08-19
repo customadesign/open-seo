@@ -21,6 +21,8 @@ export function RankTrackingTableToolbar({
   checkBusy,
   checkDisabled,
   hasData,
+  readOnly = false,
+  showFilterButton = true,
 }: {
   showFilters: boolean;
   onToggleFilters: () => void;
@@ -43,6 +45,8 @@ export function RankTrackingTableToolbar({
   checkBusy: boolean;
   checkDisabled: boolean;
   hasData: boolean;
+  readOnly?: boolean;
+  showFilterButton?: boolean;
 }) {
   return (
     <div className="shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 border-y border-base-300">
@@ -68,19 +72,21 @@ export function RankTrackingTableToolbar({
         />
       )}
 
-      <button
-        className={`btn btn-ghost btn-sm gap-1.5 ${showFilters ? "btn-active" : ""}`}
-        onClick={onToggleFilters}
-        title="Toggle table filters"
-      >
-        <SlidersHorizontal className="size-3.5" />
-        Filters
-        {activeFilterCount > 0 && (
-          <span className="badge badge-xs badge-primary border-0 text-primary-content">
-            {activeFilterCount}
-          </span>
-        )}
-      </button>
+      {showFilterButton ? (
+        <button
+          className={`btn btn-ghost btn-sm gap-1.5 ${showFilters ? "btn-active" : ""}`}
+          onClick={onToggleFilters}
+          title="Toggle table filters"
+        >
+          <SlidersHorizontal className="size-3.5" />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="badge badge-xs badge-primary border-0 text-primary-content">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      ) : null}
 
       {isRunning && latestRun ? (
         <div className="flex items-center gap-2 text-sm text-base-content/70">
@@ -114,14 +120,16 @@ export function RankTrackingTableToolbar({
         hasData={hasData}
       />
 
-      <MoreMenu
-        onCheckNow={onCheckNow}
-        checkBusy={checkBusy}
-        checkDisabled={checkDisabled}
-        onRefreshMetrics={onRefreshMetrics}
-        metricsRefreshing={metricsRefreshing}
-        hasData={hasData}
-      />
+      {!readOnly ? (
+        <MoreMenu
+          onCheckNow={onCheckNow}
+          checkBusy={checkBusy}
+          checkDisabled={checkDisabled}
+          onRefreshMetrics={onRefreshMetrics}
+          metricsRefreshing={metricsRefreshing}
+          hasData={hasData}
+        />
+      ) : null}
     </div>
   );
 }

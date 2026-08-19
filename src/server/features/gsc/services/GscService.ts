@@ -1,8 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { account } from "@/db/schema";
 import { GSC_OAUTH_PROVIDER_ID } from "@/shared/gsc";
 import { AppError } from "@/server/lib/errors";
+import { resolveGrantUserIds } from "@/server/features/google/grantScope";
 import {
   createGscClient,
   type GscSite,
@@ -52,13 +53,17 @@ async function getConnection(projectId: string): Promise<GscConnection | null> {
 
 /** Whether this user has linked a google-search-console grant (regardless of
  *  whether they've picked a property yet). Drives the connect-vs-pick UI. */
-async function userHasGrant(userId: string): Promise<boolean> {
+async function userHasGrant(
+  userId: string,
+  organizationId: string,
+): Promise<boolean> {
+  const grantUserIds = await resolveGrantUserIds(userId, organizationId);
   const rows = await db
     .select({ id: account.id })
     .from(account)
     .where(
       and(
-        eq(account.userId, userId),
+        inArray(account.userId, grantUserIds),
         eq(account.providerId, GSC_OAUTH_PROVIDER_ID),
       ),
     )
@@ -66,13 +71,21 @@ async function userHasGrant(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function listGrantsForUser(userId: string) {
+/** Grants the caller may use, each carrying the user it belongs to — tokens are
+ *  minted against the grant's owner, which on a shared workspace is often not
+ *  the person making the request. */
+async function listGrantsForUser(userId: string, organizationId: string) {
+  const grantUserIds = await resolveGrantUserIds(userId, organizationId);
   return db
-    .select({ id: account.id, accountId: account.accountId })
+    .select({
+      id: account.id,
+      accountId: account.accountId,
+      userId: account.userId,
+    })
     .from(account)
     .where(
       and(
-        eq(account.userId, userId),
+        inArray(account.userId, grantUserIds),
         eq(account.providerId, GSC_OAUTH_PROVIDER_ID),
       ),
     );
@@ -91,12 +104,13 @@ export function isExpectedGrantFailure(error: unknown): boolean {
 
 async function listSitesForUserWithGrantStatus(
   userId: string,
+  organizationId: string,
 ): Promise<GscSiteListResult> {
-  const grants = await listGrantsForUser(userId);
+  const grants = await listGrantsForUser(userId, organizationId);
   const accounts = await Promise.all(
     grants.map(async (grant) => {
       const client = createGscClient({
-        userId,
+        userId: grant.userId,
         gscAccountId: grant.accountId,
       });
 
@@ -143,8 +157,9 @@ async function setSite(input: {
   accountId: string;
   userId: string;
 }): Promise<GscConnection> {
-  const grants = await listGrantsForUser(input.userId);
-  if (!grants.some((grant) => grant.accountId === input.accountId)) {
+  const grants = await listGrantsForUser(input.userId, input.organizationId);
+  const grant = grants.find((row) => row.accountId === input.accountId);
+  if (!grant) {
     throw new AppError(
       "NOT_FOUND",
       "That Google account isn't connected to your OpenSEO account.",
@@ -152,7 +167,7 @@ async function setSite(input: {
   }
 
   const client = createGscClient({
-    userId: input.userId,
+    userId: grant.userId,
     gscAccountId: input.accountId,
   });
   const sites = await client.listSites();
@@ -179,7 +194,7 @@ async function setSite(input: {
     projectId: input.projectId,
     organizationId: input.organizationId,
     siteUrl: input.siteUrl,
-    connectedByUserId: input.userId,
+    connectedByUserId: grant.userId,
     gscAccountId: input.accountId,
     connectedAccountEmail,
   });

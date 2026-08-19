@@ -1,18 +1,8 @@
 import type { RankTrackingRow } from "@/types/schemas/rank-tracking";
-
-// Approximate organic CTR by position (index = position; aggregate industry
-// curves). Only used to weight the visibility metric, so relative weights
-// matter, not exact values. Positions past the list fall back to a small CTR.
-const CTR_BY_POSITION = [
-  0, 0.28, 0.15, 0.1, 0.07, 0.05, 0.04, 0.033, 0.028, 0.024, 0.021, 0.018,
-  0.016, 0.014, 0.012, 0.011, 0.01, 0.009, 0.008, 0.007, 0.006,
-];
-const TOP_CTR = CTR_BY_POSITION[1];
-
-function ctr(position: number | null): number {
-  if (position === null || position < 1) return 0;
-  return CTR_BY_POSITION[position] ?? 0.005;
-}
+import {
+  ctrAtPosition,
+  TOP_POSITION_CTR,
+} from "@/shared/rank-tracking-visibility";
 
 interface Scorecards {
   /**
@@ -68,8 +58,8 @@ export function computeScorecards(
 
     if (row.searchVolume != null && row.searchVolume > 0) {
       visVolume += row.searchVolume;
-      visNumCurrent += row.searchVolume * ctr(position);
-      visNumPrevious += row.searchVolume * ctr(previousPosition);
+      visNumCurrent += row.searchVolume * ctrAtPosition(position);
+      visNumPrevious += row.searchVolume * ctrAtPosition(previousPosition);
     }
 
     // 4-case change classification (mirrors DeviceRankCell)
@@ -87,9 +77,13 @@ export function computeScorecards(
   }
 
   const visibility =
-    visVolume > 0 ? (visNumCurrent / (visVolume * TOP_CTR)) * 100 : null;
+    visVolume > 0
+      ? (visNumCurrent / (visVolume * TOP_POSITION_CTR)) * 100
+      : null;
   const visibilityPrevious =
-    visVolume > 0 ? (visNumPrevious / (visVolume * TOP_CTR)) * 100 : null;
+    visVolume > 0
+      ? (visNumPrevious / (visVolume * TOP_POSITION_CTR)) * 100
+      : null;
 
   return {
     visibility,

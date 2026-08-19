@@ -1,11 +1,16 @@
+/* eslint-disable max-lines -- One server-function barrel per feature: rank config, keywords, runs, reports, and imported history entry points stay together. */
 import { createServerFn } from "@tanstack/react-start";
 import { waitUntil } from "cloudflare:workers";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import { RankTrackingService } from "@/server/features/rank-tracking/services/RankTrackingService";
 import { getLatestResults } from "@/server/features/rank-tracking/services/rankTrackingResults";
+import { RankTrackingReportService } from "@/server/features/rank-tracking/services/rankTrackingReports";
 import { AppError, asAppError } from "@/server/lib/errors";
 import { captureServerEvent } from "@/server/lib/posthog";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import {
+  requireProjectContext,
+  requireProjectUse,
+} from "@/serverFunctions/middleware";
 import {
   getConfigsSchema,
   createConfigSchema,
@@ -20,12 +25,19 @@ import {
   getKeywordHistorySchema,
   getConfigTrendSchema,
   getPositionMatrixSchema,
+  getRankReportSchema,
+  tagTrackingKeywordsSchema,
+  getRankHistorySourcesSchema,
+  getRankHistorySourceMovementSchema,
 } from "@/types/schemas/rank-tracking";
 
 export interface RankKeywordHistoryPoint {
   device: "desktop" | "mobile";
   checkedAt: string;
   position: number | null;
+  serpDepth: number | null;
+  sourceProvider: "semrush" | null;
+  sourceEngine: string | null;
 }
 
 interface RankConfigTrendPoint {
@@ -34,7 +46,11 @@ interface RankConfigTrendPoint {
   top3: number;
   top4to10: number;
   top11to20: number;
+  top21to100: number;
+  notInTop100: number;
+  /** @deprecated use notInTop100 — kept so the overview chart can migrate. */
   notRanking: number;
+  sourceProvider: "semrush" | null;
 }
 
 export interface RankPositionMatrixCell {
@@ -42,6 +58,7 @@ export interface RankPositionMatrixCell {
   checkedAt: string;
   trackingKeywordId: string;
   position: number | null;
+  sourceProvider: "semrush" | null;
 }
 
 async function requireConfig(configId: string, projectId: string) {
@@ -70,19 +87,21 @@ export const getRankTrackingConfigSummaries = createServerFn({ method: "POST" })
   });
 
 export const createRankTrackingConfig = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(createConfigSchema)
   .handler(async ({ data, context }) => {
     const result = await RankTrackingService.createConfig({
       projectId: context.projectId,
       projectMarket: context.project,
       domain: data.domain,
+      engine: data.engine,
       locationCode: data.locationCode,
       languageCode: data.languageCode,
       locationName: data.locationName,
       devices: data.devices,
       serpDepth: data.serpDepth,
       scheduleInterval: data.scheduleInterval,
+      maxCostCredits: data.maxCostCredits,
     });
 
     waitUntil(
@@ -93,6 +112,7 @@ export const createRankTrackingConfig = createServerFn({ method: "POST" })
         properties: {
           project_id: context.projectId,
           domain: data.domain,
+          engine: data.engine ?? "google",
           devices: data.devices ?? "both",
           schedule: data.scheduleInterval ?? "weekly",
         },
@@ -103,7 +123,7 @@ export const createRankTrackingConfig = createServerFn({ method: "POST" })
   });
 
 export const updateRankTrackingConfig = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(updateConfigSchema)
   .handler(async ({ data, context }) => {
     await RankTrackingService.updateConfig(data.configId, context.projectId, {
@@ -115,12 +135,13 @@ export const updateRankTrackingConfig = createServerFn({ method: "POST" })
       serpDepth: data.serpDepth,
       scheduleInterval: data.scheduleInterval,
       isActive: data.isActive,
+      maxCostCredits: data.maxCostCredits,
     });
     return { success: true };
   });
 
 export const triggerRankCheck = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(triggerCheckSchema)
   .handler(async ({ data, context }) => {
     const result = await RankTrackingService.triggerCheck({
@@ -167,7 +188,7 @@ export const getLatestRankRun = createServerFn({ method: "POST" })
   });
 
 export const estimateRankCheckCost = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(estimateCostSchema)
   .handler(async ({ data, context }) => {
     return RankTrackingService.estimateCost(data.configId, context.projectId);
@@ -185,7 +206,7 @@ function logAutoActionFailure(action: string, err: unknown) {
 }
 
 export const addTrackingKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(addKeywordsSchema)
   .handler(async ({ data, context }) => {
     const result = await RankTrackingService.addKeywords(
@@ -233,7 +254,7 @@ export const addTrackingKeywords = createServerFn({ method: "POST" })
   });
 
 export const removeTrackingKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(removeKeywordsSchema)
   .handler(async ({ data, context }) => {
     return RankTrackingService.removeKeywords(
@@ -244,7 +265,7 @@ export const removeTrackingKeywords = createServerFn({ method: "POST" })
   });
 
 export const refreshTrackingKeywordMetrics = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(refreshMetricsSchema)
   .handler(async ({ data, context }) => {
     const result = await RankTrackingService.refreshKeywordMetrics(
@@ -297,16 +318,43 @@ export const getRankConfigTrend = createServerFn({ method: "POST" })
       const top3 = Number(row.top3) || 0;
       const top4to10 = Number(row.top4to10) || 0;
       const top11to20 = Number(row.top11to20) || 0;
+      const top21to100 = Number(row.top21to100) || 0;
       const total = Number(row.total) || 0;
+      const notInTop100 = Math.max(
+        0,
+        total - top3 - top4to10 - top11to20 - top21to100,
+      );
       return {
         runId: row.runId,
         checkedAt: row.checkedAt,
         top3,
         top4to10,
         top11to20,
-        notRanking: Math.max(0, total - top3 - top4to10 - top11to20),
+        top21to100,
+        notInTop100,
+        notRanking: notInTop100,
+        sourceProvider: row.sourceProvider,
       };
     });
+  });
+
+export const getRankHistorySources = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankHistorySourcesSchema)
+  .handler(async ({ data, context }) => {
+    await requireConfig(data.configId, context.projectId);
+    return RankTrackingRepository.getHistorySourceSummaries(data.configId);
+  });
+
+export const getRankHistorySourceMovement = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankHistorySourceMovementSchema)
+  .handler(async ({ data, context }) => {
+    await requireConfig(data.configId, context.projectId);
+    return RankTrackingRepository.getHistorySourceMovement(
+      data.configId,
+      data.sourceId,
+    );
   });
 
 export const getRankPositionMatrix = createServerFn({ method: "POST" })
@@ -319,4 +367,93 @@ export const getRankPositionMatrix = createServerFn({ method: "POST" })
       data.device,
       data.runLimit,
     );
+  });
+
+export const getRankDistributionReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getDistribution(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankCannibalizationReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getCannibalization(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankPagesReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getPages(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankSnippetsReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getSnippets(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankVisibilityReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getVisibilityAttribution(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankTagsReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getTags(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const getRankCompetitorsReport = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getRankReportSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.getCompetitors(
+      data.configId,
+      context.projectId,
+      data.device,
+    );
+  });
+
+export const tagTrackingKeywords = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(tagTrackingKeywordsSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingReportService.tagTrackingKeywords({
+      configId: data.configId,
+      projectId: context.projectId,
+      keywordIds: data.keywordIds,
+      tags: data.tags,
+    });
   });

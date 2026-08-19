@@ -6,6 +6,8 @@ import { buildDashboardUrl } from "@/server/mcp/urls";
 import { languageCodeSchema, locationCodeSchema } from "@/server/mcp/schemas";
 import { createProjectSchema } from "@/types/schemas/projects";
 import { z } from "zod";
+import { AppError } from "@/server/lib/errors";
+import { resolveMcpWorkspacePrincipal } from "@/server/mcp/workspace-access";
 
 const inputSchema = {
   name: z
@@ -63,7 +65,9 @@ export const createProjectTool = {
     },
   },
   handler: async (args: Args, context: ToolContext) => {
-    const { baseUrl, ...auth } = context.auth;
+    const { baseUrl, delegated: _delegated, ...auth } = context.auth;
+    const access = await resolveMcpWorkspacePrincipal(context.auth);
+    if (access?.role !== "owner") throw new AppError("FORBIDDEN");
     // Reuse the app's create schema so the market pair rule (a languageCode
     // requires a locationCode) is enforced identically to the dashboard, and
     // the domain is normalized the same way.

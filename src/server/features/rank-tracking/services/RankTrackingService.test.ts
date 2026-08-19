@@ -27,6 +27,7 @@ const archivedConfig = {
   serpDepth: 20,
   scheduleInterval: "weekly" as const,
   isActive: false,
+  maxCostCredits: null,
   lastSkipReason: "insufficient_credits",
 };
 
@@ -39,6 +40,7 @@ const baseInput = {
   devices: "desktop" as const,
   serpDepth: 40,
   scheduleInterval: "daily" as const,
+  maxCostCredits: 500,
 };
 
 describe("RankTrackingService.createConfig", () => {
@@ -111,6 +113,7 @@ describe("RankTrackingService.createConfig", () => {
     expect(mocks.getConfigByProjectDomainLocation).toHaveBeenCalledWith(
       "project_1",
       "acme.com",
+      "google",
       2840,
       "Enid,Oklahoma,United States",
     );
@@ -120,6 +123,7 @@ describe("RankTrackingService.createConfig", () => {
     expect(mocks.getConfigByProjectDomainLocation).toHaveBeenLastCalledWith(
       "project_1",
       "acme.com",
+      "google",
       2840,
       null,
     );
@@ -197,5 +201,93 @@ describe("RankTrackingService.createConfig", () => {
     expect(mocks.createConfig).toHaveBeenCalledWith(
       expect.objectContaining({ locationCode: 2276, languageCode: "de" }),
     );
+  });
+});
+
+// A recurring, non-archived tracker is a standing authorization to spend, so
+// the approved ceiling is what makes that authorization explicit.
+describe("RankTrackingService recurring spend approval", () => {
+  const activeConfig = {
+    ...archivedConfig,
+    id: "config_1",
+    isActive: true,
+    maxCostCredits: 500,
+  };
+
+  it("creates a manual tracker with no schedule anchor when no cadence is asked for", async () => {
+    mocks.getConfigByProjectDomainLocation.mockResolvedValue(null);
+    mocks.getConfigsForProject.mockResolvedValue([]);
+    mocks.createConfig.mockResolvedValue(undefined);
+
+    await RankTrackingService.createConfig({
+      projectId: "project_1",
+      projectMarket: { locationCode: 2840, languageCode: "en" },
+      domain: "acme.com",
+      serpDepth: 20,
+    });
+
+    expect(mocks.createConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduleInterval: "manual",
+        nextCheckAt: null,
+        maxCostCredits: null,
+      }),
+    );
+  });
+
+  it("refuses to create a recurring tracker without an approved ceiling", async () => {
+    mocks.getConfigByProjectDomainLocation.mockResolvedValue(null);
+    mocks.getConfigsForProject.mockResolvedValue([]);
+
+    await expect(
+      RankTrackingService.createConfig({
+        projectId: "project_1",
+        projectMarket: { locationCode: 2840, languageCode: "en" },
+        domain: "acme.com",
+        serpDepth: 20,
+        scheduleInterval: "weekly",
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(mocks.createConfig).not.toHaveBeenCalled();
+  });
+
+  // The legacy shape: an active weekly row migrated in with no ceiling. Editing
+  // it must not be a way to keep the schedule while dodging the approval.
+  it("refuses a recurring edit that leaves the ceiling unset or at zero", async () => {
+    mocks.getConfigById.mockResolvedValue({
+      ...activeConfig,
+      maxCostCredits: null,
+    });
+
+    await expect(
+      RankTrackingService.updateConfig("config_1", "project_1", {
+        serpDepth: 20,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    await expect(
+      RankTrackingService.updateConfig("config_1", "project_1", {
+        maxCostCredits: 0,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(mocks.updateConfig).not.toHaveBeenCalled();
+  });
+
+  it("accepts a recurring edit that supplies the ceiling in the same request", async () => {
+    mocks.getConfigById.mockResolvedValue({
+      ...activeConfig,
+      scheduleInterval: "manual",
+      maxCostCredits: null,
+    });
+
+    await RankTrackingService.updateConfig("config_1", "project_1", {
+      scheduleInterval: "weekly",
+      maxCostCredits: 40,
+    });
+
+    expect(mocks.updateConfig.mock.lastCall?.[2]).toMatchObject({
+      scheduleInterval: "weekly",
+      maxCostCredits: 40,
+    });
   });
 });

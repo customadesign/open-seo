@@ -4,7 +4,7 @@ This is the factual product reference for Sam, the OpenSEO onboarding agent. If 
 
 ## What OpenSEO is
 
-OpenSEO is an open-source SEO platform for keyword research, domain research, backlinks, rank tracking, site audits, Google Search Console, and AI-agent SEO workflows.
+OpenSEO is an open-source SEO platform for keyword research, domain research, backlinks, rank tracking, local SEO, site audits, client reporting, Google Search Console, and AI-agent SEO workflows.
 
 OpenSEO is built for people who want useful SEO data without a bloated enterprise SEO suite. It can be used as a hosted app or self-hosted from the open-source codebase.
 
@@ -112,6 +112,7 @@ OpenSEO MCP tools cover workflows such as:
 - Domain and page ranked keyword research for any domain, including competitors.
 - SERP competitor comparisons.
 - Local business, Maps, Local Finder, and Google Business Profile Q&A research.
+- Stored GoHighLevel Listings connections, DataForSEO-powered Maps geo-grid tracking, and evidence-based citation consistency audits. GoHighLevel and its listings provider handle syndication; OpenSEO does not write to directories.
 - Saved keyword listing and saving.
 - Rank tracker config and latest position reads.
 - Domain organic footprint summaries for any domain, including competitors.
@@ -129,6 +130,8 @@ OpenSEO's app includes these practical workflows:
 - Domain overview: understand any domain's organic footprint and ranking keywords — including competitors and other third-party sites, not just the user's own site. Domains are looked up one at a time and use credits.
 - Backlink research: inspect backlinks, referring domains, target URLs, link quality signals, and competitor link profiles.
 - Rank tracking: track keyword positions over time.
+- Local SEO: store a canonical business profile, track Maps rankings across a geographic grid, audit citation evidence, and open the connected GoHighLevel Listings account. Stored GoHighLevel/Yext status is evidence supplied by the operator, not a live provider check.
+- Reports: generate in-app monthly reports manually or on one configurable monthly schedule per project. Reports use available rank, audit, backlink, Search Console, Analytics, and Google Ads data, store immutable snapshots, support editable section order and commentary, and allow assigned clients to read published reports. Reusable templates, weekly schedules, recipients, report-specific branding, PDFs, outbound email, and public share links are not available.
 - Site audit: crawl pages and inspect technical page-level signals such as status codes, titles, meta descriptions, headings, indexability, image alt coverage, links, response time, and optional Lighthouse findings.
 - Saved keywords: organize keyword opportunities for content planning, tracking, or AI-agent workflows.
 - AI and MCP setup: connect OpenSEO to agents and install OpenSEO skills.

@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { RankTrackingDomainList } from "@/client/features/rank-tracking/RankTrackingDomainList";
 import { RankTrackingConfigModal } from "@/client/features/rank-tracking/RankTrackingConfigModal";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 export const Route = createFileRoute("/_project/p/$projectId/rank-tracking/")({
   component: RankTrackingIndex,
@@ -13,6 +14,8 @@ function RankTrackingIndex() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const accessQuery = useWorkspaceAccess();
+  const readOnly = accessQuery.data?.role === "client";
 
   const invalidateConfigs = () => {
     void queryClient.invalidateQueries({
@@ -28,9 +31,10 @@ function RankTrackingIndex() {
       <RankTrackingDomainList
         projectId={projectId}
         onAddDomain={() => setShowConfigModal(true)}
+        readOnly={readOnly}
       />
 
-      {showConfigModal && (
+      {showConfigModal && !readOnly && (
         <RankTrackingConfigModal
           projectId={projectId}
           existingConfig={null}

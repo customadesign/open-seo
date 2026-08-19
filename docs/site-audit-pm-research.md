@@ -2,6 +2,8 @@
 
 **Author:** PM research synthesis | **Date:** 2026-06-09 | **Inputs:** SEOnaut + LibreCrawl code reviews, OpenSEO baseline review, competitor/market research, architecture research, adversarial panel review. Revision notes: panel critiques accepted are folded in silently; where we overrode the panel, an explicit **Panel pushback** note marks the disagreement. **Rev. 3:** founder decision — build on the in-house Workers crawler, do not adopt DataForSEO OnPage; "we were blocked" flagging accepted as the blocking posture. §4 now weighs that decision's tradeoffs instead of recommending an engine.
 
+> **Historical planning document.** The crawler, link graph, issue engine, issue UX, exports, MCP audit tools, and an initial enhanced technical/AEO/GEO layer described here have since shipped. See [Enhanced site audit](./ENHANCED_SITE_AUDIT.md) for the current product model, delivered checks, honest limitations, and next implementation order.
+
 ---
 
 ## 1. How site audits actually work (primer)

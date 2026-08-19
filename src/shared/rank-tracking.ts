@@ -22,10 +22,49 @@ const QUEUED_BASE_PAGE_COST_USD = 0.0006;
 const QUEUED_EXTRA_PAGE_COST_USD = 0.00045;
 
 /**
- * How a rank check reaches DataForSEO: "live" is the instant endpoint used for
- * manual checks; "queued" is the cheaper task queue used for scheduled checks.
+ * How a rank check reaches DataForSEO: "live" is the instant endpoint; "queued"
+ * is the cheaper task queue. Use `rankCheckMethod` rather than deciding per
+ * call site — an estimate priced at the wrong method asks for the wrong
+ * approval.
  */
 type RankCheckMethod = "live" | "queued";
+
+/** What started a rank check. */
+type RankCheckTrigger = "manual" | "scheduled";
+
+/**
+ * Search engine a config tracks. Immutable per config — see the `engine`
+ * column comment in app.schema.ts.
+ *
+ * Cost note: both engines use the same DataForSEO SERP page pricing, so the
+ * ESTIMATE below is engine-independent. What differs is settlement. Google
+ * requests pair `stop_crawl_on_match` with `find_targets_in: ["organic"]` and
+ * usually settle BELOW the estimate. Bing's task_post has no `find_targets_in`
+ * field, so restricting the match to organic results is impossible and a
+ * sitelink or answer-box mention could stop the crawl before the domain's
+ * organic listing — recording a false "not ranking". Bing therefore always
+ * crawls the full depth and settles AT the estimate.
+ */
+export type RankTrackingEngine = "google" | "bing";
+
+export function engineLabel(engine: RankTrackingEngine): string {
+  return engine === "bing" ? "Bing" : "Google";
+}
+
+/**
+ * Single source of truth for which DataForSEO endpoint a check will use, and
+ * therefore which price an estimate or approval ceiling must be based on.
+ * Scheduled checks and every Bing check go through the task queue; only a
+ * manual Google check is live.
+ */
+export function rankCheckMethod(input: {
+  trigger: RankCheckTrigger;
+  engine: RankTrackingEngine;
+}): RankCheckMethod {
+  return input.trigger === "scheduled" || input.engine === "bing"
+    ? "queued"
+    : "live";
+}
 
 /** How many keywords are checked per batch */
 export const KEYWORDS_PER_BATCH = 10;
@@ -44,6 +83,9 @@ export const MAX_CONFIGS_PER_PROJECT = 500;
 
 /** Maximum queued rank-check tasks DataForSEO accepts in one task_post. */
 export const MAX_TASKS_PER_POST = 100;
+
+export const rankCheckRecurringCeilingError =
+  "Set an approved per-check credit ceiling above zero before saving a recurring rank tracking schedule.";
 
 export const rankCheckCostApprovalError = (
   costCredits: number,
@@ -79,6 +121,19 @@ export function estimateRankCheckCredits(
   method: RankCheckMethod,
 ) {
   const totalChecks = keywordCount * devicesCount(devices);
+  return estimateRankCheckTaskCredits(totalChecks, depth, method);
+}
+
+/**
+ * Cost for an exact number of keyword/device task units. Queued fallback uses
+ * this form because each straggler already represents one device-specific
+ * task, rather than a keyword with a device setting that still needs expanding.
+ */
+export function estimateRankCheckTaskCredits(
+  taskCount: number,
+  depth: number,
+  method: RankCheckMethod,
+) {
   const checksPerMeteredCall = method === "queued" ? MAX_TASKS_PER_POST : 1;
   let costUsd = 0;
   let costCredits = 0;
@@ -87,8 +142,8 @@ export function estimateRankCheckCredits(
   // checks make one call per keyword/device pair, while queued checks post up
   // to MAX_TASKS_PER_POST pairs per call. Summing one aggregate and rounding
   // once can therefore understate the credits that will actually be charged.
-  for (let offset = 0; offset < totalChecks; offset += checksPerMeteredCall) {
-    const checksInCall = Math.min(checksPerMeteredCall, totalChecks - offset);
+  for (let offset = 0; offset < taskCount; offset += checksPerMeteredCall) {
+    const checksInCall = Math.min(checksPerMeteredCall, taskCount - offset);
     const callCostUsd = roundUsdForBilling(
       checksInCall * costPerSerpAtDepth(depth, method) * SEO_DATA_COST_MARKUP,
     );
@@ -96,8 +151,8 @@ export function estimateRankCheckCredits(
     costCredits += Math.ceil(callCostUsd * AUTUMN_SEO_DATA_CREDITS_PER_USD);
   }
 
-  // This is the nominal queued task_post estimate. Rejected, failed, or
-  // timed-out tasks can later incur additional live-fallback spend.
+  // A queued call reserves this nominal task_post estimate. The workflow then
+  // gives live fallback only the credits left under the same approved ceiling.
   costUsd = roundUsdForBilling(costUsd);
   return { costUsd, costCredits };
 }
@@ -116,7 +171,8 @@ type ScheduledRankTrackingInterval = Exclude<
 export type RankTrackingSkipReason =
   | "plan_required"
   | "no_keywords"
-  | "insufficient_credits";
+  | "insufficient_credits"
+  | "cost_ceiling";
 
 export function estimateScheduledRankCheckCredits(
   keywordCount: number,

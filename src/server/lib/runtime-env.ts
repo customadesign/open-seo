@@ -1,4 +1,5 @@
 import { isHostedAuthMode } from "@/lib/auth-mode";
+import { isSingleTenant } from "@/lib/auth-policy";
 
 let workersEnvPromise: Promise<Record<string, unknown> | null> | null = null;
 
@@ -39,6 +40,10 @@ export async function getRequiredEnvValue(name: string): Promise<string> {
 
 export async function isHostedServerAuthMode(): Promise<boolean> {
   return isHostedAuthMode(await getOptionalEnvValue("AUTH_MODE"));
+}
+
+export async function isSingleTenantServer(): Promise<boolean> {
+  return isSingleTenant(await getOptionalEnvValue("SINGLE_TENANT"));
 }
 
 async function getWorkersEnv(): Promise<Record<string, unknown> | null> {

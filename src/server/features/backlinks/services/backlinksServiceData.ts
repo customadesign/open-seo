@@ -17,7 +17,6 @@ import type {
   ReferringDomainsPageInput,
   TopPagesPageInput,
 } from "@/types/schemas/backlinks";
-
 import {
   backlinksOverviewSchema,
   backlinksRowsPageResultSchema,
@@ -361,7 +360,7 @@ function mapBacklinksRows(rows: BacklinksItem[]) {
   }));
 }
 
-function mapReferringDomainsRows(rows: ReferringDomainItem[]) {
+export function mapReferringDomainsRows(rows: ReferringDomainItem[]) {
   return rows.map((item) => ({
     domain: item.domain ?? null,
     backlinks: item.backlinks ?? null,
@@ -384,7 +383,7 @@ function mapTopPagesRows(rows: DomainPageSummaryItem[]) {
   }));
 }
 
-async function cacheValue(
+export async function cacheValue(
   cache: BacklinksCache,
   key: string,
   data: unknown,

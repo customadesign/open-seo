@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { TableExportMenu } from "@/client/components/table/TableBulkActionBar";
 import { TablePagination } from "@/client/components/table/TablePagination";
 import { SearchConsoleConnectionCard } from "@/client/features/gsc/SearchConsoleConnectionCard";
+import { SearchOpportunitiesPanel } from "@/client/features/search-performance/SearchOpportunitiesPanel";
 import { SearchPerformanceLoadingState } from "@/client/features/search-performance/SearchPerformanceLoadingState";
 import {
   DimensionTable,
@@ -37,6 +38,7 @@ import {
   type SearchPerformanceDevice,
   type SearchPerformanceTableDimension,
 } from "@/types/schemas/search-performance";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 const RANGE_LABELS: Record<SearchPerformanceDateRange, string> = {
   last_7_days: "Last 7 days",
@@ -118,6 +120,8 @@ function tableQueryOptions(
 }
 
 export function SearchPerformancePage({ projectId }: { projectId: string }) {
+  const accessQuery = useWorkspaceAccess();
+  const canManageConnection = accessQuery.data?.canManageWorkspace === true;
   const queryClient = useQueryClient();
   const [range, setRange] =
     useState<SearchPerformanceDateRange>("last_28_days");
@@ -147,6 +151,7 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
   const report = reportQuery.data;
 
   const isTableTab = tab === "queries" || tab === "pages";
+  const isOpportunityTab = tab === "opportunities";
   const dimension = tabDimension(tab);
   const tableQuery = useQuery({
     ...tableQueryOptions(projectId, dimension, page, pageSize, filterInput),
@@ -199,7 +204,7 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
               Google Search Console.
             </p>
           </div>
-          {report?.connected ? (
+          {report?.connected && canManageConnection ? (
             <Link
               to="/p/$projectId/settings"
               params={{ projectId }}
@@ -219,9 +224,14 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
               {getStandardErrorMessage(reportQuery.error)}
             </span>
           </div>
-        ) : !report?.connected ? (
+        ) : !report?.connected && canManageConnection ? (
           <div className="max-w-2xl">
             <SearchConsoleConnectionCard projectId={projectId} />
+          </div>
+        ) : !report?.connected ? (
+          <div className="alert alert-info max-w-2xl">
+            Search Console has not been connected for this project. Ask the
+            workspace owner to connect it.
           </div>
         ) : (
           <>
@@ -244,41 +254,54 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
                     onClick={() => setTab("pages")}
                     label="Pages"
                   />
+                  <TabButton
+                    active={tab === "opportunities"}
+                    onClick={() => setTab("opportunities")}
+                    label="Opportunities"
+                  />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {reportQuery.isFetching && !reportQuery.isPending ? (
                     <Loader2 className="size-4 animate-spin text-base-content/40" />
                   ) : null}
-                  <select
-                    className="select select-bordered select-sm w-36"
-                    value={device}
-                    onChange={(event) => {
-                      setDevice(
-                        isDevice(event.target.value) ? event.target.value : ALL,
-                      );
-                    }}
-                    aria-label="Device filter"
-                  >
-                    <option value={ALL}>All devices</option>
-                    {DEVICE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="select select-bordered select-sm w-36"
-                    value={country}
-                    onChange={(event) => setCountry(event.target.value)}
-                    aria-label="Country filter"
-                  >
-                    <option value={ALL}>All countries</option>
-                    {report.countries.map((row) => (
-                      <option key={row.key} value={row.key}>
-                        {row.key.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
+                  {/* The GSC-plus-GA4 join cannot express GSC's device and
+                      country dimension filters, so only the range applies. */}
+                  {isOpportunityTab ? null : (
+                    <>
+                      <select
+                        className="select select-bordered select-sm w-36"
+                        value={device}
+                        onChange={(event) => {
+                          setDevice(
+                            isDevice(event.target.value)
+                              ? event.target.value
+                              : ALL,
+                          );
+                        }}
+                        aria-label="Device filter"
+                      >
+                        <option value={ALL}>All devices</option>
+                        {DEVICE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="select select-bordered select-sm w-36"
+                        value={country}
+                        onChange={(event) => setCountry(event.target.value)}
+                        aria-label="Country filter"
+                      >
+                        <option value={ALL}>All countries</option>
+                        {report.countries.map((row) => (
+                          <option key={row.key} value={row.key}>
+                            {row.key.toUpperCase()}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
                   <select
                     className="select select-bordered select-sm w-36"
                     value={range}
@@ -295,25 +318,33 @@ export function SearchPerformancePage({ projectId }: { projectId: string }) {
                       </option>
                     ))}
                   </select>
-                  <TableExportMenu
-                    buttonClassName="btn btn-ghost btn-sm gap-1"
-                    actions={[
-                      {
-                        label: "Export to Sheets",
-                        icon: <Sheet className="size-4" />,
-                        onClick: () => void handleExport("sheets"),
-                      },
-                      {
-                        label: "Download CSV",
-                        icon: <Download className="size-4" />,
-                        onClick: () => void handleExport("csv"),
-                      },
-                    ]}
-                  />
+                  {isOpportunityTab ? null : (
+                    <TableExportMenu
+                      buttonClassName="btn btn-ghost btn-sm gap-1"
+                      actions={[
+                        {
+                          label: "Export to Sheets",
+                          icon: <Sheet className="size-4" />,
+                          onClick: () => void handleExport("sheets"),
+                        },
+                        {
+                          label: "Download CSV",
+                          icon: <Download className="size-4" />,
+                          onClick: () => void handleExport("csv"),
+                        },
+                      ]}
+                    />
+                  )}
                 </div>
               </div>
 
-              {tab === "striking" ? (
+              {isOpportunityTab ? (
+                <SearchOpportunitiesPanel
+                  projectId={projectId}
+                  dateRange={range}
+                  canManageConnection={canManageConnection}
+                />
+              ) : tab === "striking" ? (
                 <StrikingDistanceTable
                   projectId={projectId}
                   rows={report.strikingDistance}

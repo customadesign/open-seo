@@ -247,6 +247,9 @@ function deltaPredicate(table: string, cutoffIso: string): string | null {
     // Audit child rows carry no timestamp of their own — scope by parent audit.
     case "audit_pages":
     case "audit_lighthouse_results":
+    case "audit_robots":
+    case "audit_robots_disallows":
+    case "audit_sitemaps":
       return `"audit_id" IN (SELECT id FROM audits WHERE datetime("started_at") >= ${since})`;
     default:
       return null;

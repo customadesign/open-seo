@@ -4,17 +4,33 @@ import { buildCsv, type CsvValue, downloadCsv } from "@/client/lib/csv";
 import { downloadFile } from "@/client/lib/download";
 import { exportTableToSheets } from "@/client/lib/exportToSheets";
 
-const ISSUES_HEADERS = ["Severity", "Issue", "URL", "Details", "How To Fix"];
+const ISSUES_HEADERS = [
+  "Fix Order",
+  "Impact",
+  "Effort",
+  "Category",
+  "Severity",
+  "Issue",
+  "URL",
+  "Details",
+  "How To Fix",
+  "How To Verify",
+];
 
 function issuesRows(issues: AuditResultsData["issues"]): CsvValue[][] {
   return issues.map((issue) => {
     const descriptor = getIssueDescriptor(issue.issueType);
     return [
+      descriptor?.fixOrder ?? "monitor",
+      descriptor?.impact ?? "low",
+      descriptor?.effort ?? "medium",
+      descriptor?.category ?? "technical",
       issue.severity,
       descriptor?.title ?? issue.issueType,
       issue.pageUrl,
       issue.detailsJson ?? "",
       descriptor?.howToFix ?? "",
+      descriptor?.howToVerify ?? "",
     ];
   });
 }
@@ -30,11 +46,16 @@ export function exportIssues(
         severity: issue.severity,
         issueType: issue.issueType,
         issue: descriptor?.title ?? issue.issueType,
+        category: descriptor?.category ?? "technical",
+        fixOrder: descriptor?.fixOrder ?? "monitor",
+        impact: descriptor?.impact ?? "low",
+        effort: descriptor?.effort ?? "medium",
         url: issue.pageUrl,
         details: issue.detailsJson
           ? (JSON.parse(issue.detailsJson) as unknown)
           : null,
         howToFix: descriptor?.howToFix ?? null,
+        howToVerify: descriptor?.howToVerify ?? null,
       };
     });
     downloadFile(

@@ -46,3 +46,21 @@ export const backlinksProfileOutputSchema = z
 export const optionalMetaOutputSchema = {
   meta: mcpMetaOutputSchema.optional(),
 } as const;
+
+export const organicTrafficInsightsOutputSchema = z
+  .object({
+    status: z.enum(["ok", "error"]),
+    range: z
+      .object({
+        startDate: z.string(),
+        endDate: z.string(),
+      })
+      .optional(),
+    sources: looseObjectOutputSchema.optional(),
+    rowCount: z.number().optional(),
+    rows: z.array(looseObjectOutputSchema).optional(),
+    truncated: looseObjectOutputSchema.optional(),
+    error: looseObjectOutputSchema.optional(),
+    ...optionalMetaOutputSchema,
+  })
+  .passthrough();

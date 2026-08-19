@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RankTrackingService } from "./RankTrackingService";
+import { updateConfigSchema } from "@/types/schemas/rank-tracking";
 
 const mocks = vi.hoisted(() => ({
   getConfigById: vi.fn(),
+  getConfigByProjectDomainLocation: vi.fn(),
+  getConfigsForProject: vi.fn(),
+  createConfig: vi.fn(),
+  updateConfig: vi.fn(),
   getKeywordsForConfig: vi.fn(),
   addKeywordsToConfig: vi.fn(),
   removeKeywordsFromConfig: vi.fn(),
@@ -44,6 +49,8 @@ const config = {
   devices: "both" as const,
   serpDepth: 10,
   scheduleInterval: "weekly" as const,
+  isActive: true,
+  maxCostCredits: 500,
 };
 
 const billingCustomer = {
@@ -95,8 +102,10 @@ describe("RankTrackingService management invariants", () => {
     expect(error).toBeInstanceOf(Error);
     if (!(error instanceof Error) || !("code" in error)) throw error;
     expect(error.code).toBe("VALIDATION_ERROR");
-    expect(error.message).toContain("nominal queued estimate");
-    expect(error.message).toContain("Live fallback");
+    expect(error.message).toContain("approved total per-check ceiling");
+    expect(error.message).toContain(
+      "caps the queued check plus any live fallback",
+    );
     expect(mocks.addKeywordsToConfig).not.toHaveBeenCalled();
   });
 
@@ -268,6 +277,29 @@ describe("RankTrackingService management invariants", () => {
     expect(mocks.beginRankCheckRun).not.toHaveBeenCalled();
   });
 
+  // A manual Bing run is posted to the task queue by RankCheckWorkflow, so the
+  // approval gate and the estimate the user approved must both be queued-priced
+  // — live pricing here rejected runs the workflow would have charged less for.
+  it("prices a manual Bing check at queued rates in the estimate and the ceiling", async () => {
+    mocks.getConfigById.mockResolvedValue({ ...config, engine: "bing" });
+    mocks.getKeywordCountForConfig.mockResolvedValue(2);
+    mocks.beginRankCheckRun.mockResolvedValue({ ok: true, runId: "run_1" });
+
+    await expect(
+      RankTrackingService.estimateCost("config_1", "project_1"),
+    ).resolves.toMatchObject({ method: "queued", engine: "bing" });
+
+    // 11 credits is below the live estimate that rejects a Google config above.
+    await expect(
+      RankTrackingService.triggerCheck({
+        configId: "config_1",
+        projectId: "project_1",
+        billingCustomer,
+        maxCostCredits: 11,
+      }),
+    ).resolves.toEqual({ ok: true, runId: "run_1" });
+  });
+
   it("starts a run at or below its approved credit ceiling", async () => {
     mocks.beginRankCheckRun.mockResolvedValue({
       ok: true,
@@ -325,5 +357,53 @@ describe("RankTrackingService management invariants", () => {
       RankTrackingService.removeKeywords("foreign", "project_1", ["kw_1"]),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.removeKeywordsFromConfig).not.toHaveBeenCalled();
+  });
+
+  it("scopes a new config to its engine and defaults to google", async () => {
+    // Engine is part of the duplicate check because the unique indexes are
+    // engine-scoped: the same domain+location on Bing is a different tracker.
+    mocks.getConfigByProjectDomainLocation.mockResolvedValue(null);
+    mocks.getConfigsForProject.mockResolvedValue([]);
+
+    await RankTrackingService.createConfig({
+      projectId: "project_1",
+      projectMarket: { locationCode: 2840, languageCode: "en" },
+      domain: "example.com",
+      engine: "bing",
+      serpDepth: 20,
+    });
+    expect(mocks.getConfigByProjectDomainLocation).toHaveBeenCalledWith(
+      "project_1",
+      "example.com",
+      "bing",
+      2840,
+      null,
+    );
+    expect(mocks.createConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ engine: "bing" }),
+    );
+
+    await RankTrackingService.createConfig({
+      projectId: "project_1",
+      projectMarket: { locationCode: 2840, languageCode: "en" },
+      domain: "other.com",
+      serpDepth: 20,
+    });
+    expect(mocks.createConfig).toHaveBeenLastCalledWith(
+      expect.objectContaining({ engine: "google" }),
+    );
+  });
+
+  it("never writes engine on update", async () => {
+    // Snapshots carry no engine of their own, so a mutable engine would
+    // silently reinterpret a config's whole ranking history.
+    await RankTrackingService.updateConfig("config_1", "project_1", {
+      domain: "renamed.com",
+      isActive: false,
+    });
+
+    const updates: unknown = mocks.updateConfig.mock.lastCall?.[2];
+    expect(updates).not.toHaveProperty("engine");
+    expect(updateConfigSchema.shape).not.toHaveProperty("engine");
   });
 });

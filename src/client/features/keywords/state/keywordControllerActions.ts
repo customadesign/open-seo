@@ -14,21 +14,27 @@ import type { KeywordResearchControllerInput } from "./useKeywordResearchControl
 
 export const KEYWORD_RESEARCH_HEADERS = [
   "Keyword",
-  "Volume",
-  "CPC",
-  "Competition",
-  "Score",
   "Intent",
+  "Volume",
+  "KD%",
+  "CPC",
+  "Competitive density",
+  "SERP features",
+  "Metrics age",
+  "Cluster",
 ];
 
 export function keywordResearchExportRow(row: KeywordResearchRow): CsvValue[] {
   return [
     row.keyword,
+    row.intent,
     row.searchVolume ?? "",
+    row.keywordDifficulty ?? "",
     row.cpc ?? "",
     row.competition ?? "",
-    row.keywordDifficulty ?? "",
-    row.intent,
+    (row.serpFeatures ?? []).join(", "),
+    row.metricsUpdatedAt ?? "",
+    row.clusterName ?? "",
   ];
 }
 

@@ -6,8 +6,31 @@ import type { CreditFeature } from "@/shared/billing-credit-features";
 import { createDataforseoClient } from "@/server/lib/dataforseo";
 import { normalizeDomainInput } from "@/server/lib/domainUtils";
 import { mapKeywordItem } from "@/server/features/domain/services/domainKeywordMapper";
-import { getKeywordsPage } from "@/server/features/domain/services/domainKeywordsPage";
+import {
+  getKeywordsPage,
+  getKeywordsSnapshot,
+  hasKeywordsSnapshot,
+} from "@/server/features/domain/services/domainKeywordsPage";
 import { getPagesPage } from "@/server/features/domain/services/domainPagesPage";
+import { getPagesExtras } from "@/server/features/domain/services/domainPagesExtras";
+import {
+  getKeywordsByIntent,
+  getPositionChanges,
+  getSerpFeatures,
+  getTrafficBreakdown,
+} from "@/server/features/domain/services/domainResearchReports";
+import {
+  getCompareDomains,
+  getCompetitors,
+  getHistoricalOverview,
+  getSubdomains,
+} from "@/server/features/domain/services/domainProviderReports";
+import {
+  deriveBrandTokensFromDomain,
+  normalizeBrandToken,
+} from "@/server/features/domain/services/domainBrandTokens";
+import { DomainResearchRepository } from "@/server/features/domain/repositories/DomainResearchRepository";
+import { AppError } from "@/server/lib/errors";
 
 // Lets a caller attribute spend to its own feature (e.g. onboarding). Applied
 // to the DataForSEO call, not the cache key, so cached results are shared
@@ -23,6 +46,7 @@ const domainOverviewResultSchema = z.object({
   domain: z.string(),
   organicTraffic: z.number().nullable(),
   organicKeywords: z.number().nullable(),
+  trafficCost: z.number().nullable(),
   backlinks: z.number().nullable(),
   referringDomains: z.number().nullable(),
   hasData: z.boolean(),
@@ -79,11 +103,17 @@ async function getOverview(
     metrics?.metrics?.organic?.count != null
       ? Math.round(metrics.metrics.organic.count)
       : null;
+  const trafficCost =
+    metrics?.metrics?.organic?.estimated_paid_traffic_cost != null
+      ? Math.round(metrics.metrics.organic.estimated_paid_traffic_cost * 100) /
+        100
+      : null;
 
   const result: DomainOverviewResult = {
     domain,
     organicTraffic,
     organicKeywords,
+    trafficCost,
     backlinks: null,
     referringDomains: null,
     hasData: organicKeywords != null && organicKeywords > 0,
@@ -194,9 +224,106 @@ async function getSuggestedKeywords(
   return keywords;
 }
 
+async function listResolvedBrandTokens(input: {
+  projectId: string;
+  domain: string;
+  includeSubdomains: boolean;
+}) {
+  const domain = normalizeDomainInput(input.domain, input.includeSubdomains);
+  const derived = deriveBrandTokensFromDomain(domain);
+  const stored = await DomainResearchRepository.listBrandTokens(
+    input.projectId,
+    domain,
+  );
+  const user = stored.map((row) => row.token);
+  const all = [...new Set([...derived, ...user])].toSorted();
+  return { domain, derived, user, all };
+}
+
+async function getBrandTokens(input: {
+  projectId: string;
+  domain: string;
+  includeSubdomains: boolean;
+}) {
+  return listResolvedBrandTokens(input);
+}
+
+async function addBrandToken(input: {
+  projectId: string;
+  domain: string;
+  includeSubdomains: boolean;
+  token: string;
+}) {
+  const tokens = await listResolvedBrandTokens(input);
+  const token = normalizeBrandToken(input.token);
+  if (!token) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Enter a brand token of 2–64 letters or numbers.",
+    );
+  }
+  if (tokens.derived.includes(token)) {
+    return tokens;
+  }
+  await DomainResearchRepository.addBrandToken({
+    id: crypto.randomUUID(),
+    projectId: input.projectId,
+    domain: tokens.domain,
+    token,
+  });
+  return listResolvedBrandTokens({
+    projectId: input.projectId,
+    domain: tokens.domain,
+    includeSubdomains: true,
+  });
+}
+
+async function removeBrandToken(input: {
+  projectId: string;
+  domain: string;
+  includeSubdomains: boolean;
+  token: string;
+}) {
+  const tokens = await listResolvedBrandTokens(input);
+  const token = normalizeBrandToken(input.token);
+  if (!token) {
+    throw new AppError("VALIDATION_ERROR", "Brand token is invalid.");
+  }
+  if (tokens.derived.includes(token)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Derived domain tokens cannot be removed. Add a more specific user token instead.",
+    );
+  }
+  await DomainResearchRepository.removeBrandToken({
+    projectId: input.projectId,
+    domain: tokens.domain,
+    token,
+  });
+  return listResolvedBrandTokens({
+    projectId: input.projectId,
+    domain: tokens.domain,
+    includeSubdomains: true,
+  });
+}
+
 export const DomainService = {
   getOverview,
   getSuggestedKeywords,
   getKeywordsPage,
+  getKeywordsSnapshot,
+  hasKeywordsSnapshot,
   getPagesPage,
+  getPagesExtras,
+  getPositionChanges,
+  getKeywordsByIntent,
+  getSerpFeatures,
+  getTrafficBreakdown,
+  getCompetitors,
+  getSubdomains,
+  getCompareDomains,
+  getHistoricalOverview,
+  getBrandTokens,
+  addBrandToken,
+  removeBrandToken,
 } as const;

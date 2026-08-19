@@ -1,16 +1,17 @@
+/* eslint-disable max-lines -- the Postgres schema catalog mirrors D1 in one file for Drizzle generation and parity review. */
 import { sql } from "drizzle-orm";
 import {
   bigint,
-  boolean,
   index,
   integer,
   pgTable,
+  primaryKey,
   real,
   serial,
   text,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { organization, user } from "./better-auth-schema";
+import { member, organization, user } from "./better-auth-schema";
 
 // Timestamps are stored as *text* (same column shape as the SQLite schema).
 // Postgres `timestamptz` would be parsed back into a JS Date by postgres-js
@@ -88,6 +89,50 @@ export const projects = pgTable(
     // list queries seq-scan. Per-org row counts are small, so the archived/
     // created_at ordering sorts cheaply on top of this single-column lookup.
     index("projects_organization_id_idx").on(table.organizationId),
+  ],
+);
+
+// Hosted workspace access attached to a Better Auth organization member.
+// Owners are derived from member.role and need no profile row. A missing row
+// for a non-owner is treated as a legacy employee with all-project access.
+export const memberAccessProfiles = pgTable(
+  "member_access_profiles",
+  {
+    memberId: text("member_id")
+      .primaryKey()
+      .references(() => member.id, { onDelete: "cascade" }),
+    accountType: text("account_type", { enum: ["employee", "client"] })
+      .notNull()
+      .default("employee"),
+    projectScope: text("project_scope", { enum: ["all", "selected"] })
+      .notNull()
+      .default("all"),
+    status: text("status", { enum: ["active", "disabled"] })
+      .notNull()
+      .default("active"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestampColumn("created_at").notNull().default(isoNow),
+    updatedAt: timestampColumn("updated_at").notNull().default(isoNow),
+  },
+  (table) => [index("member_access_profiles_status_idx").on(table.status)],
+);
+
+export const projectMemberAccess = pgTable(
+  "project_member_access",
+  {
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    createdAt: timestampColumn("created_at").notNull().default(isoNow),
+  },
+  (table) => [
+    primaryKey({ columns: [table.memberId, table.projectId] }),
+    index("project_member_access_project_idx").on(table.projectId),
   ],
 );
 
@@ -203,148 +248,6 @@ export const keywordMetrics = pgTable(
   ],
 );
 
-// ============================================================================
-// Rank Tracking tables
-// ============================================================================
-
-// One configuration per project+domain — defines what domain to track and how
-export const rankTrackingConfigs = pgTable(
-  "rank_tracking_configs",
-  {
-    id: text("id").primaryKey(),
-    projectId: text("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
-    domain: text("domain").notNull(),
-    locationCode: integer("location_code").notNull().default(2840),
-    languageCode: text("language_code").notNull().default("en"),
-    devices: text("devices", {
-      enum: ["both", "desktop", "mobile"],
-    })
-      .notNull()
-      .default("both"),
-    serpDepth: integer("serp_depth").notNull(),
-    scheduleInterval: text("schedule_interval", {
-      enum: ["daily", "weekly", "monthly", "manual"],
-    })
-      .notNull()
-      .default("weekly"),
-    locationName: text("location_name"),
-    isActive: boolean("is_active").notNull().default(true),
-    lastCheckedAt: timestampColumn("last_checked_at"),
-    nextCheckAt: timestampColumn("next_check_at"),
-    lastSkipReason: text("last_skip_reason"),
-    createdAt: timestampColumn("created_at").notNull().default(isoNow),
-  },
-  (table) => [
-    index("rank_tracking_configs_project_active_created_idx").on(
-      table.projectId,
-      table.isActive,
-      table.createdAt,
-    ),
-    uniqueIndex("rank_tracking_configs_national_idx")
-      .on(table.projectId, table.domain, table.locationCode)
-      .where(sql`${table.locationName} IS NULL`),
-    uniqueIndex("rank_tracking_configs_local_idx")
-      .on(table.projectId, table.domain, table.locationCode, table.locationName)
-      .where(sql`${table.locationName} IS NOT NULL`),
-  ],
-);
-
-// Keywords tracked per domain config
-export const rankTrackingKeywords = pgTable(
-  "rank_tracking_keywords",
-  {
-    id: text("id").primaryKey(),
-    configId: text("config_id")
-      .notNull()
-      .references(() => rankTrackingConfigs.id, { onDelete: "cascade" }),
-    keyword: text("keyword").notNull(),
-    searchVolume: integer("search_volume"),
-    keywordDifficulty: integer("keyword_difficulty"),
-    cpc: real("cpc"),
-    metricsFetchedAt: timestampColumn("metrics_fetched_at"),
-    createdAt: timestampColumn("created_at").notNull().default(isoNow),
-  },
-  (table) => [
-    uniqueIndex("rank_tracking_keywords_config_keyword_idx").on(
-      table.configId,
-      table.keyword,
-    ),
-  ],
-);
-
-// One row per check execution (manual or scheduled).
-// A partial unique index on `config_id WHERE status IN ('pending','running')`
-// enforces at most one in-flight run per config at the DB level, which is how
-// duplicate-trigger protection is implemented — INSERT of a second pending run
-// for the same config fails with a unique-constraint violation.
-export const rankCheckRuns = pgTable(
-  "rank_check_runs",
-  {
-    id: text("id").primaryKey(),
-    configId: text("config_id")
-      .notNull()
-      .references(() => rankTrackingConfigs.id, { onDelete: "cascade" }),
-    projectId: text("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
-    status: text("status", {
-      enum: ["pending", "running", "completed", "failed"],
-    })
-      .notNull()
-      .default("pending"),
-    keywordsTotal: integer("keywords_total").notNull().default(0),
-    keywordsChecked: integer("keywords_checked").notNull().default(0),
-    isSubsetRun: boolean("is_subset_run").notNull().default(false),
-    errorMessage: text("error_message"),
-    startedAt: timestampColumn("started_at").notNull().default(isoNow),
-    completedAt: timestampColumn("completed_at"),
-  },
-  (table) => [
-    index("rank_check_runs_config_idx").on(table.configId, table.startedAt),
-    index("rank_check_runs_project_idx").on(table.projectId, table.startedAt),
-    uniqueIndex("rank_check_runs_one_active_per_config_idx")
-      .on(table.configId)
-      .where(sql`${table.status} IN ('pending', 'running')`),
-  ],
-);
-
-// One row per keyword per device per check run
-export const rankSnapshots = pgTable(
-  "rank_snapshots",
-  {
-    id: serial("id").primaryKey(),
-    runId: text("run_id")
-      .notNull()
-      .references(() => rankCheckRuns.id, { onDelete: "cascade" }),
-    // No FK to rankTrackingKeywords — intentional. Historical snapshots are
-    // preserved after a keyword is removed from tracking so users can still
-    // see past position data for deleted keywords.
-    trackingKeywordId: text("tracking_keyword_id").notNull(),
-    keyword: text("keyword").notNull(),
-    device: text("device", { enum: ["desktop", "mobile"] }).notNull(),
-    position: integer("position"), // null = not found in top 20
-    url: text("url"),
-    serpFeatures: text("serp_features"), // JSON array of feature type strings
-    checkedAt: timestampColumn("checked_at").notNull().default(isoNow),
-  },
-  (table) => [
-    // No standalone index on runId — the unique index below has it as its
-    // leftmost column, so it already serves runId lookups.
-    index("rank_snapshots_keyword_device_idx").on(
-      table.trackingKeywordId,
-      table.device,
-      table.checkedAt,
-    ),
-    uniqueIndex("rank_snapshots_run_keyword_device_idx").on(
-      table.runId,
-      table.trackingKeywordId,
-      table.device,
-    ),
-  ],
-);
-
 // Dashboard activation milestones. Organization-scoped: MCP OAuth grants are
 // user-level, so any member connecting an external MCP client satisfies the
 // milestone for the whole organization. Timestamps are first-occurrence only
@@ -404,6 +307,28 @@ export const backlinkSnapshots = pgTable(
   },
   (table) => [
     index("backlink_snapshots_project_captured_idx").on(
+      table.projectId,
+      table.capturedAt,
+    ),
+  ],
+);
+
+export const domainOverviewSnapshots = pgTable(
+  "domain_overview_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    locationCode: integer("location_code").notNull(),
+    languageCode: text("language_code").notNull(),
+    organicTraffic: bigint("organic_traffic", { mode: "number" }),
+    organicKeywords: bigint("organic_keywords", { mode: "number" }),
+    capturedAt: timestampColumn("captured_at").notNull().default(isoNow),
+  },
+  (table) => [
+    index("domain_overview_snapshots_project_captured_idx").on(
       table.projectId,
       table.capturedAt,
     ),

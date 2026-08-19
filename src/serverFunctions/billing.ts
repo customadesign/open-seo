@@ -9,7 +9,7 @@ import {
   getRequiredEnvValue,
   isHostedServerAuthMode,
 } from "@/server/lib/runtime-env";
-import { requireAuthenticatedContext } from "@/serverFunctions/middleware";
+import { requireWorkspaceOwner } from "@/serverFunctions/middleware";
 
 const AUTUMN_EVENTS_LIST_URL = "https://api.useautumn.com/v1/events.list";
 const EVENT_PAGE_LIMIT = 1000;
@@ -54,7 +54,7 @@ export type BillingUsageEvent = {
 };
 
 export const getBillingUsageEvents = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceOwner)
   .validator(billingUsageRangeSchema)
   .handler(async ({ data, context }) => {
     if (!(await isHostedServerAuthMode())) {

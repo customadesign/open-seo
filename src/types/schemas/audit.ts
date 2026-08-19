@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AUDIT_SCHEDULE_INTERVALS } from "@/shared/audit-schedule";
 import {
   DEFAULT_AUDIT_PAGES,
   MIN_AUDIT_PAGES,
@@ -42,6 +43,25 @@ export const deleteAuditSchema = z.object({
 export const getCrawlProgressSchema = z.object({
   projectId: z.string().min(1),
   auditId: z.string().min(1),
+});
+
+export const getAuditScheduleSchema = z.object({
+  projectId: z.string().min(1),
+});
+
+export const saveAuditScheduleSchema = z.object({
+  projectId: z.string().min(1),
+  startUrl: z.string().min(1, "URL is required").max(2048),
+  maxPages: z
+    .number()
+    .int()
+    .min(MIN_AUDIT_PAGES)
+    .max(PAID_MAX_AUDIT_PAGES)
+    .optional()
+    .default(DEFAULT_AUDIT_PAGES),
+  lighthouseStrategy: z.enum(["auto", "none"]),
+  scheduleInterval: z.enum(AUDIT_SCHEDULE_INTERVALS),
+  isActive: z.boolean(),
 });
 
 // ─── URL search params schema for /p/$projectId/audit ────────────────────────

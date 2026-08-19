@@ -12,8 +12,8 @@ import { captureServerEvent } from "@/server/lib/posthog";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import {
-  requireAuthenticatedContext,
-  requireProjectContext,
+  requireProjectOwner,
+  requireWorkspaceOwner,
 } from "@/serverFunctions/middleware";
 
 const projectScopedSchema = z.object({ projectId: z.string().min(1) });
@@ -29,19 +29,24 @@ const startSelfHostedLinkSchema = z.object({
 // where the user hasn't picked a project yet. The OAuth grant is per-account;
 // binding a property to a project happens later in Integrations.
 export const getGscGrantStatus = createServerFn({ method: "GET" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceOwner)
   .handler(async ({ context }) => {
-    return { connected: await GscService.userHasGrant(context.userId) };
+    return {
+      connected: await GscService.userHasGrant(
+        context.userId,
+        context.organizationId,
+      ),
+    };
   });
 
 export const getGscConnection = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const [connection, currentUserHasGrant, hosted, gscConfigured] =
       await Promise.all([
         GscService.getConnection(context.projectId),
-        GscService.userHasGrant(context.userId),
+        GscService.userHasGrant(context.userId, context.organizationId),
         isHostedServerAuthMode(),
         hasSelfHostedGoogleOAuthConfig(),
       ]);
@@ -56,11 +61,14 @@ export const getGscConnection = createServerFn({ method: "POST" })
   });
 
 export const listGscSites = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const [siteList, connection] = await Promise.all([
-      GscService.listSitesForUserWithGrantStatus(context.userId),
+      GscService.listSitesForUserWithGrantStatus(
+        context.userId,
+        context.organizationId,
+      ),
       GscService.getConnection(context.projectId),
     ]);
     let legacySelectionMatched = false;
@@ -89,7 +97,7 @@ export const listGscSites = createServerFn({ method: "POST" })
   });
 
 export const setGscSite = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(setSiteSchema)
   .handler(async ({ data, context }) => {
     const connection = await GscService.setSite({
@@ -111,7 +119,7 @@ export const setGscSite = createServerFn({ method: "POST" })
   });
 
 export const disconnectGsc = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectOwner)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     await GscService.disconnect({
@@ -130,7 +138,7 @@ export const disconnectGsc = createServerFn({ method: "POST" })
   });
 
 export const startSelfHostedGscLink = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceOwner)
   .validator(startSelfHostedLinkSchema)
   .handler(async ({ data, context }) => {
     const publicOrigin = getPublicOrigin(getRequest());

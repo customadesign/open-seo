@@ -31,6 +31,12 @@ type DomainMetricsItem = DataforseoLabsDomainRankOverviewLiveItem;
 export type RelevantPagesItem = DataforseoLabsRelevantPagesLiveItem;
 export type KeywordOverviewItem = DataforseoLabsGoogleKeywordOverviewLiveItem;
 type SerpCompetitorItem = DataforseoLabsSerpCompetitorsLiveItem;
+export type {
+  BulkTrafficEstimationItem,
+  CompetitorsDomainItem,
+  HistoricalRankOverviewItem,
+  SubdomainsItem,
+} from "@/server/lib/dataforseo/labs-domain-reports";
 
 // Ranked keywords is the one Labs endpoint the SDK types loosely: its
 // `ranked_serp_element.serp_item` is the base element item, so the url / etv /
@@ -38,10 +44,22 @@ type SerpCompetitorItem = DataforseoLabsSerpCompetitorsLiveItem;
 // domain-keyword mapper stays type-safe.
 const rankedSerpItemSchema = z
   .object({
+    type: z.string().nullable().optional(),
     url: z.string().nullable().optional(),
     relative_url: z.string().nullable().optional(),
     rank_absolute: z.number().nullable().optional(),
     etv: z.number().nullable().optional(),
+    estimated_paid_traffic_cost: z.number().nullable().optional(),
+    rank_changes: z
+      .object({
+        previous_rank_absolute: z.number().nullable().optional(),
+        is_new: z.boolean().nullable().optional(),
+        is_up: z.boolean().nullable().optional(),
+        is_down: z.boolean().nullable().optional(),
+      })
+      .passthrough()
+      .nullable()
+      .optional(),
   })
   .passthrough();
 
@@ -66,6 +84,13 @@ const domainRankedKeywordItemSchema = z
           .passthrough()
           .nullable()
           .optional(),
+        search_intent_info: z
+          .object({
+            main_intent: z.string().nullable().optional(),
+          })
+          .passthrough()
+          .nullable()
+          .optional(),
       })
       .passthrough()
       .nullable()
@@ -77,6 +102,10 @@ const domainRankedKeywordItemSchema = z
         relative_url: z.string().nullable().optional(),
         rank_absolute: z.number().nullable().optional(),
         etv: z.number().nullable().optional(),
+        serp_item_types: z.array(z.string()).nullable().optional(),
+        is_lost: z.boolean().nullable().optional(),
+        last_updated_time: z.string().nullable().optional(),
+        previous_updated_time: z.string().nullable().optional(),
       })
       .passthrough()
       .nullable()
@@ -102,7 +131,9 @@ export async function fetchRelatedKeywords(input: {
   languageCode: string;
   limit: number;
   depth?: number;
+  offset?: number;
   includeClickstreamData?: boolean;
+  includeSerpInfo?: boolean;
 }): Promise<DataforseoApiResponse<RelatedKeywordItem[]>> {
   const response = await labsApi().googleRelatedKeywordsLive([
     new DataforseoLabsGoogleRelatedKeywordsLiveRequestInfo({
@@ -111,10 +142,11 @@ export async function fetchRelatedKeywords(input: {
       language_code: input.languageCode,
       limit: input.limit,
       depth: input.depth ?? 3,
+      offset: input.offset,
       // Clickstream-refined volumes DOUBLE the request cost, so they are
       // opt-in — see specs/0004-keyword-data-source-routing.md.
       include_clickstream_data: input.includeClickstreamData ?? false,
-      include_serp_info: false,
+      include_serp_info: input.includeSerpInfo ?? false,
     }),
   ]);
   const task = assertOk(response);
@@ -129,7 +161,10 @@ export async function fetchKeywordSuggestions(input: {
   locationCode: number;
   languageCode: string;
   limit: number;
+  offset?: number;
+  exactMatch?: boolean;
   includeClickstreamData?: boolean;
+  includeSerpInfo?: boolean;
 }): Promise<DataforseoApiResponse<LabsKeywordDataItem[]>> {
   const response = await labsApi().googleKeywordSuggestionsLive([
     new DataforseoLabsGoogleKeywordSuggestionsLiveRequestInfo({
@@ -137,11 +172,12 @@ export async function fetchKeywordSuggestions(input: {
       location_code: input.locationCode,
       language_code: input.languageCode,
       limit: input.limit,
+      offset: input.offset,
       include_clickstream_data: input.includeClickstreamData ?? false,
-      include_serp_info: false,
+      include_serp_info: input.includeSerpInfo ?? false,
       include_seed_keyword: true,
       ignore_synonyms: false,
-      exact_match: false,
+      exact_match: input.exactMatch ?? false,
     }),
   ]);
   const task = assertOk(response);
@@ -156,7 +192,9 @@ export async function fetchKeywordIdeas(input: {
   locationCode: number;
   languageCode: string;
   limit: number;
+  offset?: number;
   includeClickstreamData?: boolean;
+  includeSerpInfo?: boolean;
 }): Promise<DataforseoApiResponse<LabsKeywordDataItem[]>> {
   const response = await labsApi().googleKeywordIdeasLive([
     new DataforseoLabsGoogleKeywordIdeasLiveRequestInfo({
@@ -164,8 +202,9 @@ export async function fetchKeywordIdeas(input: {
       location_code: input.locationCode,
       language_code: input.languageCode,
       limit: input.limit,
+      offset: input.offset,
       include_clickstream_data: input.includeClickstreamData ?? false,
-      include_serp_info: false,
+      include_serp_info: input.includeSerpInfo ?? false,
       ignore_synonyms: false,
       closely_variants: false,
     }),
@@ -212,6 +251,7 @@ export async function fetchRankedKeywords(input: {
   filters?: unknown[];
   itemTypes?: DataforseoLabsItemType[];
   includeSubdomains?: boolean;
+  historicalSerpMode?: "live" | "lost" | "all";
 }): Promise<DataforseoApiResponse<RankedKeywordsPage>> {
   const response = await labsApi().googleRankedKeywordsLive([
     new DataforseoLabsGoogleRankedKeywordsLiveRequestInfo({
@@ -224,6 +264,7 @@ export async function fetchRankedKeywords(input: {
       filters: input.filters,
       item_types: input.itemTypes,
       include_subdomains: input.includeSubdomains,
+      historical_serp_mode: input.historicalSerpMode,
     }),
   ]);
   const task = assertOk(response);
@@ -322,3 +363,10 @@ export async function fetchSerpCompetitors(input: {
     billing: buildTaskBilling(task),
   };
 }
+
+export {
+  fetchBulkTrafficEstimation,
+  fetchCompetitorsDomain,
+  fetchHistoricalRankOverview,
+  fetchSubdomains,
+} from "@/server/lib/dataforseo/labs-domain-reports";

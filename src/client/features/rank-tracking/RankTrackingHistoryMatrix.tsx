@@ -48,6 +48,11 @@ export function RankTrackingHistoryMatrix({
                 className="w-24 whitespace-nowrap text-right text-xs font-medium text-base-content/60"
               >
                 {formatDate(r.checkedAt)}
+                {r.sourceProvider === "semrush" ? (
+                  <span className="block text-[10px] font-normal text-info">
+                    SEMrush
+                  </span>
+                ) : null}
               </th>
             ))}
           </tr>
@@ -109,6 +114,7 @@ function MatrixCell({
 interface MatrixRun {
   runId: string;
   checkedAt: string;
+  sourceProvider: "semrush" | null;
 }
 
 /** Distinct completed runs in a matrix payload (= history columns). */
@@ -120,10 +126,16 @@ function buildMatrix(cells: RankPositionMatrixCell[]): {
   runs: MatrixRun[];
   cellByKeyword: Map<string, Map<string, number | null>>;
 } {
-  const runMap = new Map<string, string>(); // runId -> checkedAt
+  const runMap = new Map<
+    string,
+    { checkedAt: string; sourceProvider: "semrush" | null }
+  >();
   const cellByKeyword = new Map<string, Map<string, number | null>>();
   for (const c of cells) {
-    runMap.set(c.runId, c.checkedAt);
+    runMap.set(c.runId, {
+      checkedAt: c.checkedAt,
+      sourceProvider: c.sourceProvider,
+    });
     let byRun = cellByKeyword.get(c.trackingKeywordId);
     if (!byRun) {
       byRun = new Map();
@@ -132,7 +144,7 @@ function buildMatrix(cells: RankPositionMatrixCell[]): {
     byRun.set(c.runId, c.position);
   }
   const runs = [...runMap.entries()]
-    .map(([runId, checkedAt]) => ({ runId, checkedAt }))
+    .map(([runId, value]) => ({ runId, ...value }))
     .toSorted((a, b) => a.checkedAt.localeCompare(b.checkedAt));
   return { runs, cellByKeyword };
 }

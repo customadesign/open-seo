@@ -11,8 +11,15 @@ import type {
   RankCheckTaskInput,
 } from "@/server/lib/dataforseo";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
-import { KEYWORDS_PER_BATCH } from "@/shared/rank-tracking";
+import { persistRankCheckResults } from "@/server/workflows/rankCheckPersist";
+import {
+  estimateRankCheckTaskCredits,
+  KEYWORDS_PER_BATCH,
+  rankCheckCostApprovalError,
+  type RankTrackingEngine,
+} from "@/shared/rank-tracking";
 import { pgStep } from "@/server/workflows/pgStep";
+import { AppError } from "@/server/lib/errors";
 
 const SINGLE_ATTEMPT_STEP_CONFIG = {
   retries: { limit: 0, delay: "1 second" as const },
@@ -24,32 +31,18 @@ type RankCheckResultWithDevice = RankCheckResult & {
   device: "desktop" | "mobile";
 };
 
-function mapResultsToSnapshotRows(
-  runId: string,
-  results: RankCheckResultWithDevice[],
-) {
-  return results.map((r) => ({
-    runId,
-    trackingKeywordId: r.keywordId,
-    keyword: r.keyword,
-    device: r.device,
-    position: r.position,
-    url: r.url,
-    serpFeatures:
-      r.serpFeatures.length > 0 ? JSON.stringify(r.serpFeatures) : null,
-  }));
-}
-
 interface CheckContext {
   client: ReturnType<typeof createDataforseoClient>;
   keywords: KeywordEntry[];
   devices: RankTrackingConfig["devices"];
   serpDepth: number;
   domain: string;
+  engine: RankTrackingEngine;
   locationCode: number;
   languageCode: string;
   locationName?: string;
   runId: string;
+  maxCostCredits?: number;
 }
 
 /** Expand keywords into one task input per keyword/device pair. */
@@ -95,6 +88,7 @@ async function checkBatchLive(
           device: task.device,
           targetDomain: ctx.domain,
           depth: ctx.serpDepth,
+          engine: ctx.engine,
         })
         .then((r) => ({ ...r, device: task.device })),
     ),
@@ -110,11 +104,7 @@ async function checkBatchLive(
       );
     }
   }
-  if (results.length > 0) {
-    await RankTrackingRepository.insertSnapshots(
-      mapResultsToSnapshotRows(ctx.runId, results),
-    );
-  }
+  await persistRankCheckResults(ctx.runId, results);
   return results.length;
 }
 
@@ -209,6 +199,7 @@ async function collectQueuedRound(
           keywordId: task.keywordId,
           keyword: task.keyword,
           targetDomain: ctx.domain,
+          engine: ctx.engine,
         }),
       ),
     );
@@ -235,9 +226,7 @@ async function collectQueuedRound(
   }
 
   if (completed.length > 0) {
-    await RankTrackingRepository.insertSnapshots(
-      mapResultsToSnapshotRows(ctx.runId, completed),
-    );
+    await persistRankCheckResults(ctx.runId, completed);
     // Progress for the UI; finalize recounts from the DB anyway.
     const snapshots = await RankTrackingRepository.getSnapshotsForRun(
       ctx.runId,
@@ -260,6 +249,32 @@ export interface QueuedCheckStats {
   fallbackTasks: number;
   /** Fallback tasks that produced a snapshot. */
   fallbackChecked: number;
+  /** Stragglers left unavailable because no approved credits remained. */
+  fallbackSkippedCostCeiling: number;
+}
+
+export function liveFallbackTaskLimit(input: {
+  queuedTaskCount: number;
+  stragglerCount: number;
+  serpDepth: number;
+  maxCostCredits?: number;
+}) {
+  if (input.maxCostCredits == null) return input.stragglerCount;
+  const queuedReserve = estimateRankCheckTaskCredits(
+    input.queuedTaskCount,
+    input.serpDepth,
+    "queued",
+  ).costCredits;
+  const liveTaskCredits = estimateRankCheckTaskCredits(
+    1,
+    input.serpDepth,
+    "live",
+  ).costCredits;
+  const remainingCredits = Math.max(0, input.maxCostCredits - queuedReserve);
+  return Math.min(
+    input.stragglerCount,
+    Math.floor(remainingCredits / liveTaskCredits),
+  );
 }
 
 /**
@@ -275,6 +290,20 @@ export async function runQueuedCheck(
   ctx: CheckContext,
 ): Promise<QueuedCheckStats> {
   const taskInputs = expandToTaskInputs(ctx.keywords, ctx.devices);
+  // Reserve the full queued estimate even when a provider response is
+  // ambiguous or rejects individual entries. This conservative reserve is the
+  // only way to ensure later live fallback cannot exceed the approved total.
+  const queuedReserve = estimateRankCheckTaskCredits(
+    taskInputs.length,
+    ctx.serpDepth,
+    "queued",
+  ).costCredits;
+  if (ctx.maxCostCredits != null && queuedReserve > ctx.maxCostCredits) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      rankCheckCostApprovalError(queuedReserve, ctx.maxCostCredits),
+    );
+  }
 
   // Post all tasks to the queue, <=100 per request, one metered step each.
   // A failed chunk must not abort the run — earlier chunks were already
@@ -299,6 +328,7 @@ export async function runQueuedCheck(
             locationName: ctx.locationName,
             depth: ctx.serpDepth,
             targetDomain: ctx.domain,
+            engine: ctx.engine,
           }),
       );
     } catch (error) {
@@ -325,6 +355,7 @@ export async function runQueuedCheck(
     queueCollected: 0,
     fallbackTasks: 0,
     fallbackChecked: 0,
+    fallbackSkippedCostCeiling: 0,
   };
 
   // Poll until everything is collected or the ~15 minute window closes. A
@@ -370,12 +401,28 @@ export async function runQueuedCheck(
   stats.fallbackTasks = stragglers.length;
   if (stragglers.length === 0) return stats;
 
+  const fallbackLimit = liveFallbackTaskLimit({
+    queuedTaskCount: taskInputs.length,
+    stragglerCount: stragglers.length,
+    serpDepth: ctx.serpDepth,
+    maxCostCredits: ctx.maxCostCredits,
+  });
+  const approvedStragglers = stragglers.slice(0, fallbackLimit);
+  stats.fallbackSkippedCostCeiling =
+    stragglers.length - approvedStragglers.length;
+  if (stats.fallbackSkippedCostCeiling > 0) {
+    console.warn(
+      `[rank-check] ${ctx.runId} skipped ${stats.fallbackSkippedCostCeiling} live fallback task(s): approved credit ceiling exhausted`,
+    );
+  }
+  if (approvedStragglers.length === 0) return stats;
+
   console.log(
-    `[rank-check] ${ctx.runId} live fallback for ${stragglers.length} task(s)`,
+    `[rank-check] ${ctx.runId} live fallback for ${approvedStragglers.length} task(s)`,
   );
 
-  for (let i = 0; i < stragglers.length; i += KEYWORDS_PER_BATCH) {
-    const batch = stragglers.slice(i, i + KEYWORDS_PER_BATCH);
+  for (let i = 0; i < approvedStragglers.length; i += KEYWORDS_PER_BATCH) {
+    const batch = approvedStragglers.slice(i, i + KEYWORDS_PER_BATCH);
     const batchIndex = Math.floor(i / KEYWORDS_PER_BATCH);
 
     stats.fallbackChecked += await pgStep(

@@ -13,12 +13,23 @@ import { getDatabaseProvider } from "@/db/provider";
 import { z } from "zod";
 import { isHostedAuthMode } from "@/lib/auth-mode";
 import { createApiKeyPlugin } from "@/lib/auth-api-key";
+import { createWorkspaceAccessControlPlugin } from "@/lib/auth-workspace-access";
+import {
+  createOnePagePmSsoPlugin,
+  hasOnePagePmSsoConfig,
+} from "@/lib/auth-onepagepm-sso";
+import { createLoginLockoutPlugin } from "@/lib/auth-login-lockout";
+import {
+  isPublicSignupDisabled as isPublicSignupDisabledFor,
+  isSocialLoginDisabled as isSocialLoginDisabledFor,
+} from "@/lib/auth-policy";
 import { createBaseAuthConfig } from "@/lib/auth-config";
 import {
   getHostedTurnstileSecretKey,
   hasHostedTurnstileConfig,
 } from "@/lib/auth-turnstile";
 import { getOrCreateDefaultHostedOrganization } from "@/server/auth/default-hosted-organization";
+import { WorkspaceAccessRepository } from "@/server/auth/repositories/WorkspaceAccessRepository";
 import {
   sendHostedPasswordResetEmail,
   sendHostedVerificationEmail,
@@ -70,6 +81,13 @@ function createAuth() {
     ...baseAuthConfig,
     emailAndPassword: {
       ...baseAuthConfig.emailAndPassword,
+      // Self-hosted deployments reach hosted mode only to get real sessions for
+      // the OnePagePM SSO handoff — they have no public signup story, and an
+      // open /sign-up/email on an internet-facing host would let any visitor
+      // provision themselves an account. DISABLE_PUBLIC_SIGNUP defaults on for
+      // self-hosters and must be explicitly set to "false" by the multi-tenant
+      // hosted deployment, which does want public signup.
+      disableSignUp: isPublicSignupDisabled(),
       requireEmailVerification: !bypassEmail,
       resetPasswordTokenExpiresIn: 60 * 60,
       revokeSessionsOnPasswordReset: true,
@@ -97,7 +115,17 @@ function createAuth() {
     database,
     plugins: [
       ...baseAuthConfig.plugins,
-      ...(isHostedAuthMode(env.AUTH_MODE) ? [createApiKeyPlugin()] : []),
+      ...(isHostedAuthMode(env.AUTH_MODE)
+        ? [
+            createApiKeyPlugin(),
+            createWorkspaceAccessControlPlugin(),
+            // Only hosted mode exposes a password form to lock.
+            createLoginLockoutPlugin(),
+          ]
+        : []),
+      ...(isHostedAuthMode(env.AUTH_MODE) && hasOnePagePmSsoConfig()
+        ? [createOnePagePmSsoPlugin()]
+        : []),
       ...(turnstileSecretKey
         ? [
             captcha({
@@ -140,6 +168,15 @@ function createAuth() {
               session.userId,
               (body) => auth.api.createOrganization({ body }),
             );
+            const access = await WorkspaceAccessRepository.getHostedPrincipal(
+              session.userId,
+              organizationId,
+            );
+            if (!access) {
+              throw new APIError("FORBIDDEN", {
+                message: "This account has been deactivated.",
+              });
+            }
 
             return {
               data: {
@@ -220,18 +257,44 @@ function getHostedSecret() {
   return secret;
 }
 
+// Public registration policy. Self-hosted deployments exist to serve one
+// known group and are reached through the OnePagePM handoff, so registration
+// is closed unless a deployment explicitly opts in.
+export function isPublicSignupDisabled() {
+  return isPublicSignupDisabledFor(
+    Reflect.get(env, "DISABLE_PUBLIC_SIGNUP") as string | undefined,
+  );
+}
+
+// Google sign-in is the only social provider. A deployment that wants email and
+// password to be the sole credential path sets DISABLE_SOCIAL_LOGIN=true, which
+// unregisters the provider outright rather than only hiding its button — the
+// /sign-in/social endpoint would otherwise still accept requests.
+export function isSocialLoginDisabled() {
+  return isSocialLoginDisabledFor(
+    Reflect.get(env, "DISABLE_SOCIAL_LOGIN") as string | undefined,
+  );
+}
+
 function getSocialProviders() {
   // Google social login is hosted-only. Self-hosted builds the auth instance
   // solely for Search Console token ops, which use the genericOAuth provider
   // (createBaseAuthConfig) with its own creds — so it must NOT require the
   // social-login config here, otherwise getAuth() construction would be coupled
   // to GSC creds rather than just BETTER_AUTH_SECRET.
-  if (!isHostedAuthMode(env.AUTH_MODE)) {
+  if (!isHostedAuthMode(env.AUTH_MODE) || isSocialLoginDisabled()) {
     return {};
   }
 
   return {
-    google: getGoogleSocialProviderConfig(),
+    google: {
+      ...getGoogleSocialProviderConfig(),
+      // Closing /sign-up/email is not enough on its own: Better Auth creates a
+      // user on first social login too, so leaving this off would let anyone
+      // with a Google account self-provision on a public hostname. With it set,
+      // Google works only for users that already exist.
+      disableImplicitSignUp: isPublicSignupDisabled(),
+    },
   };
 }
 
@@ -273,7 +336,9 @@ export function hasHostedAuthConfig() {
   try {
     getHostedBaseUrl();
     getHostedSecret();
-    getGoogleSocialProviderConfig();
+    if (!isSocialLoginDisabled()) {
+      getGoogleSocialProviderConfig();
+    }
     return (
       hasHostedTurnstileConfig(env) &&
       (Reflect.get(env, "BYPASS_EMAIL_VERIFICATION") === "true" ||

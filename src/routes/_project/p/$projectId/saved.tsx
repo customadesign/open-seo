@@ -40,6 +40,7 @@ import {
   updateSavedKeywordTags,
 } from "@/serverFunctions/keywords";
 import type { SavedKeywordTag } from "@/types/keywords";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 export const Route = createFileRoute("/_project/p/$projectId/saved")({
   component: SavedKeywordsPage,
@@ -50,6 +51,8 @@ const FILTER_DEBOUNCE_MS = 350;
 function SavedKeywordsPage() {
   const { projectId } = Route.useParams();
   const queryClient = useQueryClient();
+  const accessQuery = useWorkspaceAccess();
+  const readOnly = accessQuery.data?.role === "client";
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
@@ -247,6 +250,7 @@ function SavedKeywordsPage() {
           onExportCsv={() => void exporter.exportFilteredCsv()}
           onExportSheets={() => void exporter.exportFilteredSheets()}
           onRefreshMetrics={() => refreshMetricsMutation.mutate()}
+          readOnly={readOnly}
         />
 
         <div className="overflow-hidden rounded-lg border border-base-300 bg-base-100">
@@ -273,6 +277,7 @@ function SavedKeywordsPage() {
             }}
             onUpdateTag={(input) => void tagManage.updateTag(input)}
             onDeleteTag={(tagId) => void handleDeleteTag(tagId)}
+            readOnly={readOnly}
           />
 
           <div className="space-y-3 p-4">
@@ -291,6 +296,7 @@ function SavedKeywordsPage() {
               hasActiveFilters={hasActiveFilters}
               onRowSelectionChange={setRowSelection}
               onSortingChange={handleSortingChange}
+              readOnly={readOnly}
             />
           </div>
 
@@ -307,27 +313,29 @@ function SavedKeywordsPage() {
           />
         </div>
 
-        <SavedKeywordsBulkActionBar
-          selectedCount={selectedCount}
-          exportingSelection={exporter.exportingSelection}
-          onCopy={() => {
-            void navigator.clipboard.writeText(
-              selectedRows.map((row) => row.keyword).join("\n"),
-            );
-            toast.success(
-              `${selectedCount} keyword${selectedCount !== 1 ? "s" : ""} copied`,
-            );
-          }}
-          onOpenTags={() => setShowTagModal(true)}
-          onExportCsv={() => exporter.exportSelectionCsv(selectedRows)}
-          onExportSheets={() =>
-            void exporter.exportSelectionSheets(selectedRows)
-          }
-          onDelete={() => setShowConfirm(true)}
-          onClear={() => setRowSelection({})}
-        />
+        {!readOnly ? (
+          <SavedKeywordsBulkActionBar
+            selectedCount={selectedCount}
+            exportingSelection={exporter.exportingSelection}
+            onCopy={() => {
+              void navigator.clipboard.writeText(
+                selectedRows.map((row) => row.keyword).join("\n"),
+              );
+              toast.success(
+                `${selectedCount} keyword${selectedCount !== 1 ? "s" : ""} copied`,
+              );
+            }}
+            onOpenTags={() => setShowTagModal(true)}
+            onExportCsv={() => exporter.exportSelectionCsv(selectedRows)}
+            onExportSheets={() =>
+              void exporter.exportSelectionSheets(selectedRows)
+            }
+            onDelete={() => setShowConfirm(true)}
+            onClear={() => setRowSelection({})}
+          />
+        ) : null}
 
-        {showConfirm ? (
+        {showConfirm && !readOnly ? (
           <DeleteSavedKeywordsModal
             selectedCount={selectedCount}
             isPending={removeMutation.isPending}
@@ -336,7 +344,7 @@ function SavedKeywordsPage() {
           />
         ) : null}
 
-        {showTagModal ? (
+        {showTagModal && !readOnly ? (
           <SavedKeywordsBulkTagsModal
             availableTags={availableTags}
             selectedCount={selectedCount}

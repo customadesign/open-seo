@@ -1,19 +1,26 @@
 import { createServerFn } from "@tanstack/react-start";
 import { waitUntil } from "cloudflare:workers";
+import { AuditScheduleService } from "@/server/features/audit/services/AuditScheduleService";
 import { AuditService } from "@/server/features/audit/services/AuditService";
 import { captureServerEvent } from "@/server/lib/posthog";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import { AppError } from "@/server/lib/errors";
+import {
+  requireProjectContext,
+  requireProjectUse,
+} from "@/serverFunctions/middleware";
 import {
   deleteAuditSchema,
   getAuditHistorySchema,
   getAuditResultsSchema,
+  getAuditScheduleSchema,
   getAuditStatusSchema,
   getCrawlProgressSchema,
+  saveAuditScheduleSchema,
   startAuditSchema,
 } from "@/types/schemas/audit";
 
 export const startAudit = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(startAuditSchema)
   .handler(async ({ data, context }) => {
     const limitTier = await AuditService.resolveAuditLimitTier(
@@ -51,32 +58,80 @@ export const getAuditStatus = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(getAuditStatusSchema)
   .handler(async ({ data, context }) => {
-    return AuditService.getStatus(data.auditId, context.projectId);
+    const result = await AuditService.getStatus(
+      data.auditId,
+      context.projectId,
+    );
+    if (context.access.role === "client" && result.status !== "completed") {
+      throw new AppError(
+        "FORBIDDEN",
+        "Client accounts can only view completed audit reports.",
+      );
+    }
+    return result;
   });
 
 export const getAuditResults = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(getAuditResultsSchema)
   .handler(async ({ data, context }) => {
-    return AuditService.getResults(data.auditId, context.projectId);
+    const result = await AuditService.getResults(
+      data.auditId,
+      context.projectId,
+    );
+    if (
+      context.access.role === "client" &&
+      result.audit.status !== "completed"
+    ) {
+      throw new AppError(
+        "FORBIDDEN",
+        "Client accounts can only view completed audit reports.",
+      );
+    }
+    return result;
   });
 
 export const getAuditHistory = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(getAuditHistorySchema)
   .handler(async ({ context }) => {
-    return AuditService.getHistory(context.projectId);
+    const history = await AuditService.getHistory(context.projectId);
+    return context.access.role === "client"
+      ? history.filter((audit) => audit.status === "completed")
+      : history;
   });
 
 export const getCrawlProgress = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(getCrawlProgressSchema)
   .handler(async ({ data, context }) => {
     return AuditService.getCrawlProgress(data.auditId, context.projectId);
   });
 
-export const deleteAudit = createServerFn({ method: "POST" })
+export const getAuditSchedule = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
+  .validator(getAuditScheduleSchema)
+  .handler(async ({ context }) =>
+    AuditScheduleService.getSchedule(context.projectId),
+  );
+
+export const saveAuditSchedule = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
+  .validator(saveAuditScheduleSchema)
+  .handler(async ({ data, context }) =>
+    AuditScheduleService.saveSchedule({
+      projectId: context.projectId,
+      actorUserId: context.userId,
+      startUrl: data.startUrl,
+      maxPages: data.maxPages,
+      lighthouseStrategy: data.lighthouseStrategy,
+      scheduleInterval: data.scheduleInterval,
+      isActive: data.isActive,
+    }),
+  );
+
+export const deleteAudit = createServerFn({ method: "POST" })
+  .middleware(requireProjectUse)
   .validator(deleteAuditSchema)
   .handler(async ({ data, context }) => {
     await AuditService.remove(data.auditId, context.projectId);

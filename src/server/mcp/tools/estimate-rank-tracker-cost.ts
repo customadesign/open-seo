@@ -30,7 +30,7 @@ export const estimateRankTrackerCostTool = {
   config: {
     title: "Estimate rank tracker cost",
     description:
-      "Estimate rank tracker cost without spending credits or starting a check. The live estimate covers one explicit run_rank_tracker check. For a scheduled tracker, the response also includes nominal queued per-check and approximate monthly recurring cost. Pass additionalKeywordCount before adding keywords to project the post-add cost. Scheduled estimates are not runtime caps; rejected, failed, or timed-out queued tasks may use additional separately billed live fallback.",
+      "Estimate rank tracker cost without spending credits or starting a check. The `method` field says how the estimate is priced: one explicit run_rank_tracker check is live on a Google tracker and queued on a Bing tracker, which always uses the task queue. For a scheduled tracker, the response also includes queued per-check and approximate monthly recurring cost. Pass additionalKeywordCount before adding keywords to project the post-add cost. The approved ceiling is a hard total cap: live fallback can use only credits left after reserving the queued check, and unavailable results stay incomplete when the ceiling is exhausted.",
     inputSchema,
     outputSchema: z
       .object({
@@ -40,7 +40,8 @@ export const estimateRankTrackerCostTool = {
         keywordCount: z.number(),
         devicesCount: z.number(),
         totalChecks: z.number(),
-        method: z.literal("live"),
+        method: z.enum(["live", "queued"]),
+        engine: z.enum(["google", "bing"]),
         existingKeywordCount: z.number(),
         additionalKeywordCount: z.number(),
         scheduledEstimate: z
@@ -69,7 +70,7 @@ export const estimateRankTrackerCostTool = {
       args.additionalKeywordCount,
     );
     return mcpResponse({
-      text: `One live check for tracker ${args.trackerId} is estimated at $${estimate.costUsd.toFixed(4)} (${estimate.costCredits} credits): ${estimate.keywordCount} keyword${estimate.keywordCount === 1 ? "" : "s"} × ${estimate.devicesCount} device${estimate.devicesCount === 1 ? "" : "s"} = ${estimate.totalChecks} SERP checks.${estimate.additionalKeywordCount > 0 ? ` This projects ${estimate.additionalKeywordCount} additional keyword${estimate.additionalKeywordCount === 1 ? "" : "s"}.` : ""}${estimate.scheduledEstimate ? ` Its ${estimate.scheduledEstimate.scheduleInterval} queued checks have a nominal estimate of $${estimate.scheduledEstimate.costUsd.toFixed(4)} (${estimate.scheduledEstimate.costCredits} credits) each, or about $${estimate.scheduledEstimate.monthlyCostUsd.toFixed(4)} (${estimate.scheduledEstimate.monthlyCostCredits} credits) per month. Show the user that rejected, failed, or timed-out queued tasks may use additional separately billed live fallback, then use the per-check estimate as maxEstimatedScheduledCheckCredits when adding keywords.` : ""} No check was started.`,
+      text: `One ${estimate.method} check for tracker ${args.trackerId} is estimated at $${estimate.costUsd.toFixed(4)} (${estimate.costCredits} credits): ${estimate.keywordCount} keyword${estimate.keywordCount === 1 ? "" : "s"} × ${estimate.devicesCount} device${estimate.devicesCount === 1 ? "" : "s"} = ${estimate.totalChecks} SERP checks.${estimate.additionalKeywordCount > 0 ? ` This projects ${estimate.additionalKeywordCount} additional keyword${estimate.additionalKeywordCount === 1 ? "" : "s"}.` : ""}${estimate.scheduledEstimate ? ` Its ${estimate.scheduledEstimate.scheduleInterval} queued checks are estimated at $${estimate.scheduledEstimate.costUsd.toFixed(4)} (${estimate.scheduledEstimate.costCredits} credits) each, or about $${estimate.scheduledEstimate.monthlyCostUsd.toFixed(4)} (${estimate.scheduledEstimate.monthlyCostCredits} credits) per month. Use the per-check estimate as maxEstimatedScheduledCheckCredits when adding keywords. That ceiling caps the queued check plus any live fallback; results stay incomplete if no approved credits remain.` : ""} No check was started.`,
       meta: buildProjectMeta(
         context,
         args.projectId,

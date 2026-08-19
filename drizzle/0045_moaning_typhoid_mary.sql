@@ -1,0 +1,1 @@
+ALTER TABLE `geo_grid_runs` ADD `attempt_started_at` text DEFAULT '' NOT NULL;

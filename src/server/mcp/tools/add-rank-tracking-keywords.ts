@@ -24,7 +24,7 @@ const inputSchema = {
     .positive()
     .optional()
     .describe(
-      "Nominal queued credits per scheduled check that the user approved after seeing estimate_rank_tracker_cost with additionalKeywordCount. Required for scheduled trackers. This is an estimate approval, not a runtime cap; live fallback may add separately billed credits.",
+      "Total credits per scheduled check that the user approved after seeing estimate_rank_tracker_cost with additionalKeywordCount. Required for scheduled trackers. This is a hard runtime cap shared by the queued check and any live fallback.",
     ),
 } as const;
 
@@ -35,7 +35,7 @@ export const addRankTrackingKeywordsTool = {
   config: {
     title: "Add rank tracking keywords",
     description:
-      "Add keywords to an existing rank tracker. The mutation itself uses no credits and does not start a check or fetch metrics, but scheduled trackers will spend credits on future recurring checks. For a scheduled tracker, call estimate_rank_tracker_cost with additionalKeywordCount, show the recurring estimate and live-fallback caveat to the user, and pass the approved nominal per-check estimate as maxEstimatedScheduledCheckCredits. This approval is not a runtime spending cap: rejected, failed, or timed-out queued tasks may use additional separately billed live fallback. Existing and repeated keywords are skipped, and `added` is the number actually inserted.",
+      "Add keywords to an existing rank tracker. The mutation itself uses no credits and does not start a check or fetch metrics, but scheduled trackers will spend credits on future recurring checks. For a scheduled tracker, call estimate_rank_tracker_cost with additionalKeywordCount, show the recurring estimate, and pass the approved total per-check ceiling as maxEstimatedScheduledCheckCredits. The ceiling is a hard runtime cap shared by the queued check and any live fallback; results stay incomplete when no approved credits remain. Existing and repeated keywords are skipped, and `added` is the number actually inserted.",
     inputSchema,
     outputSchema: z
       .object({
@@ -75,7 +75,7 @@ export const addRankTrackingKeywordsTool = {
     );
     const requested = args.keywords.length;
     return mcpResponse({
-      text: `Added ${result.added} of ${requested} requested keyword${requested === 1 ? "" : "s"} to tracker ${args.trackerId}. No check was started and no credits were used.${result.scheduledEstimate ? ` Future ${result.scheduledEstimate.scheduleInterval} checks have a nominal estimate of ${result.scheduledEstimate.costCredits} credits each (~${result.scheduledEstimate.monthlyCostCredits} credits/month); live fallback may add separately billed credits.` : ""}`,
+      text: `Added ${result.added} of ${requested} requested keyword${requested === 1 ? "" : "s"} to tracker ${args.trackerId}. No check was started and no credits were used.${result.scheduledEstimate ? ` Future ${result.scheduledEstimate.scheduleInterval} checks are estimated at ${result.scheduledEstimate.costCredits} credits each (~${result.scheduledEstimate.monthlyCostCredits} credits/month); that approved ceiling caps the queued check plus any live fallback.` : ""}`,
       meta: buildProjectMeta(
         context,
         args.projectId,

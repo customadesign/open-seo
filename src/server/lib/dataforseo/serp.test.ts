@@ -5,6 +5,7 @@ vi.mock("@/server/lib/runtime-env", () => ({
 }));
 
 import {
+  fetchLocalSerp,
   fetchRankCheckTaskResult,
   postRankCheckTasks,
 } from "@/server/lib/dataforseo/serp";
@@ -16,6 +17,52 @@ function parseDataforseoRequestBody(init: RequestInit | undefined): unknown {
   }
   return JSON.parse(body) as unknown;
 }
+
+describe("local SERPs", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["maps", "maps"],
+    ["local_finder", "local_finder"],
+  ] as const)(
+    "treats a %s no-results task as an empty metered observation",
+    async (searchType, pathSegment) => {
+      const path = ["v3", "serp", "google", pathSegment, "live", "advanced"];
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 40501,
+              status_message: "No Search Results",
+              cost: 0.002,
+              path,
+              result: null,
+            },
+          ],
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        fetchLocalSerp({
+          keyword: "sign shop",
+          locationCoordinate: "33.1294592,-117.1201598,15z",
+          languageCode: "en",
+          searchType,
+          device: "mobile",
+          depth: 20,
+          searchPlaces: false,
+        }),
+      ).resolves.toEqual({
+        data: [],
+        billing: { path, costUsd: 0.002 },
+      });
+    },
+  );
+});
 
 describe("rank check task queue", () => {
   beforeEach(() => {
@@ -171,6 +218,126 @@ describe("rank check task queue", () => {
         position: 3,
         url: "https://www.example.com/page",
         serpFeatures: ["organic"],
+        ownedUrls: [{ url: "https://www.example.com/page", position: 3 }],
+        competitors: [],
+        featureOwnership: [],
+      },
+    });
+  });
+});
+
+describe("Bing rank checks", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("posts to the Bing endpoint at full depth with no early stop", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        status_code: 20000,
+        tasks: [
+          {
+            id: "task-a",
+            status_code: 20100,
+            cost: 0.0006,
+            data: { tag: "kw-1:desktop" },
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await postRankCheckTasks({
+      engine: "bing",
+      tasks: [{ keyword: "alpha", keywordId: "kw-1", device: "desktop" }],
+      locationCode: 2840,
+      languageCode: "en",
+      depth: 40,
+      targetDomain: "example.com",
+    });
+
+    expect(
+      fetchMock.mock.calls.map(([url]) =>
+        typeof url === "string" || url instanceof URL
+          ? url.toString()
+          : url.url,
+      ),
+    ).toEqual(["https://api.dataforseo.com/v3/serp/bing/organic/task_post"]);
+
+    // Bing has no `find_targets_in`, so `stop_crawl_on_match` could stop on a
+    // sitelink or answer-box mention and record a false "not ranking". Neither
+    // field may be set (the SDK serializes unset fields as null), and the full
+    // configured depth must be crawled.
+    const bingBody = parseDataforseoRequestBody(fetchMock.mock.calls[0]?.[1]);
+    expect(bingBody).toMatchObject([{ stop_crawl_on_match: null, depth: 40 }]);
+    // Bing's task_post has no `find_targets_in` field at all, which is exactly
+    // why the early stop above must stay unset.
+    expect(JSON.stringify(bingBody)).not.toContain("find_targets_in");
+
+    expect(result.billing.path).toEqual([
+      "v3",
+      "serp",
+      "bing",
+      "organic",
+      "task_post",
+    ]);
+  });
+
+  it("collects Bing task results from the Bing task_get endpoint", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        status_code: 20000,
+        tasks: [
+          {
+            status_code: 20000,
+            cost: 0.0006,
+            path: ["v3", "serp", "bing", "organic", "task_get", "advanced"],
+            result: [
+              {
+                items: [
+                  {
+                    type: "organic",
+                    rank_group: 3,
+                    domain: "example.com",
+                    url: "https://example.com/a",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const outcome = await fetchRankCheckTaskResult({
+      engine: "bing",
+      taskId: "task-a",
+      keywordId: "kw-1",
+      keyword: "alpha",
+      targetDomain: "example.com",
+    });
+
+    expect(
+      fetchMock.mock.calls.map(([url]) =>
+        typeof url === "string" || url instanceof URL
+          ? url.toString()
+          : url.url,
+      ),
+    ).toEqual([
+      "https://api.dataforseo.com/v3/serp/bing/organic/task_get/advanced/task-a",
+    ]);
+    expect(outcome).toEqual({
+      status: "completed",
+      result: {
+        keywordId: "kw-1",
+        keyword: "alpha",
+        position: 3,
+        url: "https://example.com/a",
+        serpFeatures: ["organic"],
+        ownedUrls: [{ url: "https://example.com/a", position: 3 }],
+        competitors: [],
+        featureOwnership: [],
       },
     });
   });

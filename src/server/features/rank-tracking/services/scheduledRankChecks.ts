@@ -5,7 +5,9 @@ import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import {
   computeNextCheckAt,
   devicesCount,
+  estimateRankCheckCredits,
   isScheduledRankTrackingInterval,
+  rankCheckMethod,
 } from "@/shared/rank-tracking";
 
 // Work admitted per tick, in task units (keywords × devices). Admission
@@ -16,18 +18,20 @@ import {
 // term: one call per unit per poll round, rounds wake synchronized per tick,
 // and up to three ticks' ~15-minute poll windows overlap the */5 cron — so a
 // full tick can burst ~1,000 polls into a single minute, stacking with the
-// residual rounds of the two prior ticks. Overruns aren't
-// loud failures: throttled polls age into the live fallback at ~3× cost,
-// billed to the customer, so keep real headroom under the cap.
+// residual rounds of the two prior ticks. Throttled polls can age into the
+// more expensive live fallback. Each config's hard ceiling limits that
+// fallback, while this global budget keeps real headroom under the provider
+// request cap.
 // 1,000/tick ≈ 288,000 units/day, ~45× steady-state demand — it only binds
 // during backlog catch-up.
 const SCHEDULED_TASK_UNIT_BUDGET = 1000;
 
-// Wall-clock guard for the per-config loop: sub-hourly crons are killed at 15
-// minutes, and a skip-heavy tick pays serial Autumn round-trips per distinct
-// org (worst case minutes, more when Autumn is degraded). Stopping early is
-// safe — unprocessed configs stay due and the next tick resumes oldest-first.
-const TICK_DEADLINE_MS = 3 * 60_000;
+// Keep this subsystem below one quarter of the self-host sidecar's 270-second
+// request budget. Rank checks share a scheduled invocation with geo-grids, AI
+// visibility, reports, delivery, and retention. A longer private deadline could
+// repeatedly starve the work later in that list. Stopping early is safe because
+// unprocessed configs stay due and the next tick resumes oldest-first.
+const TICK_DEADLINE_MS = 60_000;
 
 // Cap on the per-tick list of configs blocked by an active run. Blocked
 // configs leave no durable trace on their row, so the summary names them.
@@ -65,6 +69,7 @@ export async function runScheduledRankChecks(env: Env) {
   let stoppedByDeadline = false;
   let skippedFree = 0;
   let skippedNoKeywords = 0;
+  let skippedCostCeiling = 0;
   let concurrentChangeSkips = 0;
   let alreadyRunning = 0;
   const alreadyRunningConfigIds: string[] = [];
@@ -114,6 +119,34 @@ export async function runScheduledRankChecks(env: Env) {
           lastSkipReason: "no_keywords",
         });
         if (claimed) skippedNoKeywords++;
+        else concurrentChangeSkips++;
+        continue;
+      }
+
+      // Fail closed on recurring spend. A NULL ceiling is a config migrated
+      // from before the column existed — it carries no approval, so it must
+      // never post provider work. A ceiling below this check's own estimate is
+      // a standing refusal rather than permission to spend up to it. Either way
+      // the schedule still advances, so the row stops being scanned every tick
+      // and the reason is visible on the config.
+      const { costCredits } = estimateRankCheckCredits(
+        kwCount,
+        config.devices,
+        config.serpDepth,
+        rankCheckMethod({ trigger: "scheduled", engine: config.engine }),
+      );
+      if (
+        config.maxCostCredits == null ||
+        costCredits > config.maxCostCredits
+      ) {
+        const claimed = await RankTrackingRepository.claimDueConfig({
+          configId: config.id,
+          projectId: config.projectId,
+          observedNextCheckAt,
+          nextCheckAt,
+          lastSkipReason: "cost_ceiling",
+        });
+        if (claimed) skippedCostCeiling++;
         else concurrentChangeSkips++;
         continue;
       }
@@ -178,6 +211,10 @@ export async function runScheduledRankChecks(env: Env) {
             projectId: config.projectId,
           },
           keywordsTotal: kwCount,
+          // Carried into the workflow so it re-checks the ceiling against the
+          // keyword set it actually reads — the second, in-flight fail-closed
+          // gate before any paid DataForSEO post.
+          maxCostCredits: config.maxCostCredits,
           trigger: "scheduled",
           workflowStartErrorMessage: "Failed to start scheduled workflow",
         });
@@ -243,6 +280,7 @@ export async function runScheduledRankChecks(env: Env) {
     stoppedByDeadline,
     skippedFree,
     skippedNoKeywords,
+    skippedCostCeiling,
     concurrentChangeSkips,
     alreadyRunning,
     alreadyRunningConfigIds,

@@ -2,10 +2,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   computeNextCheckAt,
   estimateRankCheckCredits,
+  estimateRankCheckTaskCredits,
   scheduleLabel,
 } from "./rank-tracking";
 
 describe("rank tracking cost estimates", () => {
+  it("prices queued post boundaries and live fallback one task at a time", () => {
+    expect(estimateRankCheckTaskCredits(101, 10, "queued")).toEqual({
+      costUsd: 0.07757,
+      costCredits: 78,
+    });
+    expect(estimateRankCheckTaskCredits(1, 10, "live")).toEqual({
+      costUsd: 0.00256,
+      costCredits: 3,
+    });
+  });
+
   it.each([
     {
       method: "live" as const,

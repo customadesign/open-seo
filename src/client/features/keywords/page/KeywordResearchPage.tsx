@@ -254,6 +254,10 @@ function KeywordResearchContent({
     );
   }
 
+  if (controller.needsApproval) {
+    return <KeywordMagicApproval controller={controller} />;
+  }
+
   if (controller.rows.length === 0) {
     return (
       <KeywordResearchEmptyState
@@ -264,6 +268,36 @@ function KeywordResearchContent({
   }
 
   return <KeywordResearchResults controller={controller} />;
+}
+
+function KeywordMagicApproval({
+  controller,
+}: {
+  controller: KeywordResearchControllerState;
+}) {
+  const estimate = controller.estimate;
+  return (
+    <div className="rounded-xl border border-base-300 bg-base-100 p-5 space-y-3">
+      <p className="font-medium">This search will spend credits</p>
+      <p className="text-sm text-base-content/70">
+        Expanding{" "}
+        <span className="font-medium">"{controller.searchedKeyword}"</span> to
+        about {controller.scale.toLocaleString()} keywords costs an estimated{" "}
+        <span className="font-medium tabular-nums">
+          {estimate?.costCredits ?? "—"} credits
+        </span>{" "}
+        ({estimate?.requests ?? "—"} provider requests). Filtering and paging
+        after that are free.
+      </p>
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        onClick={controller.approveAndRun}
+      >
+        Run search
+      </button>
+    </div>
+  );
 }
 
 function KeywordSaveDialog({

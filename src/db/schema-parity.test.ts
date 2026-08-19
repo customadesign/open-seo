@@ -1,9 +1,13 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
+import { getTableColumns, getTableName, is, SQL, Table } from "drizzle-orm";
 import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
-import { getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
+import {
+  getTableConfig as getPgTableConfig,
+  PgDialect,
+} from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
+import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as sqliteApp from "./app.schema";
 import * as sqliteAudit from "./audit.schema";
 import * as sqliteSam from "./sam.schema";
@@ -12,6 +16,19 @@ import * as sqliteBilling from "./billing.schema";
 import * as sqliteGa4 from "./ga4.schema";
 import * as sqliteGsc from "./gsc.schema";
 import * as sqliteTelemetry from "./telemetry.schema";
+import * as sqliteLocalSeo from "./local-seo.schema";
+import * as sqliteGoogleAds from "./google-ads.schema";
+import * as sqliteReports from "./report.schema";
+import * as sqliteDisavow from "./disavow.schema";
+import * as sqliteBacklinkToxicity from "./backlink-toxicity.schema";
+import * as sqliteRankTracking from "./rank-tracking.schema";
+import * as sqliteChangeEvents from "./change-events.schema";
+import * as sqliteGap from "./gap.schema";
+import * as sqliteKeywordMagic from "./keyword-magic.schema";
+import * as sqliteLogFiles from "./log-files.schema";
+import * as sqliteOnPage from "./on-page.schema";
+import * as sqliteDomainResearch from "./domain-research.schema";
+import * as pgAiVisibility from "./pg/ai-visibility.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgAudit from "./pg/audit.schema";
 import * as pgSam from "./pg/sam.schema";
@@ -20,6 +37,18 @@ import * as pgBilling from "./pg/billing.schema";
 import * as pgGa4 from "./pg/ga4.schema";
 import * as pgGsc from "./pg/gsc.schema";
 import * as pgTelemetry from "./pg/telemetry.schema";
+import * as pgLocalSeo from "./pg/local-seo.schema";
+import * as pgGoogleAds from "./pg/google-ads.schema";
+import * as pgReports from "./pg/report.schema";
+import * as pgDisavow from "./pg/disavow.schema";
+import * as pgBacklinkToxicity from "./pg/backlink-toxicity.schema";
+import * as pgRankTracking from "./pg/rank-tracking.schema";
+import * as pgChangeEvents from "./pg/change-events.schema";
+import * as pgGap from "./pg/gap.schema";
+import * as pgKeywordMagic from "./pg/keyword-magic.schema";
+import * as pgLogFiles from "./pg/log-files.schema";
+import * as pgOnPage from "./pg/on-page.schema";
+import * as pgDomainResearch from "./pg/domain-research.schema";
 
 // Guards the ONE structural artifact `db:generate` does not regenerate: the
 // hand-written Postgres schema. The provider-aware `db`/`@/db/schema` barrel
@@ -142,6 +171,7 @@ function checkNames(table: Table, dialect: Dialect): string[] {
 }
 
 const sqliteAppTables = tablesFrom(
+  sqliteAiVisibility,
   sqliteApp,
   sqliteAudit,
   sqliteSam,
@@ -149,8 +179,21 @@ const sqliteAppTables = tablesFrom(
   sqliteGa4,
   sqliteGsc,
   sqliteTelemetry,
+  sqliteLocalSeo,
+  sqliteGoogleAds,
+  sqliteReports,
+  sqliteDisavow,
+  sqliteBacklinkToxicity,
+  sqliteRankTracking,
+  sqliteChangeEvents,
+  sqliteGap,
+  sqliteKeywordMagic,
+  sqliteLogFiles,
+  sqliteOnPage,
+  sqliteDomainResearch,
 );
 const pgAppTables = tablesFrom(
+  pgAiVisibility,
   pgApp,
   pgAudit,
   pgSam,
@@ -158,6 +201,18 @@ const pgAppTables = tablesFrom(
   pgGa4,
   pgGsc,
   pgTelemetry,
+  pgLocalSeo,
+  pgGoogleAds,
+  pgReports,
+  pgDisavow,
+  pgBacklinkToxicity,
+  pgRankTracking,
+  pgChangeEvents,
+  pgGap,
+  pgKeywordMagic,
+  pgLogFiles,
+  pgOnPage,
+  pgDomainResearch,
 );
 const sqliteAuthTables = tablesFrom(sqliteAuth);
 const pgAuthTables = tablesFrom(pgAuth);
@@ -202,6 +257,31 @@ describe("schema parity: application tables", () => {
       });
     });
   }
+});
+
+describe("Postgres text timestamp defaults", () => {
+  const dialect = new PgDialect();
+  const expected =
+    "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')";
+  const timestampDefaults = [
+    getTableColumns(pgGoogleAds.googleAdsConnections).createdAt.default,
+    getTableColumns(pgGoogleAds.googleAdsConnections).updatedAt.default,
+    getTableColumns(pgReports.reportSettings).createdAt.default,
+    getTableColumns(pgReports.reportSettings).updatedAt.default,
+    getTableColumns(pgReports.reportRuns).createdAt.default,
+    getTableColumns(pgReports.reportRuns).updatedAt.default,
+    getTableColumns(pgReports.reportCommentaryItems).createdAt.default,
+    getTableColumns(pgReports.reportCommentaryItems).updatedAt.default,
+  ];
+
+  it("keeps new report and Google Ads defaults in the repository ISO format", () => {
+    for (const defaultValue of timestampDefaults) {
+      if (!(defaultValue instanceof SQL)) {
+        throw new Error("Expected a SQL timestamp default");
+      }
+      expect(dialect.sqlToQuery(defaultValue).sql).toBe(expected);
+    }
+  });
 });
 
 describe("schema parity: better-auth tables", () => {

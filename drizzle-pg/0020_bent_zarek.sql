@@ -1,0 +1,2 @@
+-- Reserved lineage slot. The idempotent combined schema migration applies
+-- account-access objects after both historical PostgreSQL branches converge.

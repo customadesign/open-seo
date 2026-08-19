@@ -18,10 +18,11 @@ import {
 } from "./RankTrackingTrendChart";
 
 const BUCKETS = [
-  { key: "top3", label: "Top 3", color: "#16a34a" },
+  { key: "top3", label: "1–3", color: "#16a34a" },
   { key: "top4to10", label: "4–10", color: "#2563eb" },
   { key: "top11to20", label: "11–20", color: "#f59e0b" },
-  { key: "notRanking", label: "Not in top 20", color: "#6b7280" },
+  { key: "top21to100", label: "21–100", color: "#a855f7" },
+  { key: "notInTop100", label: "Out of top 100", color: "#6b7280" },
 ] as const;
 
 /** Narrowed recharts tooltip payload entry (typed `any` upstream). */
@@ -39,7 +40,7 @@ export function RankTrackingOverview({
   projectId: string;
   configId: string;
 }) {
-  const [sinceDays, setSinceDays] = useState(730);
+  const [sinceDays, setSinceDays] = useState<number | undefined>(undefined);
 
   const { data: trend, isLoading: trendLoading } = useQuery({
     queryKey: ["rankConfigTrend", projectId, configId, device, sinceDays],
@@ -56,7 +57,8 @@ export function RankTrackingOverview({
         top3: p.top3,
         top4to10: p.top4to10,
         top11to20: p.top11to20,
-        notRanking: p.notRanking,
+        top21to100: p.top21to100,
+        notInTop100: p.notInTop100,
       })),
     [trend],
   );
@@ -84,6 +86,11 @@ export function RankTrackingOverview({
               {b.label}
             </span>
           ))}
+          {(trend ?? []).some((point) => point.sourceProvider === "semrush") ? (
+            <span className="badge badge-outline badge-xs">
+              SEMrush history
+            </span>
+          ) : null}
         </div>
 
         {trendLoading ? (

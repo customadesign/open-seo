@@ -12,15 +12,23 @@ export {
 } from "@/server/lib/dataforseo/business";
 
 export {
+  fetchBacklinksAnchors,
   fetchBacklinksHistory,
   fetchBacklinksRows,
   fetchBacklinksSummary,
+  fetchBulkBacklinks,
+  fetchBulkRanks,
+  fetchBulkReferringDomains,
   fetchDomainPagesSummary,
   fetchReferringDomains,
+  fetchTimeseriesNewLostSummary,
 } from "@/server/lib/dataforseo/backlinks";
 
 export {
+  fetchBulkTrafficEstimation,
+  fetchCompetitorsDomain,
   fetchDomainRankOverview,
+  fetchHistoricalRankOverview,
   fetchKeywordIdeas,
   fetchKeywordOverview,
   fetchKeywordSuggestions,
@@ -28,6 +36,7 @@ export {
   fetchRelatedKeywords,
   fetchRelevantPages,
   fetchSerpCompetitors,
+  fetchSubdomains,
 } from "@/server/lib/dataforseo/labs";
 
 export {
@@ -52,3 +61,8 @@ export {
   fetchLlmResponse,
   fetchLlmTopPages,
 } from "@/server/lib/dataforseo/ai";
+
+export {
+  fetchAiVisibilityTaskResult,
+  postAiVisibilityTasks,
+} from "@/server/lib/dataforseo/ai-visibility";

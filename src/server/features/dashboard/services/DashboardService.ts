@@ -1,8 +1,13 @@
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import { ActivationRepository } from "@/server/features/activation/repositories/ActivationRepository";
+import { AiVisibilityService } from "@/server/features/ai-visibility/services/AiVisibilityService";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { getIssueTypePageCountsForAudit } from "@/server/features/audit/repositories/auditSummaryQueries";
 import { BacklinkSnapshotRepository } from "@/server/features/dashboard/repositories/BacklinkSnapshotRepository";
+import { ensureDomainOverviewSnapshot } from "@/server/features/dashboard/services/dashboardDomainSnapshot";
+import { getDashboardMetricSources } from "@/server/features/dashboard/services/dashboardMetricSources";
+import { buildDashboardMetrics } from "@/server/features/dashboard/services/dashboardMetrics";
+import type { DashboardMetric } from "@/server/features/dashboard/services/dashboardMetricTypes";
 import { Ga4ConnectionRepository } from "@/server/features/ga4/repositories/Ga4ConnectionRepository";
 import { GscConnectionRepository } from "@/server/features/gsc/repositories/GscConnectionRepository";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
@@ -278,8 +283,62 @@ async function ensureBacklinkSnapshot(input: {
   return getBacklinkSummary(projectId, domain);
 }
 
+/**
+ * The seven summary metrics. Reads persisted snapshots only, so it is safe on
+ * every render and for a client-role user who may not trigger metered work.
+ */
+async function getMetrics(input: {
+  projectId: string;
+  domain: string | null;
+}): Promise<DashboardMetric[]> {
+  return buildDashboardMetrics(await getDashboardMetricSources(input));
+}
+
+/**
+ * Refresh-triggered snapshot top-up for the metric cards. Each source is
+ * independent: a provider outage on one must not stop the others, so failures
+ * are logged per source and the affected card keeps its last snapshot (or reads
+ * as still collecting).
+ *
+ * Backlinks are deliberately absent: the Backlink pulse card already refreshes
+ * that snapshot on the same page, and both paths meter the same DataForSEO call
+ * — asking here too would double a first visit's spend on identical data.
+ *
+ * Reports whether an AI visibility baseline run became due. Collection itself
+ * happens in the AI visibility workflow, so a first visit never waits on
+ * provider calls and the caller has nothing to run out of band.
+ */
+async function refreshMetricSnapshots(input: {
+  projectId: string;
+  projectName: string;
+  domain: string | null;
+  locationCode: number;
+  languageCode: string;
+  billingCustomer: BillingCustomerContext;
+}): Promise<{ aiRunQueued: boolean }> {
+  const [domain, ai] = await Promise.allSettled([
+    ensureDomainOverviewSnapshot(input),
+    AiVisibilityService.ensureBaselineRun(input),
+  ]);
+
+  if (domain.status === "rejected") {
+    console.error(
+      "dashboard: domain overview snapshot check failed",
+      domain.reason,
+    );
+  }
+
+  if (ai.status === "rejected") {
+    console.error("dashboard: ai visibility baseline check failed", ai.reason);
+    return { aiRunQueued: false };
+  }
+  return { aiRunQueued: ai.value.queued };
+}
+
 export const DashboardService = {
   getActivation,
   getOverview,
+  getMetrics,
   ensureBacklinkSnapshot,
+  refreshMetricSnapshots,
 };

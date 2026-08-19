@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, max-lines-per-function -- page-reporter fixtures and per-check cases share one file */
 import { describe, expect, it } from "vitest";
 import { runPageReporters } from "@/server/lib/audit/issues/page-reporters";
 import {
@@ -20,25 +21,29 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     url: "https://example.com/a",
     statusCode: 200,
     fetchClass: "ok",
+    fetchErrorKind: null,
     redirectUrl: null,
     title: "A perfectly reasonable page title",
     metaDescription:
       "A reasonable meta description that says something useful about the page.",
-    canonicalUrl: null,
+    canonicalUrl: "https://example.com/a",
     robotsMeta: null,
     xRobotsTag: null,
     headerCanonicalUrl: null,
-    ogTitle: null,
-    ogDescription: null,
-    ogImage: null,
+    ogTitle: "A perfectly reasonable page title",
+    ogDescription: "A useful social description.",
+    ogImage: "https://example.com/social.jpg",
     h1Count: 1,
-    h2Count: 0,
+    h1Text: "A distinct heading",
+    h2Count: 1,
     h3Count: 0,
     h4Count: 0,
     h5Count: 0,
     h6Count: 0,
     headingOrder: [1, 2, 3],
     wordCount: 500,
+    contentDate: "2026-08-01",
+    semanticElementCount: 2,
     contentHash: "abc123",
     isHtml: true,
     htmlBytes: 10_000,
@@ -46,12 +51,44 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     imagesMissingAlt: 0,
     images: [],
     links: [HEALTHY_LINK],
+    malformedLinkHrefs: [],
     hasStructuredData: false,
+    structuredDataTypes: [],
+    invalidStructuredDataCount: 0,
+    htmlLang: "en",
+    hasViewportMeta: true,
+    questionHeadingCount: 1,
+    listCount: 1,
+    tableCount: 0,
+    hasAuthorSignal: true,
+    hasDateSignal: true,
+    mixedContentCount: 0,
+    contentExternalLinkTargets: [],
     hreflangTags: [],
+    hreflangLinks: [],
     isIndexable: true,
     responseTimeMs: 200,
     crawlDepth: 1,
     inSitemap: true,
+    hasDoctype: true,
+    charset: "utf-8",
+    hasMetaRefresh: false,
+    frameCount: 0,
+    scriptUrls: [],
+    stylesheetUrls: [],
+    inlineScriptBytes: 0,
+    inlineStyleBytes: 0,
+    textBytes: 5_000,
+    externalImageSrcs: [],
+    responseHeaders: {
+      contentEncoding: "gzip",
+      cacheControl: null,
+      expires: null,
+      xRobotsTag: null,
+      contentType: "text/html",
+      contentLength: null,
+      strictTransportSecurity: "max-age=31536000",
+    },
     ...overrides,
   };
 }
@@ -87,7 +124,15 @@ describe("runPageReporters", () => {
           redirectUrl: "https://example.com/b",
         }),
       ),
-    ).toEqual([]);
+    ).toEqual(["permanent-redirect"]);
+    expect(
+      issueTypes(
+        makePage({
+          statusCode: 302,
+          redirectUrl: "https://example.com/b",
+        }),
+      ),
+    ).toEqual(["temporary-redirect"]);
   });
 
   it("checks titles and meta descriptions", () => {
@@ -200,6 +245,350 @@ describe("runPageReporters", () => {
     expect(issueTypes(makePage({ links: [HEALTHY_LINK] }))).not.toContain(
       "no-outgoing-links",
     );
+  });
+
+  it("checks technical, structured-data, AEO, and GEO readiness", () => {
+    const page = makePage({
+      url: "http://example.com/blog/guide",
+      canonicalUrl: null,
+      htmlLang: null,
+      hasViewportMeta: false,
+      mixedContentCount: 2,
+      invalidStructuredDataCount: 1,
+      structuredDataTypes: [],
+      ogTitle: null,
+      ogDescription: null,
+      ogImage: null,
+      questionHeadingCount: 0,
+      listCount: 0,
+      tableCount: 0,
+      hasAuthorSignal: false,
+      hasDateSignal: false,
+      links: [
+        {
+          targetUrl: "http://example.com/contact",
+          anchor: "Click here",
+          isInternal: true,
+          isNofollow: false,
+        },
+        {
+          targetUrl: "https://example.com/about",
+          anchor: null,
+          isInternal: true,
+          isNofollow: false,
+        },
+      ],
+    });
+    const types = issueTypes(page);
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "non-https-page",
+        "missing-viewport",
+        "mixed-content",
+        "missing-html-lang",
+        "missing-self-canonical",
+        "invalid-json-ld",
+        "missing-article-schema",
+        "incomplete-open-graph",
+        "generic-link-anchor",
+        "empty-link-anchor",
+        "weak-answer-structure",
+        "missing-author-attribution",
+        "missing-freshness-signal",
+        "no-cited-sources",
+      ]),
+    );
+  });
+
+  it("requires organization schema on the homepage", () => {
+    expect(
+      issueTypes(
+        makePage({
+          url: "https://example.com/",
+          canonicalUrl: "https://example.com/",
+        }),
+      ),
+    ).toContain("missing-entity-schema");
+    expect(
+      issueTypes(
+        makePage({
+          url: "https://example.com/",
+          canonicalUrl: "https://example.com/",
+          hasStructuredData: true,
+          structuredDataTypes: ["Organization"],
+        }),
+      ),
+    ).not.toContain("missing-entity-schema");
+  });
+
+  it("flags document, URL, and header capture checks", () => {
+    const types = issueTypes(
+      makePage({
+        url:
+          "https://example.com/too_long_path".padEnd(210, "x") +
+          "?a=1&b=2&c=3&d=4",
+        hasDoctype: false,
+        charset: null,
+        hasMetaRefresh: true,
+        frameCount: 2,
+        htmlBytes: 3 * 1024 * 1024,
+        textBytes: 100,
+        responseHeaders: {
+          contentEncoding: null,
+          cacheControl: null,
+          expires: null,
+          xRobotsTag: "noindex, nofollow",
+          contentType: "text/html",
+          contentLength: null,
+          strictTransportSecurity: "max-age=31536000",
+        },
+        xRobotsTag: "noindex, nofollow",
+      }),
+    );
+
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "missing-doctype",
+        "missing-charset",
+        "meta-refresh-present",
+        "page-has-frames",
+        "html-size-too-large",
+        "low-text-to-html-ratio",
+        "url-too-long",
+        "url-has-underscores",
+        "url-too-many-parameters",
+        "noindex-via-x-robots-tag",
+      ]),
+    );
+    expect(types).not.toContain("page-not-compressed");
+  });
+
+  it("flags DNS and malformed crawl failures", () => {
+    expect(
+      issueTypes(
+        makePage({ fetchClass: "error", statusCode: 0, fetchErrorKind: "dns" }),
+      ),
+    ).toEqual(["dns-resolution-failure"]);
+    expect(
+      issueTypes(
+        makePage({
+          fetchClass: "error",
+          statusCode: 0,
+          fetchErrorKind: "malformed",
+        }),
+      ),
+    ).toEqual(["malformed-url-failure"]);
+  });
+
+  it("flags nofollow, long, malformed, and resource-as-page links", () => {
+    const types = issueTypes(
+      makePage({
+        links: [
+          {
+            targetUrl: "https://example.com/secret",
+            anchor: "Secret",
+            isInternal: true,
+            isNofollow: true,
+          },
+          {
+            targetUrl: "https://other.example/x",
+            anchor: "Out",
+            isInternal: false,
+            isNofollow: true,
+          },
+          {
+            targetUrl: `https://example.com/${"a".repeat(2001)}`,
+            anchor: "Long",
+            isInternal: true,
+            isNofollow: false,
+          },
+          {
+            targetUrl: "https://example.com/app.css",
+            anchor: "Styles",
+            isInternal: true,
+            isNofollow: false,
+          },
+        ],
+        malformedLinkHrefs: ["http://"],
+      }),
+    );
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "internal-nofollow-outgoing",
+        "external-nofollow-outgoing",
+        "link-url-too-long",
+        "resource-as-page-link",
+        "malformed-link-url",
+      ]),
+    );
+  });
+
+  it("flags duplicate H1/title, too much content, outdated content, and low semantic HTML", () => {
+    const types = issueTypes(
+      makePage({
+        title: "Same heading",
+        h1Text: "Same heading",
+        wordCount: 6_000,
+        contentDate: "2020-01-01",
+        semanticElementCount: 0,
+      }),
+    );
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "duplicate-h1-title",
+        "too-much-content",
+        "outdated-content",
+        "low-semantic-html",
+      ]),
+    );
+  });
+
+  it("flags content optimisation on a mid-length unstructured page", () => {
+    expect(
+      issueTypes(
+        makePage({
+          wordCount: 400,
+          h1Count: 0,
+          h1Text: null,
+          h2Count: 0,
+          metaDescription: "",
+          listCount: 0,
+          tableCount: 0,
+        }),
+      ),
+    ).toContain("content-optimisation-needed");
+  });
+
+  it("flags invalid and conflicting hreflang values", () => {
+    const types = issueTypes(
+      makePage({
+        htmlLang: "en",
+        hreflangTags: ["english", "en"],
+        hreflangLinks: [
+          { lang: "english", href: "https://example.com/a" },
+          { lang: "en", href: "https://example.com/a" },
+          { lang: "en", href: "https://example.com/b" },
+          { lang: "fr", href: "https://example.com/a" },
+        ],
+      }),
+    );
+    expect(types).toEqual(
+      expect.arrayContaining(["hreflang-value-error", "hreflang-conflict"]),
+    );
+  });
+
+  it("flags an hreflang language that disagrees with html lang", () => {
+    expect(
+      issueTypes(
+        makePage({
+          htmlLang: "en",
+          hreflangLinks: [{ lang: "fr", href: "https://example.com/a" }],
+        }),
+      ),
+    ).toContain("hreflang-language-mismatch");
+  });
+
+  it("flags missing HSTS on HTTPS pages", () => {
+    expect(
+      issueTypes(
+        makePage({
+          responseHeaders: {
+            contentEncoding: "gzip",
+            cacheControl: null,
+            expires: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: null,
+            strictTransportSecurity: null,
+          },
+        }),
+      ),
+    ).toContain("missing-hsts");
+  });
+
+  it("flags too many script and stylesheet files", () => {
+    expect(
+      issueTypes(
+        makePage({
+          scriptUrls: Array.from({ length: 15 }, (_, i) => `/a${i}.js`),
+          stylesheetUrls: Array.from({ length: 10 }, (_, i) => `/b${i}.css`),
+        }),
+      ),
+    ).toContain("too-many-page-assets");
+  });
+
+  it("does not flag HTML that advertises a real Content-Encoding", () => {
+    expect(
+      issueTypes(
+        makePage({
+          responseHeaders: {
+            contentEncoding: "br",
+            cacheControl: null,
+            expires: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: 10_000,
+            strictTransportSecurity: "max-age=31536000",
+          },
+        }),
+      ),
+    ).not.toContain("page-not-compressed");
+  });
+
+  it("flags HTML served with identity Content-Encoding", () => {
+    expect(
+      issueTypes(
+        makePage({
+          responseHeaders: {
+            contentEncoding: "identity",
+            cacheControl: null,
+            expires: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: null,
+            strictTransportSecurity: "max-age=31536000",
+          },
+        }),
+      ),
+    ).toContain("page-not-compressed");
+  });
+
+  it("flags HTML whose Content-Length matches the decoded body", () => {
+    expect(
+      issueTypes(
+        makePage({
+          htmlBytes: 10_000,
+          responseHeaders: {
+            contentEncoding: null,
+            cacheControl: null,
+            expires: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: 10_020,
+            strictTransportSecurity: "max-age=31536000",
+          },
+        }),
+      ),
+    ).toContain("page-not-compressed");
+  });
+
+  it("stays silent when workerd strips encoding and length", () => {
+    expect(
+      issueTypes(
+        makePage({
+          htmlBytes: 10_000,
+          responseHeaders: {
+            contentEncoding: null,
+            cacheControl: null,
+            expires: null,
+            xRobotsTag: null,
+            contentType: "text/html",
+            contentLength: null,
+            strictTransportSecurity: "max-age=31536000",
+          },
+        }),
+      ),
+    ).not.toContain("page-not-compressed");
   });
 });
 

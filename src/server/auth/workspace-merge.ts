@@ -6,10 +6,13 @@ import { getAuthMode } from "@/lib/auth-mode";
 import { AppError } from "@/server/lib/errors";
 import {
   ga4Connections,
+  googleAdsConnections,
   gscConnections,
   organization,
   organizationActivationState,
   projects,
+  reportDeliveryProfiles,
+  reportSettings,
   userOnboardingAnswers,
 } from "@/db/schema";
 import { SHARED_WORKSPACE_ORGANIZATION_ID } from "./delegated-organization";
@@ -134,6 +137,22 @@ async function mergeLegacyWorkspaces() {
       .update(ga4Connections)
       .set(repointToShared)
       .where(inArray(ga4Connections.organizationId, legacyIds)),
+    // Org-scoped tables added after this merge was first written. Missing one
+    // here does not fail loudly — the rows are simply orphaned or cascaded away
+    // when the legacy org is deleted below, so every table carrying an
+    // organization_id must be repointed.
+    tx
+      .update(googleAdsConnections)
+      .set(repointToShared)
+      .where(inArray(googleAdsConnections.organizationId, legacyIds)),
+    tx
+      .update(reportSettings)
+      .set(repointToShared)
+      .where(inArray(reportSettings.organizationId, legacyIds)),
+    tx
+      .update(reportDeliveryProfiles)
+      .set(repointToShared)
+      .where(inArray(reportDeliveryProfiles.organizationId, legacyIds)),
     ...(activationRows.length > 0
       ? [
           tx

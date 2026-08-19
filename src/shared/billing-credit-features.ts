@@ -6,7 +6,9 @@ export type CreditFeature =
   | "rank_tracking"
   | "ai_citations"
   | "ai_prompt_responses"
+  | "ai_visibility"
   | "local_seo"
+  | "reports"
   | "onboarding"
   | "agent";
 
@@ -18,8 +20,10 @@ const CREDIT_FEATURE_LABELS: Record<string, string> = {
   rank_tracking: "Rank Tracking",
   ai_citations: "AI Citations",
   ai_prompt_responses: "AI Prompt Responses",
+  ai_visibility: "AI Visibility",
   ai_search: "AI Search",
   local_seo: "Local SEO",
+  reports: "Reports",
   onboarding: "Onboarding",
   agent: "SAM Agent",
 };
@@ -61,7 +65,11 @@ export function mapDataforseoPathToCreditFeature(
       if (
         endpoint.startsWith("domain_") ||
         endpoint === "ranked_keywords" ||
-        endpoint === "relevant_pages"
+        endpoint === "relevant_pages" ||
+        endpoint === "competitors_domain" ||
+        endpoint === "subdomains" ||
+        endpoint === "historical_rank_overview" ||
+        endpoint === "bulk_traffic_estimation"
       ) {
         return "domain_overview";
       }

@@ -26,6 +26,15 @@ export function BacklinksHistorySection({
         <p className="text-base font-medium text-base-content/80">
           Enter a domain or URL to get started
         </p>
+        <Link
+          to="/p/$projectId/backlinks"
+          params={{ projectId }}
+          search={{ tab: "bulk" }}
+          replace
+          className="link link-hover text-sm"
+        >
+          Or compare up to 200 domains in bulk
+        </Link>
       </section>
     );
   }

@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import {
   exportIssues,
@@ -7,11 +7,13 @@ import {
 } from "@/client/features/audit/results/export";
 import type { AuditResultsData } from "@/client/features/audit/results/types";
 import { isLighthouseFailure } from "@/client/features/audit/results/AuditResultsTableFilterLogic";
-import {
-  IssuesView,
-  resolveIssueSeverity,
-} from "@/client/features/audit/results/IssuesView";
+import { IssuesView } from "@/client/features/audit/results/IssuesView";
 import { PagesTable } from "@/client/features/audit/results/PagesTable";
+import { AuditSummaryStrip } from "@/client/features/audit/results/AuditSummaryStrip";
+import {
+  AuditIssuesSummaryModal,
+  LighthouseFailuresModal,
+} from "@/client/features/audit/results/AuditSummaryModals";
 import {
   ExportDropdown,
   PerformanceTable,
@@ -31,6 +33,10 @@ export function ResultsView({
   onTabChange: (tab: ResultsTab) => void;
 }) {
   const { audit, pages, lighthouse, issues } = data;
+  const [summaryModal, setSummaryModal] = useState<
+    "issues" | "lighthouse-failures" | null
+  >(null);
+  const [failureFocusToken, setFailureFocusToken] = useState(0);
   const hasPerformanceTab = lighthouse.length > 0;
   const activeTab =
     tab === "performance" && !hasPerformanceTab ? "issues" : tab;
@@ -60,12 +66,14 @@ export function ResultsView({
         </div>
       )}
 
-      <StatsStrip
+      <AuditSummaryStrip
         pagesCrawled={audit.pagesCrawled}
         issues={issues}
         totalLighthouse={lighthouse.length}
         averageResponseMs={stats.averageResponseMs}
         lighthouseSummary={stats.lighthouseSummary}
+        onShowIssues={() => setSummaryModal("issues")}
+        onShowLighthouseFailures={() => setSummaryModal("lighthouse-failures")}
       />
 
       <div className="card bg-base-100 border border-base-300">
@@ -104,10 +112,35 @@ export function ResultsView({
               projectId={projectId}
               lighthouse={lighthouse}
               pages={pages}
+              failureFocusToken={failureFocusToken}
             />
           )}
         </div>
       </div>
+
+      {summaryModal === "issues" ? (
+        <AuditIssuesSummaryModal
+          issues={issues}
+          onClose={() => setSummaryModal(null)}
+          onOpenReport={() => {
+            setSummaryModal(null);
+            onTabChange("issues");
+          }}
+        />
+      ) : null}
+
+      {summaryModal === "lighthouse-failures" ? (
+        <LighthouseFailuresModal
+          lighthouse={lighthouse}
+          pages={pages}
+          onClose={() => setSummaryModal(null)}
+          onOpenPerformance={() => {
+            setSummaryModal(null);
+            setFailureFocusToken((token) => token + 1);
+            onTabChange("performance");
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -210,144 +243,4 @@ function ResultsHeader({
       <ExportDropdown onExport={onExport} />
     </div>
   );
-}
-
-interface StatItem {
-  label: string;
-  value: string;
-  valueClass?: string;
-  sub?: ReactNode;
-}
-
-function StatsStrip({
-  pagesCrawled,
-  issues,
-  totalLighthouse,
-  averageResponseMs,
-  lighthouseSummary,
-}: {
-  pagesCrawled: number;
-  issues: AuditResultsData["issues"];
-  totalLighthouse: number;
-  averageResponseMs: number;
-  lighthouseSummary: {
-    failed: number;
-    avgPerformance: number | null;
-    avgSeo: number | null;
-    avgAccessibility: number | null;
-  };
-}) {
-  const severityCounts = useMemo(() => {
-    const counts = { critical: 0, warning: 0, info: 0 };
-    for (const issue of issues) {
-      counts[resolveIssueSeverity(issue)] += 1;
-    }
-    return counts;
-  }, [issues]);
-
-  const items: StatItem[] = [
-    { label: "Pages crawled", value: String(pagesCrawled) },
-    {
-      label: "Issues found",
-      value: String(issues.length),
-      valueClass: issues.length === 0 ? "text-success" : "",
-      sub: issues.length > 0 && (
-        <span className="flex items-center gap-2.5">
-          <SeverityCount count={severityCounts.critical} dotClass="bg-error" />
-          <SeverityCount count={severityCounts.warning} dotClass="bg-warning" />
-          <SeverityCount
-            count={severityCounts.info}
-            dotClass="bg-base-content/30"
-          />
-        </span>
-      ),
-    },
-    { label: "Avg response", value: `${averageResponseMs}ms` },
-  ];
-
-  if (totalLighthouse > 0) {
-    items.push(
-      { label: "Lighthouse tests", value: String(totalLighthouse) },
-      {
-        label: "Avg Lighthouse perf",
-        value:
-          lighthouseSummary.avgPerformance == null
-            ? "-"
-            : String(lighthouseSummary.avgPerformance),
-        valueClass: scoreClass(lighthouseSummary.avgPerformance),
-      },
-      {
-        label: "Avg Lighthouse SEO",
-        value:
-          lighthouseSummary.avgSeo == null
-            ? "-"
-            : String(lighthouseSummary.avgSeo),
-        valueClass: scoreClass(lighthouseSummary.avgSeo),
-      },
-      {
-        label: "Avg Lighthouse a11y",
-        value:
-          lighthouseSummary.avgAccessibility == null
-            ? "-"
-            : String(lighthouseSummary.avgAccessibility),
-        valueClass: scoreClass(lighthouseSummary.avgAccessibility),
-      },
-      {
-        label: "Lighthouse failures",
-        value: String(lighthouseSummary.failed),
-        valueClass:
-          lighthouseSummary.failed > 0 ? "text-error" : "text-success",
-      },
-    );
-  }
-
-  const columnsClass =
-    items.length === 3
-      ? "grid-cols-1 sm:grid-cols-3"
-      : "grid-cols-2 md:grid-cols-4";
-
-  return (
-    <div
-      className={`grid ${columnsClass} gap-px rounded-lg border border-base-300 bg-base-300/70 overflow-hidden`}
-    >
-      {items.map((item) => (
-        <div key={item.label} className="bg-base-100 px-4 py-3">
-          <p className="text-[11px] uppercase tracking-wider text-base-content/50">
-            {item.label}
-          </p>
-          <p
-            className={`text-xl font-semibold mt-0.5 tabular-nums ${item.valueClass ?? ""}`}
-          >
-            {item.value}
-          </p>
-          {item.sub && (
-            <div className="text-xs text-base-content/60 mt-1">{item.sub}</div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SeverityCount({
-  count,
-  dotClass,
-}: {
-  count: number;
-  dotClass: string;
-}) {
-  if (count === 0) return null;
-  return (
-    <span className="flex items-center gap-1 tabular-nums">
-      <span className={`size-1.5 rounded-full ${dotClass}`} />
-      {count}
-    </span>
-  );
-}
-
-function scoreClass(score: number | null) {
-  if (score == null) return "";
-  if (score >= 90) return "text-success";
-  if (score >= 50) return "text-warning";
-  return "text-error";
 }

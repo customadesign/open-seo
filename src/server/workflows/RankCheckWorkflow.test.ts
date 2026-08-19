@@ -20,6 +20,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("cloudflare:workers", () => ({
   WorkflowEntrypoint: vi.fn(),
+  env: { DATABASE_PROVIDER: "d1" },
+}));
+vi.mock("@/server/features/rank-tracking/services/rankSerpRetention", () => ({
+  pruneExpiredSerpEntries: vi.fn().mockResolvedValue({ prunedRunCount: 0 }),
 }));
 vi.mock("cloudflare:workflows", () => ({
   NonRetryableError: class extends Error {},
@@ -99,6 +103,7 @@ describe("rank check workflow credit ceiling", () => {
             billingCustomer,
             projectId: "project_1",
             domain: "example.com",
+            engine: "google",
             locationCode: 2840,
             languageCode: "en",
             devices: "desktop",
@@ -159,5 +164,55 @@ describe("rank check workflow credit ceiling", () => {
 
     expect(result.keywords).toHaveLength(5);
     expect(mocks.autumnCheck).not.toHaveBeenCalled();
+  });
+
+  it("rejects a persisted scheduled payload with no ceiling before paid work", async () => {
+    await expect(
+      prepareRankCheckKeywords({
+        runId: "run_1",
+        configId: "config_1",
+        billingCustomer,
+        devices: "desktop",
+        serpDepth: 10,
+        trigger: "scheduled",
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    expect(mocks.getKeywordsForConfig).not.toHaveBeenCalled();
+    expect(mocks.autumnCheck).not.toHaveBeenCalled();
+    expect(mocks.createDataforseoClient).not.toHaveBeenCalled();
+  });
+
+  it("uses queued pricing for a manual Bing check", async () => {
+    mocks.getKeywordsForConfig.mockResolvedValue([
+      { id: "kw_1", keyword: "seo software" },
+    ]);
+    mocks.isHostedServerAuthMode.mockResolvedValue(false);
+
+    await expect(
+      prepareRankCheckKeywords({
+        runId: "run_1",
+        configId: "config_1",
+        billingCustomer,
+        devices: "desktop",
+        engine: "bing",
+        serpDepth: 10,
+        trigger: "manual",
+        maxCostCredits: 1,
+      }),
+    ).resolves.toMatchObject({ keywords: [{ id: "kw_1" }] });
+
+    await expect(
+      prepareRankCheckKeywords({
+        runId: "run_1",
+        configId: "config_1",
+        billingCustomer,
+        devices: "desktop",
+        engine: "google",
+        serpDepth: 10,
+        trigger: "manual",
+        maxCostCredits: 1,
+      }),
+    ).rejects.toThrow(/above the approved maximum/i);
   });
 });

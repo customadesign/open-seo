@@ -43,6 +43,52 @@ ALLOWED_HOST=yourdomain.com docker compose up -d
 
 You can also persist it in `.env`.
 
+## Scheduled work
+
+Cloudflare deployments run the cron triggers in `wrangler.jsonc` themselves. Docker self-hosts serve the same Worker through `vite preview` -> Miniflare, which never fires those triggers, so `compose.yaml` ships an `open-seo-scheduler` sidecar that drives them.
+
+The sidecar waits for the app's health check, then every five minutes sends one `POST` to Miniflare's scheduled-handler endpoint on `127.0.0.1`. Each tick runs the stale-audit watchdog, recurring site audits, scheduled rank checks, scheduled geo-grids, AI visibility, due monthly reports, report delivery, and report retention. Recurring audits run straight after the watchdog because they refuse to start while the project still has an audit marked running. The audit, rank, and AI admission loops stop after one minute each so work later in the tick cannot be starved. The sidecar waits for one request at a time and aborts its request after 270 seconds. A server handler may still finish after the client aborts, so every scheduler uses compare-and-set claims and can tolerate overlap. A failed tick is not retried before the next slot.
+
+Without it, nothing scheduled ever runs, including recurring site audits, rank checks, geo-grids, AI visibility, monthly reports, delivery, and retention. Confirm it is up:
+
+```bash
+docker compose ps open-seo-scheduler
+docker compose logs -f open-seo-scheduler
+```
+
+Scheduled work spends DataForSEO credits. To turn it off, stop the sidecar (the app keeps working; on-demand runs are unaffected):
+
+```bash
+docker compose stop open-seo-scheduler
+```
+
+## Reverse-proxy rules
+
+Miniflare serves its own control endpoints under `/cdn-cgi/`. They are unauthenticated and are not part of the app:
+
+- `/cdn-cgi/handler/scheduled` runs the scheduled handlers, which spend DataForSEO credits.
+- `/cdn-cgi/explorer` reads and writes your D1, KV, and R2 data.
+
+Deny the entire `/cdn-cgi/` prefix at your proxy — never just the scheduled path, which would leave the explorer reachable. The sidecar shares the app container's network namespace, so it reaches the endpoint over loopback and never through the proxy.
+
+nginx:
+
+```nginx
+location /cdn-cgi/ {
+  deny all;
+  return 404;
+}
+```
+
+Caddy:
+
+```caddyfile
+@cdncgi path /cdn-cgi/*
+respond @cdncgi 404
+```
+
+`compose.yaml` and the container entrypoint also set `X_LOCAL_EXPLORER=false`, which stops Miniflare from mounting the explorer at all. Leave it off: `@cloudflare/vite-plugin` enables the explorer by default, and self-hosts run with app auth disabled.
+
 ## Telemetry
 
 OpenSEO collects anonymized telemetry for core usage events: heartbeats with aggregate counts (installs, users, projects, feature usage) tied to a random install ID, sent every 5 minutes during the first two hours after install, then at most once daily. Telemetry also includes failed setup check names and statuses, never values or error messages. No URLs, keywords, prompts, emails, or IP-derived location are collected, and idle installs send nothing.

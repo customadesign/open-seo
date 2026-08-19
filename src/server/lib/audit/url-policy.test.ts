@@ -15,11 +15,19 @@ describe("normalizeAndValidateStartUrl", () => {
   });
 
   it("adds https when protocol is missing and strips hash", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ Status: 0, Answer: [] }), {
-        status: 200,
-        headers: { "content-type": "application/dns-json" },
-      }),
+    vi.mocked(fetch).mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            Status: 0,
+            Answer: [{ type: 1, data: "93.184.216.34" }],
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/dns-json" },
+          },
+        ),
+      ),
     );
 
     await expect(
@@ -50,13 +58,80 @@ describe("normalizeAndValidateStartUrl", () => {
       code: "VALIDATION_ERROR",
     } satisfies Partial<AppError>);
   });
+
+  it("fails closed when DNS validation is unavailable", async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error("DNS unavailable"));
+
+    await expect(
+      normalizeAndValidateStartUrl("https://example.com"),
+    ).rejects.toMatchObject({
+      code: "CRAWL_TARGET_BLOCKED",
+    } satisfies Partial<AppError>);
+  });
+
+  it.each([
+    ["empty", () => new Response(JSON.stringify({ Status: 0, Answer: [] }))],
+    ["non-OK", () => new Response(null, { status: 503 })],
+    ["malformed", () => new Response(JSON.stringify({ nope: true }))],
+  ])("fails closed for a %s DNS response", async (_label, response) => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(response()));
+
+    await expect(
+      normalizeAndValidateStartUrl("https://example.com"),
+    ).rejects.toMatchObject({
+      code: "CRAWL_TARGET_BLOCKED",
+    } satisfies Partial<AppError>);
+  });
+
+  it("blocks hostnames that resolve to a private address", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          Status: 0,
+          Answer: [{ type: 1, data: "169.254.169.254" }],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      normalizeAndValidateStartUrl("https://metadata.example"),
+    ).rejects.toMatchObject({
+      code: "CRAWL_TARGET_BLOCKED",
+    } satisfies Partial<AppError>);
+  });
+
+  it("allows a public A record when the AAAA answer is empty", async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const answer =
+        new URL(url).searchParams.get("type") === "A"
+          ? [{ type: 1, data: "93.184.216.34" }]
+          : [];
+      return Promise.resolve(
+        new Response(JSON.stringify({ Status: 0, Answer: answer }), {
+          status: 200,
+        }),
+      );
+    });
+
+    await expect(
+      normalizeAndValidateStartUrl("https://example.com"),
+    ).resolves.toBe("https://example.com/");
+  });
 });
 
 const dnsOk = () =>
-  new Response(JSON.stringify({ Status: 0, Answer: [] }), {
-    status: 200,
-    headers: { "content-type": "application/dns-json" },
-  });
+  new Response(
+    JSON.stringify({
+      Status: 0,
+      Answer: [{ type: 1, data: "93.184.216.34" }],
+    }),
+    {
+      status: 200,
+      headers: { "content-type": "application/dns-json" },
+    },
+  );
 const redirect = (location: string) =>
   new Response(null, { status: 301, headers: { location } });
 

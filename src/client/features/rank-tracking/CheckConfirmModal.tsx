@@ -5,12 +5,14 @@ import {
   estimateRankCheckCredits,
   devicesCount,
   KEYWORDS_PER_BATCH,
+  rankCheckMethod,
   SECONDS_PER_BATCH,
 } from "@/shared/rank-tracking";
 
 export function CheckConfirmModal({
   keywordCount,
   devices,
+  engine,
   serpDepth,
   isPending,
   onRunNow,
@@ -18,6 +20,7 @@ export function CheckConfirmModal({
 }: {
   keywordCount: number;
   devices: RankTrackingConfig["devices"];
+  engine: RankTrackingConfig["engine"];
   serpDepth: number;
   isPending: boolean;
   onRunNow: () => void;
@@ -27,7 +30,7 @@ export function CheckConfirmModal({
     keywordCount,
     devices,
     serpDepth,
-    "live",
+    rankCheckMethod({ trigger: "manual", engine }),
   );
   const dc = devicesCount(devices);
   const totalChecks = keywordCount * dc;
@@ -62,8 +65,13 @@ export function CheckConfirmModal({
         <div className="flex-1">
           <p className="font-medium">Run Now</p>
           <p className="text-xs text-base-content/60">
-            Results in ~
-            {liveTime < 60 ? `${liveTime}s` : `${Math.ceil(liveTime / 60)} min`}
+            {engine === "bing"
+              ? "Queued full-depth check; typically several minutes"
+              : `Results in ~${
+                  liveTime < 60
+                    ? `${liveTime}s`
+                    : `${Math.ceil(liveTime / 60)} min`
+                }`}
           </p>
         </div>
         <div className="text-right">

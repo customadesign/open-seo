@@ -5,11 +5,18 @@ import {
   AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
 } from "@/shared/billing";
 
-const { checkMock, getOrCreateMock, kvGetMock, kvPutMock } = vi.hoisted(() => ({
+const {
+  checkMock,
+  getOrCreateMock,
+  kvGetMock,
+  kvPutMock,
+  isSingleTenantServerMock,
+} = vi.hoisted(() => ({
   checkMock: vi.fn(),
   getOrCreateMock: vi.fn(),
   kvGetMock: vi.fn(),
   kvPutMock: vi.fn(),
+  isSingleTenantServerMock: vi.fn(),
 }));
 
 vi.mock("cloudflare:workers", () => ({
@@ -27,6 +34,7 @@ vi.mock("@/server/billing/autumn", () => ({
 
 vi.mock("@/server/lib/runtime-env", () => ({
   isHostedServerAuthMode: vi.fn(),
+  isSingleTenantServer: isSingleTenantServerMock,
 }));
 
 // subscription.ts now imports posthog (for trackUsageCreditSpend); stub it so
@@ -46,6 +54,7 @@ describe("subscription billing", () => {
     vi.clearAllMocks();
     kvGetMock.mockResolvedValue(null);
     kvPutMock.mockResolvedValue(undefined);
+    isSingleTenantServerMock.mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -68,6 +77,21 @@ describe("subscription billing", () => {
 
     await expect(customerHasPaidPlan("org_123")).resolves.toBe(false);
     expect(checkMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Single-tenant has no billing account, so every gate must answer "entitled"
+  // without touching Autumn — reaching it at all is what made AUTUMN_SECRET_KEY
+  // a hard dependency and 500'd the deployment that has no key.
+  it("grants entitlement without calling Autumn when single-tenant", async () => {
+    isSingleTenantServerMock.mockResolvedValue(true);
+
+    await expect(customerHasPaidPlan("org_123")).resolves.toBe(true);
+    await expect(assertUsageCreditsAvailable("org_123")).resolves.toStrictEqual(
+      { monthlyRemaining: 0 },
+    );
+
+    expect(checkMock).not.toHaveBeenCalled();
+    expect(getOrCreateMock).not.toHaveBeenCalled();
   });
 
   it("recovers from a degraded negative read when retryDenied is set", async () => {

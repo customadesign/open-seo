@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
-  requireAuthenticatedContext,
-  requireProjectContext,
+  requireProjectUse,
+  requireWorkspaceUse,
 } from "@/serverFunctions/middleware";
 import { AppError } from "@/server/lib/errors";
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
@@ -14,7 +14,7 @@ const projectScopedSchema = z.object({ projectId: z.string().min(1) });
 
 // Lists the SAM chat sessions for a project (newest first) for the side-panel.
 export const listSamSessions = createServerFn({ method: "GET" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     return SamSessionRepository.listSessionsForProject(
@@ -26,7 +26,7 @@ export const listSamSessions = createServerFn({ method: "GET" })
 // Creates a new SAM chat session and returns its id; the client then opens a DO
 // connection keyed by that id.
 export const createSamSession = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectUse)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const session = await SamSessionRepository.createSession({
@@ -45,7 +45,7 @@ const archiveSchema = z.object({ sessionId: z.string().min(1) });
 // be opened, but the registry row and the DO's transcript are kept so a future
 // unarchive can restore it. There is no unarchive UI yet.
 export const archiveSamSession = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireWorkspaceUse)
   .validator(archiveSchema)
   .handler(async ({ data, context }) => {
     // Authorize against the session's project (the canonical project-access
@@ -61,6 +61,12 @@ export const archiveSamSession = createServerFn({ method: "POST" })
         )
       : null;
     if (!session || !project) {
+      throw new AppError("NOT_FOUND", "Chat session not found");
+    }
+    if (
+      context.access.projectScope === "selected" &&
+      !context.access.projectIds.includes(project.id)
+    ) {
       throw new AppError("NOT_FOUND", "Chat session not found");
     }
     await SamSessionRepository.archiveSession(data.sessionId);

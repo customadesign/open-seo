@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_KEYWORDS_PER_CONFIG } from "@/shared/rank-tracking";
+import {
+  estimateRankCheckCredits,
+  MAX_KEYWORDS_PER_CONFIG,
+} from "@/shared/rank-tracking";
 
 type DueConfigRow = {
   id: string;
   projectId: string;
   domain: string;
+  engine: "google" | "bing";
   locationCode: number;
   languageCode: string;
   locationName: string | null;
   devices: "both" | "desktop" | "mobile";
   serpDepth: number;
   scheduleInterval: "daily" | "weekly" | "monthly" | "manual";
+  maxCostCredits: number | null;
   nextCheckAt: string | null;
   organizationId: string;
 };
@@ -76,16 +81,26 @@ function dueConfig(overrides: Partial<DueConfigRow> = {}): DueConfigRow {
     id: "config_1",
     projectId: "project_1",
     domain: "acme.com",
+    engine: "google" as const,
     locationCode: 2840,
     languageCode: "en",
     locationName: null,
     devices: "both" as const,
     serpDepth: 20,
     scheduleInterval: "daily" as const,
+    // Well above every fixture's estimate, so tests that aren't about the
+    // ceiling aren't silently gated by it.
+    maxCostCredits: 10_000,
     nextCheckAt: "2026-01-01T00:00:00.000Z",
     organizationId: "org_1",
     ...overrides,
   };
+}
+
+/** Credits a default `dueConfig` with `keywordCount` keywords will estimate. */
+function scheduledCredits(keywordCount: number) {
+  return estimateRankCheckCredits(keywordCount, "both", 20, "queued")
+    .costCredits;
 }
 
 async function runTick() {
@@ -147,6 +162,63 @@ describe("runScheduledRankChecks", () => {
     expect(mocks.beginRankCheckRun).toHaveBeenCalledTimes(1);
     expect(mocks.beginRankCheckRun).toHaveBeenCalledWith(
       expect.objectContaining({ keywordsTotal: 5, trigger: "scheduled" }),
+    );
+  });
+
+  // Rows created before max_cost_credits existed carry no approval at all.
+  // They must never reach a provider, and the reason has to land on the row so
+  // the tracker explains itself instead of looking broken.
+  it("skips a migrated config with no ceiling before any plan check or workflow", async () => {
+    mocks.getDueConfigsWithOrganization.mockResolvedValue([
+      dueConfig({ maxCostCredits: null }),
+    ]);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runTick();
+
+    expect(mocks.claimDueConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configId: "config_1",
+        observedNextCheckAt: "2026-01-01T00:00:00.000Z",
+        lastSkipReason: "cost_ceiling",
+      }),
+    );
+    expect(mocks.beginRankCheckRun).not.toHaveBeenCalled();
+    expect(mocks.customerHasPaidPlan).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ skippedCostCeiling: 1, started: 0 }),
+    );
+  });
+
+  it("skips a config whose estimate is one credit above its ceiling", async () => {
+    mocks.getDueConfigsWithOrganization.mockResolvedValue([
+      dueConfig({ maxCostCredits: scheduledCredits(5) - 1 }),
+    ]);
+
+    await runTick();
+
+    expect(mocks.claimDueConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ lastSkipReason: "cost_ceiling" }),
+    );
+    expect(mocks.beginRankCheckRun).not.toHaveBeenCalled();
+  });
+
+  it("runs a config at exactly its ceiling and forwards it to the workflow", async () => {
+    const ceiling = scheduledCredits(5);
+    mocks.getDueConfigsWithOrganization.mockResolvedValue([
+      dueConfig({ maxCostCredits: ceiling }),
+    ]);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runTick();
+
+    expect(mocks.claimDueConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ lastSkipReason: null }),
+    );
+    // Forwarded so the workflow re-checks it against the keywords it reads,
+    // which is the last gate before a paid DataForSEO post.
+    expect(mocks.beginRankCheckRun).toHaveBeenCalledWith(
+      expect.objectContaining({ maxCostCredits: ceiling }),
     );
   });
 

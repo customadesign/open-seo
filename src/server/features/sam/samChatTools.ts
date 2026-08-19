@@ -4,11 +4,24 @@ import { withPgClient } from "@/db";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { type ToolAuthContext, type ToolContext } from "@/server/mcp/context";
 import { instrumentMcpToolHandler } from "@/server/mcp/instrumentation";
+import { analyzeBacklinksBulkTool } from "@/server/mcp/tools/analyze-backlinks-bulk";
+import { estimateBacklinksBulkAnalysisTool } from "@/server/mcp/tools/estimate-backlinks-bulk";
+import { getBacklinksAnchorsTool } from "@/server/mcp/tools/get-backlinks-anchors";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
+import {
+  estimateBacklinkGapTool,
+  getBacklinkGapTool,
+} from "@/server/mcp/tools/backlink-gap-tools";
+import {
+  estimateKeywordGapTool,
+  getKeywordGapTool,
+} from "@/server/mcp/tools/keyword-gap-tools";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
 import { getDomainOverviewTool } from "@/server/mcp/tools/get-domain-overview";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
+import { getRankCannibalizationTool } from "@/server/mcp/tools/get-rank-cannibalization";
+import { getRankingsDistributionTool } from "@/server/mcp/tools/get-rankings-distribution";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
 import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
 import {
@@ -26,6 +39,7 @@ import {
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
+import { getOnPageIdeasTool } from "@/server/mcp/tools/get-on-page-ideas";
 import { discoverSiteUrls, readPages, readSite } from "@/server/lib/scrape";
 import openSeoFactSheet from "@/server/features/onboarding/openseo-fact-sheet.md?raw";
 
@@ -210,8 +224,19 @@ export function buildSamMcpTools(
     get_domain_keyword_suggestions: adaptTool(getDomainKeywordSuggestionsTool),
     get_backlinks_overview: adaptTool(getBacklinksOverviewTool),
     get_backlinks_profile: adaptTool(getBacklinksProfileTool),
+    get_backlinks_anchors: adaptTool(getBacklinksAnchorsTool),
+    estimate_backlinks_bulk_analysis: adaptTool(
+      estimateBacklinksBulkAnalysisTool,
+    ),
+    analyze_backlinks_bulk: adaptTool(analyzeBacklinksBulkTool),
+    estimate_keyword_gap: adaptTool(estimateKeywordGapTool),
+    get_keyword_gap: adaptTool(getKeywordGapTool),
+    estimate_backlink_gap: adaptTool(estimateBacklinkGapTool),
+    get_backlink_gap: adaptTool(getBacklinkGapTool),
     get_serp_results: adaptTool(getSerpResultsTool),
     get_rank_tracker: adaptTool(getRankTrackerTool),
+    get_rank_cannibalization: adaptTool(getRankCannibalizationTool),
+    get_rankings_distribution: adaptTool(getRankingsDistributionTool),
     get_ranked_keywords: adaptTool(getRankedKeywordsTool),
     find_serp_competitors: adaptTool(findSerpCompetitorsTool),
     search_local_businesses: adaptTool(searchLocalBusinessesTool),
@@ -220,5 +245,6 @@ export function buildSamMcpTools(
     get_keyword_metrics: adaptTool(getKeywordMetricsTool),
     get_search_console_performance: adaptTool(getSearchConsolePerformanceTool),
     inspect_urls: adaptTool(inspectUrlsTool),
+    get_on_page_ideas: adaptTool(getOnPageIdeasTool),
   };
 }

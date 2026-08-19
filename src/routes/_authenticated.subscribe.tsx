@@ -1,4 +1,10 @@
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+// Aliased: this route already destructures a `redirect` search param.
+import {
+  Link,
+  createFileRoute,
+  redirect as routerRedirect,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useCustomer } from "autumn-js/react";
 import { useEffect, useState } from "react";
 import { ArrowRight, Settings, User } from "lucide-react";
@@ -6,6 +12,7 @@ import { ThemePreferenceMenuItems } from "@/client/components/ThemePreferenceMen
 import { captureClientEvent } from "@/client/lib/posthog";
 import { signOutAndRedirect, useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { isSingleTenantOnClient } from "@/lib/auth-policy";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { getSubscribeRouteState } from "@/client/features/billing/route-state";
 import { getCustomerPlanStatus } from "@/client/features/billing/plan-detection";
@@ -14,6 +21,7 @@ import {
   AUTUMN_MANAGED_ACCESS_FEATURE_ID,
   AUTUMN_PAID_PLAN_ID,
 } from "@/shared/billing";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 const SUPPORT_EMAIL = "ben@openseo.so";
 
@@ -29,6 +37,14 @@ const PLAN_FEATURES = [
 const FINALIZING_TIMEOUT_MS = 30_000;
 
 export const Route = createFileRoute("/_authenticated/subscribe")({
+  beforeLoad: () => {
+    // Nothing to subscribe to on a single-tenant deployment, and _app/index.tsx
+    // navigates here on PAYMENT_REQUIRED — so leaving it live would strand an
+    // employee on a paywall for a plan that cannot be bought.
+    if (isSingleTenantOnClient()) {
+      throw routerRedirect({ to: "/" });
+    }
+  },
   validateSearch: (
     search: Record<string, unknown>,
   ): { upgrade?: true; redirect?: string; checkout?: "success" } => ({
@@ -44,6 +60,8 @@ export const Route = createFileRoute("/_authenticated/subscribe")({
 });
 
 function SubscribePage() {
+  const accessQuery = useWorkspaceAccess();
+  const canManageWorkspace = accessQuery.data?.canManageWorkspace === true;
   const navigate = useNavigate();
   const { upgrade: isUpgradeFlow, redirect, checkout } = Route.useSearch();
   const { data: session } = useSession();
@@ -55,7 +73,7 @@ function SubscribePage() {
   const hasSession = Boolean(session?.user?.id);
   const customerQuery = useCustomer({
     queryOptions: {
-      enabled: hasSession,
+      enabled: hasSession && canManageWorkspace,
     },
   });
 
@@ -117,6 +135,23 @@ function SubscribePage() {
       captureClientEvent("billing:paywall_viewed");
     }
   }, [isUpgradeFlow, subscribeRouteState]);
+
+  if (!accessQuery.data) return null;
+
+  if (!canManageWorkspace) {
+    return (
+      <div className="w-full max-w-xs space-y-3 text-center">
+        <User className="mx-auto size-8 text-base-content/50" />
+        <h1 className="text-xl font-semibold">Ask your workspace owner</h1>
+        <p className="text-sm text-base-content/65">
+          Only the workspace owner can manage the OpenSEO subscription.
+        </p>
+        <Link to="/" className="btn btn-primary btn-sm">
+          Open your projects
+        </Link>
+      </div>
+    );
+  }
 
   if (
     subscribeRouteState === "loading" ||

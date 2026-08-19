@@ -5,7 +5,9 @@ import { createDataforseoClient } from "@/server/lib/dataforseo";
 import { buildCacheKey, getCached, setCached } from "@/server/lib/r2-cache";
 import { normalizeDomainInput } from "@/server/lib/domainUtils";
 import { mapKeywordItem } from "@/server/features/domain/services/domainKeywordMapper";
+import { mapKeywordGapItem } from "@/server/features/gap/services/keywordGapMapper";
 import { computeHasMore } from "@/server/features/domain/services/pagination";
+import { KEYWORD_GAP_SNAPSHOT_LIMIT } from "@/shared/gap";
 import {
   buildKeywordFilters,
   buildOrderBy,
@@ -123,6 +125,128 @@ export async function getKeywordsPage(
     setCached(cacheKey, result, DOMAIN_KEYWORDS_PAGE_TTL_SECONDS).catch(
       (error) => {
         console.error("domain.keywords-page.cache-write failed:", error);
+      },
+    ),
+  );
+
+  return result;
+}
+
+const keywordSnapshotSchema = z.object({
+  domain: z.string(),
+  keywords: z.array(
+    z.object({
+      keyword: z.string(),
+      position: z.number().nullable(),
+      searchVolume: z.number().nullable(),
+      traffic: z.number().nullable(),
+      cpc: z.number().nullable(),
+      url: z.string().nullable(),
+      relativeUrl: z.string().nullable(),
+      keywordDifficulty: z.number().nullable(),
+      intent: z.string().nullable(),
+    }),
+  ),
+  fetchedAt: z.string(),
+  fromCache: z.boolean(),
+});
+
+export type KeywordSnapshot = z.infer<typeof keywordSnapshotSchema>;
+
+function snapshotCacheInput(input: {
+  projectId: string;
+  domain: string;
+  includeSubdomains: boolean;
+  locationCode: number;
+  languageCode: string;
+  organizationId: string;
+}) {
+  return {
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    domain: input.domain,
+    includeSubdomains: input.includeSubdomains,
+    locationCode: input.locationCode,
+    languageCode: input.languageCode,
+    limit: KEYWORD_GAP_SNAPSHOT_LIMIT,
+  };
+}
+
+export async function hasKeywordsSnapshot(
+  input: {
+    projectId: string;
+    domain: string;
+    includeSubdomains: boolean;
+    locationCode: number;
+    languageCode: string;
+  },
+  billingCustomer: BillingCustomerContext,
+): Promise<boolean> {
+  const domain = normalizeDomainInput(input.domain, input.includeSubdomains);
+  const cacheKey = await buildCacheKey(
+    "domain:keywords-snapshot",
+    snapshotCacheInput({
+      ...input,
+      domain,
+      organizationId: billingCustomer.organizationId,
+    }),
+  );
+  const cached = keywordSnapshotSchema.safeParse(await getCached(cacheKey));
+  return cached.success;
+}
+
+export async function getKeywordsSnapshot(
+  input: {
+    projectId: string;
+    domain: string;
+    includeSubdomains: boolean;
+    locationCode: number;
+    languageCode: string;
+  },
+  billingCustomer: BillingCustomerContext,
+): Promise<KeywordSnapshot> {
+  const domain = normalizeDomainInput(input.domain, input.includeSubdomains);
+  const cacheKey = await buildCacheKey(
+    "domain:keywords-snapshot",
+    snapshotCacheInput({
+      ...input,
+      domain,
+      organizationId: billingCustomer.organizationId,
+    }),
+  );
+
+  const cached = keywordSnapshotSchema.safeParse(await getCached(cacheKey));
+  if (cached.success) {
+    return { ...cached.data, fromCache: true };
+  }
+
+  const dataforseo = createDataforseoClient(billingCustomer);
+  const response = await dataforseo.domain.rankedKeywords({
+    target: domain,
+    locationCode: input.locationCode,
+    languageCode: input.languageCode,
+    limit: KEYWORD_GAP_SNAPSHOT_LIMIT,
+    orderBy: ["keyword_data.keyword_info.search_volume,desc"],
+  });
+
+  const keywords = response.items
+    .map((item) => mapKeywordGapItem(item))
+    .filter(
+      (item): item is NonNullable<ReturnType<typeof mapKeywordGapItem>> =>
+        item != null,
+    );
+
+  const result: KeywordSnapshot = {
+    domain,
+    keywords,
+    fetchedAt: new Date().toISOString(),
+    fromCache: false,
+  };
+
+  waitUntil(
+    setCached(cacheKey, result, DOMAIN_KEYWORDS_PAGE_TTL_SECONDS).catch(
+      (error) => {
+        console.error("domain.keywords-snapshot.cache-write failed:", error);
       },
     ),
   );

@@ -10,6 +10,15 @@ import {
   updateSavedKeywordTags,
   refreshSavedKeywordMetrics,
 } from "@/server/features/keywords/services/research";
+import {
+  estimateKeywordMagic,
+  exportKeywordMagic,
+  getKeywordMagicPage,
+  listKeywordMagicHistory,
+  refreshKeywordMagicMetrics,
+  runKeywordMagic,
+  saveKeywordMagicSelection,
+} from "@/server/features/keywords/services/magic/KeywordMagicService";
 
 export const KeywordResearchService = {
   research,
@@ -22,4 +31,11 @@ export const KeywordResearchService = {
   deleteSavedKeywordTag,
   removeSavedKeywords,
   refreshSavedKeywordMetrics,
+  estimateKeywordMagic,
+  runKeywordMagic,
+  getKeywordMagicPage,
+  exportKeywordMagic,
+  listKeywordMagicHistory,
+  saveKeywordMagicSelection,
+  refreshKeywordMagicMetrics,
 } as const;

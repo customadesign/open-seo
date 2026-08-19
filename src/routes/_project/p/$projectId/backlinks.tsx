@@ -23,6 +23,7 @@ function BacklinksRoute() {
     sort,
     order,
     view,
+    range,
   } = Route.useSearch();
   const scope = rawScope ?? inferBacklinksSearchScopeFromTarget(target);
 
@@ -39,6 +40,7 @@ function BacklinksRoute() {
         sort,
         order,
         view,
+        range,
       }}
     />
   );

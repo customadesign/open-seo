@@ -65,7 +65,7 @@ function formatDataforseoRequestPath(url: RequestInfo): string {
  * (which return HTTP 200) are handled downstream by {@link assertOk}. An
  * optional classifier maps recognised HTTP failures to product errors.
  */
-function createAuthenticatedFetch(
+export function createAuthenticatedFetch(
   classify?: DataforseoErrorClassifier,
   maxServerErrorRetries = DATAFORSEO_MAX_RETRIES,
 ) {
@@ -77,13 +77,20 @@ function createAuthenticatedFetch(
     // rather than restarting a fresh 60s budget on each attempt.
     const signal =
       init?.signal ?? AbortSignal.timeout(DATAFORSEO_REQUEST_TIMEOUT_MS);
+    const path = formatDataforseoRequestPath(url);
+    // DataForSEO can charge live and task_post requests even when their HTTP
+    // response is unsuccessful. Replaying those calls risks paying more than
+    // once for no result, so only free/idempotent reads receive 5xx retries.
+    const retries = /\/(?:live|task_post)(?:\/|$)/.test(path)
+      ? 0
+      : maxServerErrorRetries;
 
     for (let attempt = 0; ; attempt++) {
       const response = await fetch(url, { ...init, headers, signal });
       if (response.ok) return response;
 
       // Transient upstream 5xx on an idempotent read -> back off and retry.
-      if (response.status >= 500 && attempt < maxServerErrorRetries) {
+      if (response.status >= 500 && attempt < retries) {
         await new Promise((resolve) =>
           setTimeout(resolve, DATAFORSEO_RETRY_BACKOFF_MS * (attempt + 1)),
         );
@@ -91,7 +98,6 @@ function createAuthenticatedFetch(
       }
 
       const rawText = await response.text();
-      const path = formatDataforseoRequestPath(url);
       const classified = classify?.(response.status, rawText, path);
       if (classified) throw classified;
 

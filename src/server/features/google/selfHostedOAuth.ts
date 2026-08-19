@@ -15,6 +15,10 @@ import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { GA4_OAUTH_PROVIDER_ID, GA4_OAUTH_SCOPES } from "@/shared/ga4";
 import { GSC_OAUTH_PROVIDER_ID, GSC_OAUTH_SCOPES } from "@/shared/gsc";
 import {
+  GOOGLE_ADS_OAUTH_PROVIDER_ID,
+  GOOGLE_ADS_OAUTH_SCOPES,
+} from "@/shared/google-ads";
+import {
   getGoogleOAuthClientConfig,
   hasSelfHostedGoogleOAuthConfig,
 } from "./oauth-config";
@@ -51,6 +55,14 @@ export const GA4_INTEGRATION: SelfHostedGoogleOAuthIntegration = {
   displayName: "Google Analytics",
   callbackPath: "/api/ga4/oauth/callback",
   scopes: GA4_OAUTH_SCOPES,
+};
+
+export const GOOGLE_ADS_INTEGRATION: SelfHostedGoogleOAuthIntegration = {
+  providerId: GOOGLE_ADS_OAUTH_PROVIDER_ID,
+  stateNamespace: "google-ads",
+  displayName: "Google Ads",
+  callbackPath: "/api/google-ads/oauth/callback",
+  scopes: GOOGLE_ADS_OAUTH_SCOPES,
 };
 
 const oauthStateSchema = z.object({

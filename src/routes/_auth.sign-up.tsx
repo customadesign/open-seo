@@ -1,5 +1,10 @@
 import { useForm } from "@tanstack/react-form";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  createFileRoute,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import {
   AuthPageCard,
@@ -15,6 +20,7 @@ import {
 import { getFieldError, getFormError } from "@/client/lib/forms";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { authClient } from "@/lib/auth-client";
+import { isPublicSignupDisabledOnClient } from "@/lib/auth-policy";
 import { getSignInSearch, getVerifyEmailSearch } from "@/lib/auth-redirect";
 import {
   HOSTED_PASSWORD_MAX_LENGTH,
@@ -45,6 +51,13 @@ const signUpSchema = z
 
 export const Route = createFileRoute("/_auth/sign-up")({
   validateSearch: authRedirectSearchSchema,
+  // The server already rejects /sign-up/email when registration is closed, so
+  // rendering the form would only offer a dead end. Bounce to sign-in instead.
+  beforeLoad: ({ search }) => {
+    if (isPublicSignupDisabledOnClient()) {
+      throw redirect({ to: "/sign-in", search: { redirect: search.redirect } });
+    }
+  },
   component: SignUpPage,
 });
 

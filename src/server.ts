@@ -7,7 +7,13 @@ import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve"
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
+import { runScheduledAiVisibilityRuns } from "@/server/features/ai-visibility/services/scheduledAiVisibilityRuns";
+import { runScheduledGeoGridChecks } from "@/server/features/local-seo/services/scheduledGeoGridChecks";
+import { ReportService } from "@/server/features/reports/ReportService";
+import { ReportDeliveryProfileService } from "@/server/features/reports/ReportDeliveryProfileService";
+import { ReportShareService } from "@/server/features/reports/ReportShareService";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
+import { runScheduledSiteAudits } from "@/server/features/audit/services/scheduledSiteAudits";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { getAuthMode, isHostedAuthMode } from "@/lib/auth-mode";
@@ -26,6 +32,11 @@ import {
 import { maybeSendSelfHostHeartbeat } from "@/server/lib/self-host-telemetry";
 import { handleGdprStorageErasure } from "@/server/gdpr/storage-erasure";
 import { GDPR_STORAGE_ERASURE_PATH } from "@/shared/gdpr-erasure";
+import {
+  canAccessProject,
+  canManageWorkspace,
+  canUseProjectTools,
+} from "@/shared/workspace-access";
 
 const appFetch = createStartHandler(defaultStreamHandler);
 const openSeoOAuthProvider = createOpenSeoOAuthProvider(appFetch);
@@ -49,6 +60,12 @@ async function authorizeOnboardingChat(
     context.organizationId,
   );
   if (!project) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  if (
+    !canManageWorkspace(context.access) ||
+    !canAccessProject(context.access, project.id)
+  ) {
     return new Response("Forbidden", { status: 403 });
   }
   // Ensure the org's Autumn customer exists (and gets its default onboarding-plan
@@ -87,6 +104,12 @@ async function authorizeSamChat(
       )
     : null;
   if (!session || !project) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  if (
+    !canUseProjectTools(context.access) ||
+    !canAccessProject(context.access, project.id)
+  ) {
     return new Response("Forbidden", { status: 403 });
   }
   // Same as onboarding above: make sure the Autumn customer (and its default
@@ -180,6 +203,8 @@ function handleFetch(
 // Export Workflow classes as named exports
 export { SiteAuditWorkflow } from "./server/workflows/SiteAuditWorkflow";
 export { RankCheckWorkflow } from "./server/workflows/RankCheckWorkflow";
+export { ReportWorkflow } from "./server/workflows/ReportWorkflow";
+export { AiVisibilityWorkflow } from "./server/workflows/AiVisibilityWorkflow";
 // Durable Object class for the onboarding strategy chat (Agents SDK).
 export { OnboardingChatAgent } from "./server/features/onboarding/OnboardingChatAgent";
 // Durable Object class for the SAM in-app agent (Agents SDK).
@@ -218,15 +243,68 @@ export default {
     // before the rank loop so a slow tick can't delay or starve it. Its
     // failure is held until after the rank checks so it can't suppress them,
     // then rethrown so the invocation still reports as failed.
-    let watchdogError: unknown;
+    const cronErrors: unknown[] = [];
     try {
       await withPgClient(() => reconcileStaleAudits());
     } catch (err) {
-      watchdogError = err;
+      cronErrors.push(err);
       console.error("[cron] Stale-audit reconcile failed:", err);
     }
-    // Scope a per-request Postgres client for the cron run (no-op in D1 mode).
-    await withPgClient(() => runScheduledRankChecks(env));
-    if (watchdogError) throw watchdogError;
+    // Each scheduler gets its own scoped Postgres client (a no-op in D1 mode)
+    // and its own failure boundary so one subsystem cannot suppress the rest.
+    //
+    // Recurring site audits run directly after the reconcile: they refuse to
+    // start while the project has a running audit, so they want the sweep's
+    // zombie rows already retired. No-op until an operator activates a
+    // schedule — cadence and active flag both default to off.
+    try {
+      await withPgClient(() => runScheduledSiteAudits());
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Scheduled site audits failed:", err);
+    }
+    try {
+      await withPgClient(() => runScheduledRankChecks(env));
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Scheduled rank checks failed:", err);
+    }
+    try {
+      await withPgClient(() => runScheduledGeoGridChecks());
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Scheduled geo-grid checks failed:", err);
+    }
+    // No-op until an operator activates an AI visibility config: both the
+    // schedule and the active flag default to off.
+    try {
+      await withPgClient(() => runScheduledAiVisibilityRuns());
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Scheduled AI visibility runs failed:", err);
+    }
+    try {
+      await withPgClient(() =>
+        ReportService.processDueSchedules(env.REPORT_WORKFLOW),
+      );
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Monthly report scheduler failed:", err);
+    }
+    try {
+      await withPgClient(() =>
+        ReportDeliveryProfileService.processDueProfiles(env.REPORT_WORKFLOW),
+      );
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Report delivery scheduler failed:", err);
+    }
+    try {
+      await withPgClient(() => ReportShareService.purgeExpiredArtifacts());
+    } catch (err) {
+      cronErrors.push(err);
+      console.error("[cron] Report retention sweep failed:", err);
+    }
+    if (cronErrors.length > 0) throw cronErrors[0];
   },
 };

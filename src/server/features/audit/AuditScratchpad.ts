@@ -51,11 +51,18 @@ export interface ScratchpadLinkRow {
   isNofollow: boolean;
 }
 
+export interface ScratchpadExternalLinkRow {
+  sourcePageId: string;
+  sourceUrl: string;
+  targetUrl: string;
+}
+
 interface RecordBatchInput {
   /** URLs whose crawl attempt finished (successfully or not). */
   crawledUrls: string[];
   pages: ScratchpadPageRow[];
   links: ScratchpadLinkRow[];
+  externalLinks?: ScratchpadExternalLinkRow[];
   /** Newly discovered same-origin URLs to enqueue (already policy-filtered). */
   discovered: Array<{ url: string; depth: number | null }>;
 }
@@ -113,6 +120,12 @@ export class AuditScratchpad extends DurableObject {
         redirect_url TEXT
       );
       CREATE INDEX IF NOT EXISTS page_mirror_redirect_idx ON page_mirror (redirect_url);
+      CREATE TABLE IF NOT EXISTS external_links (
+        source_page_id TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        target_url TEXT NOT NULL,
+        PRIMARY KEY (source_page_id, target_url)
+      );
     `);
     // Guarantee the cleanup alarm on EVERY instantiation, not just at seed:
     // any RPC (even one racing in right after destroy()) re-creates the
@@ -216,6 +229,15 @@ export class AuditScratchpad extends DurableObject {
           link.isNofollow ? 1 : 0,
         );
       }
+      for (const link of input.externalLinks ?? []) {
+        this.ctx.storage.sql.exec(
+          `INSERT OR IGNORE INTO external_links (source_page_id, source_url, target_url)
+           VALUES (?, ?, ?)`,
+          link.sourcePageId,
+          link.sourceUrl,
+          link.targetUrl,
+        );
+      }
     }
     for (const found of input.discovered) {
       // OR IGNORE: already-seen URLs (crawled, leased, or pending) keep
@@ -247,10 +269,32 @@ export class AuditScratchpad extends DurableObject {
    * The two finalize checks that need link edges, as local SQL. Mirrors the
    * former Postgres implementations in multipage.ts exactly.
    */
+  async listExternalLinks(): Promise<ScratchpadExternalLinkRow[]> {
+    return this.ctx.storage.sql
+      .exec<{
+        source_page_id: string;
+        source_url: string;
+        target_url: string;
+      }>(
+        `SELECT source_page_id, source_url, target_url FROM external_links
+         ORDER BY source_page_id, target_url`,
+      )
+      .toArray()
+      .map((row) => ({
+        sourcePageId: row.source_page_id,
+        sourceUrl: row.source_url,
+        targetUrl: row.target_url,
+      }));
+  }
+
   async runFinalizeChecks(input: {
     startUrl: string;
     crawlCompleted: boolean;
-  }): Promise<{ brokenLinks: BrokenLinkRow[]; orphanPages: OrphanPageRow[] }> {
+  }): Promise<{
+    brokenLinks: BrokenLinkRow[];
+    orphanPages: OrphanPageRow[];
+    singleInboundPages: OrphanPageRow[];
+  }> {
     // Only flag targets we actually crawled and saw fail — never inferred
     // from absence. Blocked targets (WAF challenges) are excluded: a 403
     // from bot protection is not evidence of a broken link.
@@ -303,7 +347,25 @@ export class AuditScratchpad extends DurableObject {
             .map((row) => ({ pageId: row.page_id, url: row.url }))
         : [];
 
-    return { brokenLinks, orphanPages };
+    const singleInboundPages =
+      input.crawlCompleted && linkGraphComplete
+        ? this.ctx.storage.sql
+            .exec<{ page_id: string; url: string }>(
+              `SELECT m.page_id, m.url FROM page_mirror m
+             WHERE m.url != ?
+               AND m.fetch_class = 'ok'
+               AND m.status_code >= 200 AND m.status_code < 300
+               AND (
+                 SELECT COUNT(*) FROM links l
+                 WHERE l.target_url = m.url AND l.source_page_id != m.page_id
+               ) = 1`,
+              input.startUrl,
+            )
+            .toArray()
+            .map((row) => ({ pageId: row.page_id, url: row.url }))
+        : [];
+
+    return { brokenLinks, orphanPages, singleInboundPages };
   }
 
   /** Wipe all state (success path, or explicit audit deletion). */

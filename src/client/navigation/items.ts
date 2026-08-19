@@ -1,10 +1,19 @@
 import {
+  BarChart3,
   Bookmark,
   Bot,
   ClipboardCheck,
+  Eye,
+  FileBarChart,
+  GitCompare,
   Globe,
+  History,
   LayoutDashboard,
   Link2,
+  Unlink,
+  MapPinned,
+  FileText,
+  ListChecks,
   MessageSquare,
   Search,
   Sparkles,
@@ -38,9 +47,19 @@ const projectNavItems = [
     icon: TrendingUp,
   },
   {
+    to: "/p/$projectId/local-seo" as const,
+    label: "Local SEO",
+    icon: MapPinned,
+  },
+  {
     to: "/p/$projectId/search-performance" as const,
     label: "GSC Insights",
     icon: GoogleGlyphMuted,
+  },
+  {
+    to: "/p/$projectId/traffic-insights" as const,
+    label: "Traffic Insights",
+    icon: BarChart3,
   },
   {
     to: "/p/$projectId/domain" as const,
@@ -48,14 +67,49 @@ const projectNavItems = [
     icon: Globe,
   },
   {
+    to: "/p/$projectId/keyword-gap" as const,
+    label: "Keyword Gap",
+    icon: GitCompare,
+  },
+  {
     to: "/p/$projectId/backlinks" as const,
     label: "Backlinks",
     icon: Link2,
   },
   {
+    to: "/p/$projectId/backlink-gap" as const,
+    label: "Backlink Gap",
+    icon: Unlink,
+  },
+  {
     to: "/p/$projectId/audit" as const,
     label: "Site Audit",
     icon: ClipboardCheck,
+  },
+  {
+    to: "/p/$projectId/log-files" as const,
+    label: "Log Files",
+    icon: FileText,
+  },
+  {
+    to: "/p/$projectId/on-page" as const,
+    label: "On-page Ideas",
+    icon: ListChecks,
+  },
+  {
+    to: "/p/$projectId/reports" as const,
+    label: "Reports",
+    icon: FileBarChart,
+  },
+  {
+    to: "/p/$projectId/changes" as const,
+    label: "Changes",
+    icon: History,
+  },
+  {
+    to: "/p/$projectId/ai-visibility" as const,
+    label: "AI Visibility",
+    icon: Eye,
   },
   {
     to: "/p/$projectId/brand-lookup" as const,
@@ -93,12 +147,15 @@ function getProjectNavItems(projectId: string) {
 
 // Grouped by scope: "My Site" is the project's own domain (tracked data),
 // "Research" is point-at-anything lookup tools.
-export function getProjectNavGroups(projectId: string) {
+export function getProjectNavGroups(
+  projectId: string,
+  options: { canUseProjectTools?: boolean } = {},
+) {
   const all = getProjectNavItems(projectId);
   const byPath = (path: (typeof projectNavItems)[number]["to"]) =>
     all.find((i) => i.to === path)!;
 
-  return [
+  const groups = [
     {
       label: "Overview",
       items: [byPath("/p/$projectId")],
@@ -108,7 +165,9 @@ export function getProjectNavGroups(projectId: string) {
       items: [
         byPath("/p/$projectId/keywords"),
         byPath("/p/$projectId/domain"),
+        byPath("/p/$projectId/keyword-gap"),
         byPath("/p/$projectId/backlinks"),
+        byPath("/p/$projectId/backlink-gap"),
         byPath("/p/$projectId/brand-lookup"),
         byPath("/p/$projectId/prompt-explorer"),
       ],
@@ -117,12 +176,46 @@ export function getProjectNavGroups(projectId: string) {
       label: "My Site",
       items: [
         byPath("/p/$projectId/search-performance"),
+        byPath("/p/$projectId/traffic-insights"),
         byPath("/p/$projectId/rank-tracking"),
+        byPath("/p/$projectId/local-seo"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
+        byPath("/p/$projectId/log-files"),
+        byPath("/p/$projectId/on-page"),
+        byPath("/p/$projectId/ai-visibility"),
+        byPath("/p/$projectId/reports"),
+        byPath("/p/$projectId/changes"),
       ],
     },
   ];
+
+  if (options.canUseProjectTools !== false) return groups;
+
+  return groups
+    .filter((group) => group.label !== "Research")
+    .map((group) =>
+      group.label === "My Site"
+        ? {
+            ...group,
+            items: group.items.filter(
+              (item) =>
+                item.to === "/p/$projectId/search-performance" ||
+                item.to === "/p/$projectId/traffic-insights" ||
+                item.to === "/p/$projectId/rank-tracking" ||
+                item.to === "/p/$projectId/local-seo" ||
+                item.to === "/p/$projectId/saved" ||
+                item.to === "/p/$projectId/audit" ||
+                item.to === "/p/$projectId/log-files" ||
+                item.to === "/p/$projectId/on-page" ||
+                item.to === "/p/$projectId/reports" ||
+                // Read-only feed of what changed; the server still gates the
+                // mark-read/dismiss mutations behind requireProjectUse.
+                item.to === "/p/$projectId/changes",
+            ),
+          }
+        : group,
+    );
 }
 
 export const dataforseoHelpLinkOptions = linkOptions({

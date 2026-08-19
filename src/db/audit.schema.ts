@@ -4,6 +4,7 @@ import {
   integer,
   real,
   index,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { projects } from "./app.schema";
@@ -119,6 +120,26 @@ export const auditPages = sqliteTable(
       .default("ok"),
     // Performance
     responseTimeMs: integer("response_time_ms"),
+    // Document / resource signals captured during crawl for later slices
+    htmlBytes: integer("html_bytes").notNull().default(0),
+    hasDoctype: integer("has_doctype", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    charset: text("charset"),
+    hasMetaRefresh: integer("has_meta_refresh", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    frameCount: integer("frame_count").notNull().default(0),
+    scriptUrlsJson: text("script_urls_json"),
+    stylesheetUrlsJson: text("stylesheet_urls_json"),
+    inlineScriptBytes: integer("inline_script_bytes").notNull().default(0),
+    inlineStyleBytes: integer("inline_style_bytes").notNull().default(0),
+    textBytes: integer("text_bytes").notNull().default(0),
+    externalImageSrcsJson: text("external_image_srcs_json"),
+    contentEncoding: text("content_encoding"),
+    cacheControl: text("cache_control"),
+    contentType: text("content_type"),
+    contentLength: integer("content_length"),
   },
   (table) => [index("audit_pages_audit_url_idx").on(table.auditId, table.url)],
 );
@@ -178,5 +199,126 @@ export const auditLighthouseResults = sqliteTable(
   (table) => [
     index("audit_lighthouse_results_audit_id_idx").on(table.auditId),
     index("audit_lighthouse_results_page_id_idx").on(table.pageId),
+  ],
+);
+
+/**
+ * Recurring site audits, at most one schedule per project.
+ *
+ * Nothing here runs on its own: `schedule_interval` defaults to "manual" and
+ * `is_active` to false, so a fresh install — and any project imported from an
+ * older deployment — starts with a dormant scheduler. `next_run_at` is the
+ * single source of due-ness AND the compare-and-set token the cron claims a
+ * slot with, so it is only ever non-null while the schedule is both active and
+ * recurring. It stores a UTC ISO instant (never a local wall-clock time), which
+ * is what makes the `next_run_at <= now` due check correct for every operator
+ * timezone and identical on D1 and Postgres.
+ */
+export const auditSchedules = sqliteTable(
+  "audit_schedules",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    /**
+     * Who armed the schedule. Scheduled audits are attributed to this user, so
+     * they also consume that user's per-tier audit capacity — a scheduler
+     * cannot mint audits outside the limits its owner is subject to.
+     */
+    createdByUserId: text("created_by_user_id").notNull(),
+    startUrl: text("start_url").notNull(),
+    /** Mirrors DEFAULT_AUDIT_PAGES in @/shared/audit-limits. */
+    maxPages: integer("max_pages").notNull().default(50),
+    lighthouseStrategy: text("lighthouse_strategy", {
+      enum: ["auto", "none"],
+    })
+      .notNull()
+      .default("auto"),
+    scheduleInterval: text("schedule_interval", {
+      enum: ["daily", "weekly", "monthly", "manual"],
+    })
+      .notNull()
+      .default("manual"),
+    isActive: integer("is_active", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    lastRunAt: text("last_run_at"),
+    /** Audit started by the most recent scheduled run; links skip/failure UI. */
+    lastRunAuditId: text("last_run_audit_id"),
+    nextRunAt: text("next_run_at"),
+    /** Why the last due tick started nothing; cleared on a successful start. */
+    lastSkipReason: text("last_skip_reason"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("audit_schedules_project_id_idx").on(table.projectId),
+    index("audit_schedules_due_idx").on(table.isActive, table.nextRunAt),
+  ],
+);
+
+/**
+ * One robots.txt snapshot per audit run. Fetched once during discovery so
+ * later slices can read disallowed paths and sitemap directives without
+ * re-fetching.
+ */
+export const auditRobots = sqliteTable(
+  "audit_robots",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    found: integer("found", { mode: "boolean" }).notNull().default(false),
+    statusCode: integer("status_code"),
+    parseError: text("parse_error"),
+    hasSitemapDirective: integer("has_sitemap_directive", { mode: "boolean" })
+      .notNull()
+      .default(false),
+  },
+  (table) => [uniqueIndex("audit_robots_audit_id_idx").on(table.auditId)],
+);
+
+export const auditRobotsDisallows = sqliteTable(
+  "audit_robots_disallows",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    userAgent: text("user_agent").notNull(),
+    path: text("path").notNull(),
+  },
+  (table) => [index("audit_robots_disallows_audit_id_idx").on(table.auditId)],
+);
+
+/**
+ * One row per sitemap document fetched for an audit (default /sitemap.xml
+ * plus any Sitemap: URLs from robots.txt, including nested index children).
+ */
+export const auditSitemaps = sqliteTable(
+  "audit_sitemaps",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    found: integer("found", { mode: "boolean" }).notNull().default(false),
+    statusCode: integer("status_code"),
+    parseError: text("parse_error"),
+    entryCount: integer("entry_count").notNull().default(0),
+    byteSize: integer("byte_size").notNull().default(0),
+    httpUrlCount: integer("http_url_count").notNull().default(0),
+    isIndex: integer("is_index", { mode: "boolean" }).notNull().default(false),
+  },
+  (table) => [
+    index("audit_sitemaps_audit_id_idx").on(table.auditId),
+    uniqueIndex("audit_sitemaps_audit_url_idx").on(table.auditId, table.url),
   ],
 );

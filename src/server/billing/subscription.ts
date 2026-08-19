@@ -10,6 +10,7 @@ import {
   roundUsdForBilling,
 } from "@/shared/billing";
 import type { CreditFeature } from "@/shared/billing-credit-features";
+import { isSingleTenantServer } from "@/server/lib/runtime-env";
 import { autumn, AUTUMN_TRACK_RETRY_OPTIONS } from "@/server/billing/autumn";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { AppError } from "@/server/lib/errors";
@@ -20,6 +21,20 @@ export type BillingCustomerContext = Pick<
 > & {
   projectId?: string;
 };
+
+// A single-tenant deployment serves one organization of employees, so there is
+// no plan to sell and no wallet to meter. Every gate below therefore answers
+// "entitled" without calling Autumn at all — the alternative is a deployment
+// that enforces limits it has no billing account to satisfy, which is how a
+// missing AUTUMN_SECRET_KEY turned into 500s on every page load and
+// "plan_required" skip reasons on the dashboard.
+//
+// Resolved through runtime-env rather than reading `env` directly: that
+// accessor tolerates an absent Workers env, so these gates stay callable from
+// Node-side tests and the scheduler process.
+async function isBillingDisabled() {
+  return isSingleTenantServer();
+}
 
 // Existence is monotonic and the Autumn customer id is always the org id we
 // pass, so once we've confirmed a customer exists we can skip the round trip
@@ -34,6 +49,10 @@ const customerEnsuredKey = (organizationId: string) =>
 export async function getOrCreateOrganizationCustomer(
   context: BillingCustomerContext,
 ): Promise<{ id: string }> {
+  // Callers only ever read `.id`, and the id we would pass to Autumn is the
+  // org id itself, so this stays correct without a billing account existing.
+  if (await isBillingDisabled()) return { id: context.organizationId };
+
   const cacheKey = customerEnsuredKey(context.organizationId);
   try {
     if (await env.KV.get(cacheKey)) {
@@ -67,6 +86,8 @@ export async function customerHasPaidPlan(
   customerId: string,
   opts: { retryDenied?: boolean } = {},
 ) {
+  if (await isBillingDisabled()) return true;
+
   const result = await autumn.check({
     customerId,
     featureId: AUTUMN_PAID_PLAN_FEATURE_ID,
@@ -87,6 +108,8 @@ export async function customerHasPaidPlan(
 }
 
 export async function customerHasManagedAccess(customerId: string) {
+  if (await isBillingDisabled()) return true;
+
   const result = await autumn.check({
     customerId,
     featureId: AUTUMN_MANAGED_ACCESS_FEATURE_ID,
@@ -157,6 +180,11 @@ async function getUsageCreditsRemaining(customerId: string): Promise<{
 export async function checkUsageCreditsDepleted(
   customer: BillingCustomerContext,
 ): Promise<{ depleted: boolean; monthlyRemaining: number }> {
+  // 0 is inert rather than misleading: the only consumer of monthlyRemaining is
+  // trackUsageCreditSpend, which is itself a no-op when billing is disabled.
+  if (await isBillingDisabled())
+    return { depleted: false, monthlyRemaining: 0 };
+
   const check = await getUsageCreditsRemaining(customer.organizationId);
   if (check.monthlyRemaining + check.topupRemaining > 0) {
     return { depleted: false, monthlyRemaining: check.monthlyRemaining };
@@ -209,6 +237,8 @@ export async function checkUsageCreditsDepleted(
 export async function assertUsageCreditsAvailable(
   customerId: string,
 ): Promise<{ monthlyRemaining: number }> {
+  if (await isBillingDisabled()) return { monthlyRemaining: 0 };
+
   const { monthlyRemaining, topupRemaining } =
     await getUsageCreditsRemaining(customerId);
 
@@ -234,6 +264,8 @@ export async function trackUsageCreditSpend(args: {
   monthlyRemaining: number;
   properties?: Record<string, unknown>;
 }): Promise<void> {
+  if (await isBillingDisabled()) return;
+
   const totalCostUsd = roundUsdForBilling(args.costUsd * SEO_DATA_COST_MARKUP);
   const totalCostCredits = Math.ceil(
     totalCostUsd * AUTUMN_SEO_DATA_CREDITS_PER_USD,

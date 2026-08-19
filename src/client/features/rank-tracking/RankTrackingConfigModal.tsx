@@ -8,6 +8,7 @@ import {
   depthToPages,
   pagesToDepth,
   estimateRankCheckCredits,
+  rankCheckMethod,
 } from "@/shared/rank-tracking";
 import { getLanguageCode } from "@/client/features/keywords/locations";
 import {
@@ -20,6 +21,8 @@ import { useProjectMarket } from "@/client/features/projects/useProjectMarket";
 import { SearchTargetingField } from "./SearchTargetingField";
 import { KeywordSuggestionStep } from "./KeywordSuggestionStep";
 import { useSaveConfigMutations } from "./useSaveConfigMutations";
+import { RankTrackingEngineField } from "./RankTrackingEngineField";
+import { RankTrackingScheduleField } from "./RankTrackingScheduleField";
 
 type Props = {
   projectId: string;
@@ -78,6 +81,9 @@ function RankTrackingConfigModalContent({
   const isEdit = !!existingConfig;
   const [step, setStep] = useState<"config" | "keywords">("config");
   const [domain, setDomain] = useState(existingConfig?.domain ?? "");
+  const [engine, setEngine] = useState<RankTrackingConfig["engine"]>(
+    existingConfig?.engine ?? "google",
+  );
   const [devices, setDevices] = useState<"both" | "desktop" | "mobile">(
     existingConfig?.devices ?? "mobile",
   );
@@ -88,9 +94,14 @@ function RankTrackingConfigModalContent({
     existingConfig?.languageCode ?? initialMarket.languageCode,
   );
   const [serpDepth, setSerpDepth] = useState(existingConfig?.serpDepth ?? 40);
+  // Recurring spend is opt-in: a new tracker starts on "Manual only" so adding
+  // a domain can never schedule credit spend the user didn't ask for.
   const [schedule, setSchedule] = useState<
     RankTrackingConfig["scheduleInterval"]
-  >(existingConfig?.scheduleInterval ?? "weekly");
+  >(existingConfig?.scheduleInterval ?? "manual");
+  const [ceiling, setCeiling] = useState(
+    existingConfig?.maxCostCredits?.toString() ?? "",
+  );
   const [targetingMode, setTargetingMode] = useState<"national" | "local">(
     existingConfig?.locationName ? "local" : "national",
   );
@@ -104,10 +115,14 @@ function RankTrackingConfigModalContent({
     [locationCode],
   );
 
+  const parsedCeiling = Number.parseInt(ceiling, 10);
+  const approvedCeiling = Number.isFinite(parsedCeiling) ? parsedCeiling : null;
+
   const { createMutation, updateMutation } = useSaveConfigMutations({
     projectId,
     existingConfig,
     fields: {
+      engine,
       devices,
       serpDepth,
       locationCode,
@@ -115,6 +130,7 @@ function RankTrackingConfigModalContent({
       targetingMode,
       locationName,
       schedule,
+      maxCostCredits: approvedCeiling,
     },
     onCreated: (configId) => {
       setCreatedConfigId(configId);
@@ -138,6 +154,15 @@ function RankTrackingConfigModalContent({
     const parsedDomain = domainField.safeParse(domain);
     if (!parsedDomain.success) {
       toast.error("Please enter a valid domain");
+      return;
+    }
+    if (
+      schedule !== "manual" &&
+      (approvedCeiling === null || approvedCeiling <= 0)
+    ) {
+      toast.error(
+        "Enter a per-check credit ceiling above zero to approve recurring checks",
+      );
       return;
     }
     setDomain(parsedDomain.data);
@@ -208,6 +233,12 @@ function RankTrackingConfigModalContent({
             onBlur={handleDomainBlur}
           />
         </div>
+
+        <RankTrackingEngineField
+          engine={engine}
+          isEdit={isEdit}
+          onChange={setEngine}
+        />
 
         <div className="form-control">
           <label className="label">
@@ -289,37 +320,12 @@ function RankTrackingConfigModalContent({
           )}
         </div>
 
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text font-medium">Schedule</span>
-          </label>
-          <select
-            className="select select-bordered w-full"
-            value={schedule}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (
-                value === "daily" ||
-                value === "weekly" ||
-                value === "monthly" ||
-                value === "manual"
-              ) {
-                setSchedule(value);
-              }
-            }}
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly (end of month)</option>
-            <option value="manual">Manual only</option>
-          </select>
-          {schedule === "daily" && (
-            <div className="mt-1.5 flex items-start gap-1.5 text-xs text-warning">
-              <Info className="size-3.5 shrink-0 mt-0.5" />
-              <span>Daily checks use 7x more credits than weekly</span>
-            </div>
-          )}
-        </div>
+        <RankTrackingScheduleField
+          schedule={schedule}
+          onScheduleChange={setSchedule}
+          ceiling={ceiling}
+          onCeilingChange={setCeiling}
+        />
 
         <div className="form-control">
           <label className="label">
@@ -343,13 +349,16 @@ function RankTrackingConfigModalContent({
         </div>
 
         {(() => {
-          // Scheduled checks run through the cheaper task queue; manual
-          // configs only ever pay the live price.
+          // Scheduled checks run through the cheaper task queue, and so does
+          // every Bing check — only a manual Google config pays live prices.
           const { costUsd: costPerKeyword } = estimateRankCheckCredits(
             1,
             devices,
             serpDepth,
-            schedule === "manual" ? "live" : "queued",
+            rankCheckMethod({
+              trigger: schedule === "manual" ? "manual" : "scheduled",
+              engine,
+            }),
           );
           const checksPerMonth =
             schedule === "daily" ? 30 : schedule === "weekly" ? 4 : 1;

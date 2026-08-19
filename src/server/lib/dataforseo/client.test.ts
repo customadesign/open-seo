@@ -14,13 +14,19 @@ interface TrackCallArg {
   properties?: { balanceFeatureId: string };
 }
 
-const { checkMock, trackMock, getOrCreateMock, isHostedServerAuthModeMock } =
-  vi.hoisted(() => ({
-    checkMock: vi.fn(),
-    trackMock: vi.fn<(arg: TrackCallArg) => void>(),
-    getOrCreateMock: vi.fn(),
-    isHostedServerAuthModeMock: vi.fn(),
-  }));
+const {
+  checkMock,
+  trackMock,
+  getOrCreateMock,
+  isHostedServerAuthModeMock,
+  isSingleTenantServerMock,
+} = vi.hoisted(() => ({
+  checkMock: vi.fn(),
+  trackMock: vi.fn<(arg: TrackCallArg) => void>(),
+  getOrCreateMock: vi.fn(),
+  isHostedServerAuthModeMock: vi.fn(),
+  isSingleTenantServerMock: vi.fn(),
+}));
 
 vi.mock("cloudflare:workers", () => ({
   waitUntil: vi.fn(),
@@ -47,6 +53,7 @@ vi.mock("@/server/billing/subscription", async (importOriginal) => {
 
 vi.mock("@/server/lib/runtime-env", () => ({
   isHostedServerAuthMode: isHostedServerAuthModeMock,
+  isSingleTenantServer: isSingleTenantServerMock,
 }));
 
 vi.mock("@/server/lib/posthog", () => ({
@@ -64,6 +71,10 @@ vi.mock("@/server/lib/dataforseo/labs", () => ({
   fetchRelevantPages: vi.fn(),
   fetchKeywordOverview: vi.fn(),
   fetchSerpCompetitors: vi.fn(),
+  fetchCompetitorsDomain: vi.fn(),
+  fetchSubdomains: vi.fn(),
+  fetchHistoricalRankOverview: vi.fn(),
+  fetchBulkTrafficEstimation: vi.fn(),
 }));
 vi.mock("@/server/lib/dataforseo/serp", () => ({
   fetchLiveSerp: vi.fn(),
@@ -81,6 +92,11 @@ vi.mock("@/server/lib/dataforseo/backlinks", () => ({
   fetchReferringDomains: vi.fn(),
   fetchDomainPagesSummary: vi.fn(),
   fetchBacklinksHistory: vi.fn(),
+  fetchBacklinksAnchors: vi.fn(),
+  fetchTimeseriesNewLostSummary: vi.fn(),
+  fetchBulkRanks: vi.fn(),
+  fetchBulkBacklinks: vi.fn(),
+  fetchBulkReferringDomains: vi.fn(),
 }));
 vi.mock("@/server/lib/dataforseo/lighthouse", () => ({
   fetchLighthouseResult: vi.fn(),
@@ -112,6 +128,7 @@ const backlinksInput = {
 
 function setupHostedMode() {
   isHostedServerAuthModeMock.mockResolvedValue(true);
+  isSingleTenantServerMock.mockResolvedValue(false);
   getOrCreateMock.mockResolvedValue({ id: "org_123" });
 }
 
@@ -410,6 +427,42 @@ describe("mapDataforseoPathToCreditFeature", () => {
         "dataforseo_labs",
         "google",
         "relevant_pages",
+        "live",
+      ]),
+    ).toBe("domain_overview");
+    expect(
+      mapDataforseoPathToCreditFeature([
+        "v3",
+        "dataforseo_labs",
+        "google",
+        "competitors_domain",
+        "live",
+      ]),
+    ).toBe("domain_overview");
+    expect(
+      mapDataforseoPathToCreditFeature([
+        "v3",
+        "dataforseo_labs",
+        "google",
+        "subdomains",
+        "live",
+      ]),
+    ).toBe("domain_overview");
+    expect(
+      mapDataforseoPathToCreditFeature([
+        "v3",
+        "dataforseo_labs",
+        "google",
+        "historical_rank_overview",
+        "live",
+      ]),
+    ).toBe("domain_overview");
+    expect(
+      mapDataforseoPathToCreditFeature([
+        "v3",
+        "dataforseo_labs",
+        "google",
+        "bulk_traffic_estimation",
         "live",
       ]),
     ).toBe("domain_overview");

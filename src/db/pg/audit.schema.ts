@@ -6,6 +6,7 @@ import {
   pgTable,
   real,
   text,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { projects } from "./app.schema";
 
@@ -118,6 +119,22 @@ export const auditPages = pgTable(
       .default("ok"),
     // Performance
     responseTimeMs: integer("response_time_ms"),
+    // Document / resource signals captured during crawl for later slices
+    htmlBytes: integer("html_bytes").notNull().default(0),
+    hasDoctype: boolean("has_doctype").notNull().default(false),
+    charset: text("charset"),
+    hasMetaRefresh: boolean("has_meta_refresh").notNull().default(false),
+    frameCount: integer("frame_count").notNull().default(0),
+    scriptUrlsJson: text("script_urls_json"),
+    stylesheetUrlsJson: text("stylesheet_urls_json"),
+    inlineScriptBytes: integer("inline_script_bytes").notNull().default(0),
+    inlineStyleBytes: integer("inline_style_bytes").notNull().default(0),
+    textBytes: integer("text_bytes").notNull().default(0),
+    externalImageSrcsJson: text("external_image_srcs_json"),
+    contentEncoding: text("content_encoding"),
+    cacheControl: text("cache_control"),
+    contentType: text("content_type"),
+    contentLength: integer("content_length"),
   },
   (table) => [index("audit_pages_audit_url_idx").on(table.auditId, table.url)],
 );
@@ -177,5 +194,94 @@ export const auditLighthouseResults = pgTable(
   (table) => [
     index("audit_lighthouse_results_audit_id_idx").on(table.auditId),
     index("audit_lighthouse_results_page_id_idx").on(table.pageId),
+  ],
+);
+
+// Postgres mirror of audit_schedules in ../audit.schema.ts — read that file for
+// the design commentary; schema-parity.test.ts enforces the structural match.
+export const auditSchedules = pgTable(
+  "audit_schedules",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id").notNull(),
+    startUrl: text("start_url").notNull(),
+    maxPages: integer("max_pages").notNull().default(50),
+    lighthouseStrategy: text("lighthouse_strategy", {
+      enum: ["auto", "none"],
+    })
+      .notNull()
+      .default("auto"),
+    scheduleInterval: text("schedule_interval", {
+      enum: ["daily", "weekly", "monthly", "manual"],
+    })
+      .notNull()
+      .default("manual"),
+    isActive: boolean("is_active").notNull().default(false),
+    lastRunAt: timestampColumn("last_run_at"),
+    lastRunAuditId: text("last_run_audit_id"),
+    nextRunAt: timestampColumn("next_run_at"),
+    lastSkipReason: text("last_skip_reason"),
+    createdAt: timestampColumn("created_at").notNull().default(isoNow),
+    updatedAt: timestampColumn("updated_at").notNull().default(isoNow),
+  },
+  (table) => [
+    uniqueIndex("audit_schedules_project_id_idx").on(table.projectId),
+    index("audit_schedules_due_idx").on(table.isActive, table.nextRunAt),
+  ],
+);
+
+// Postgres mirror of the site-file snapshot tables in ../audit.schema.ts.
+export const auditRobots = pgTable(
+  "audit_robots",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    found: boolean("found").notNull().default(false),
+    statusCode: integer("status_code"),
+    parseError: text("parse_error"),
+    hasSitemapDirective: boolean("has_sitemap_directive")
+      .notNull()
+      .default(false),
+  },
+  (table) => [uniqueIndex("audit_robots_audit_id_idx").on(table.auditId)],
+);
+
+export const auditRobotsDisallows = pgTable(
+  "audit_robots_disallows",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    userAgent: text("user_agent").notNull(),
+    path: text("path").notNull(),
+  },
+  (table) => [index("audit_robots_disallows_audit_id_idx").on(table.auditId)],
+);
+
+export const auditSitemaps = pgTable(
+  "audit_sitemaps",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    found: boolean("found").notNull().default(false),
+    statusCode: integer("status_code"),
+    parseError: text("parse_error"),
+    entryCount: integer("entry_count").notNull().default(0),
+    byteSize: integer("byte_size").notNull().default(0),
+    httpUrlCount: integer("http_url_count").notNull().default(0),
+    isIndex: boolean("is_index").notNull().default(false),
+  },
+  (table) => [
+    index("audit_sitemaps_audit_id_idx").on(table.auditId),
+    uniqueIndex("audit_sitemaps_audit_url_idx").on(table.auditId, table.url),
   ],
 );

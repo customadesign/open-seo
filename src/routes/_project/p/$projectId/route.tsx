@@ -17,6 +17,7 @@ import {
   getSignInSearch,
 } from "@/lib/auth-redirect";
 import { getProjectAccess } from "@/serverFunctions/projects";
+import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 export const Route = createFileRoute("/_project/p/$projectId")({
   // Everything under this subtree fetches its data client-side with
@@ -61,6 +62,7 @@ function useProjectAccessRedirect(projectId: string) {
 function ProjectLayout() {
   const { projectId } = Route.useParams();
   const authGate = useHostedAuthRouteGuard();
+  const accessQuery = useWorkspaceAccess();
   useOnboardingRedirect();
   useProjectAccessRedirect(projectId);
 
@@ -83,7 +85,11 @@ function ProjectLayout() {
   return (
     <AuthenticatedAppLayout
       projectId={projectId}
-      banner={authGate.isHostedMode ? <FreePlanBanner /> : undefined}
+      banner={
+        authGate.isHostedMode && accessQuery.data?.canManageWorkspace ? (
+          <FreePlanBanner />
+        ) : undefined
+      }
     >
       <Outlet />
     </AuthenticatedAppLayout>

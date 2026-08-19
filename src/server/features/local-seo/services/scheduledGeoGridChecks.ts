@@ -1,0 +1,176 @@
+import { customerHasPaidPlan } from "@/server/billing/subscription";
+import { LocalSeoRepository } from "@/server/features/local-seo/repositories/LocalSeoRepository";
+import {
+  GeoGridService,
+  nextFutureGeoGridRun,
+} from "@/server/features/local-seo/services/GeoGridService";
+import { AppError } from "@/server/lib/errors";
+import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+
+function retryRunId(error: unknown) {
+  if (
+    !(error instanceof AppError) ||
+    (error.code !== "UPSTREAM_UNAVAILABLE" && error.code !== "RATE_LIMITED")
+  ) {
+    return null;
+  }
+  return error.details?.geoGridRunId ?? null;
+}
+
+async function retryExactScheduledRun(input: {
+  configId: string;
+  projectId: string;
+  organizationId: string;
+  runId: string;
+}) {
+  const retry = await GeoGridService.runGrid({
+    configId: input.configId,
+    projectId: input.projectId,
+    billingCustomer: {
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      userId: "system",
+      userEmail: "system@openseo.so",
+    },
+    resumeRunId: input.runId,
+  });
+  return retry.started || retry.run.status === "completed";
+}
+
+/**
+ * Runs a deliberately small due batch. A compare-and-set advances each slot
+ * before provider spend, preventing two cron invocations from billing the same
+ * scheduled occurrence. Manual runs use the same active-run database guard.
+ */
+export async function runScheduledGeoGridChecks() {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const due = await LocalSeoRepository.getDueGeoGridConfigs(nowIso);
+  const hosted = await isHostedServerAuthMode();
+  const planChecks = new Map<string, Promise<boolean>>();
+  const hasPaidPlan = (organizationId: string) => {
+    let check = planChecks.get(organizationId);
+    if (!check) {
+      check = customerHasPaidPlan(organizationId, { retryDenied: true });
+      planChecks.set(organizationId, check);
+    }
+    return check;
+  };
+
+  let started = 0;
+  let skippedFree = 0;
+  let concurrentSkips = 0;
+  let alreadyRunning = 0;
+  let retryRecovered = 0;
+  let retryExhausted = 0;
+  let errors = 0;
+
+  for (const { config, organizationId } of due) {
+    try {
+      if (!config.nextRunAt || config.scheduleInterval === "manual") continue;
+      if (hosted && !(await hasPaidPlan(organizationId))) {
+        const nextRunAt = nextFutureGeoGridRun(
+          config.scheduleInterval,
+          config.nextRunAt,
+          now,
+        );
+        if (
+          await LocalSeoRepository.claimDueGeoGridConfig({
+            configId: config.id,
+            projectId: config.projectId,
+            observedNextRunAt: config.nextRunAt,
+            nextRunAt,
+          })
+        ) {
+          skippedFree += 1;
+        } else {
+          concurrentSkips += 1;
+        }
+        continue;
+      }
+
+      const observedNextRunAt = config.nextRunAt;
+      const nextRunAt = nextFutureGeoGridRun(
+        config.scheduleInterval,
+        observedNextRunAt,
+        now,
+      );
+      const claimed = await LocalSeoRepository.claimDueGeoGridConfig({
+        configId: config.id,
+        projectId: config.projectId,
+        observedNextRunAt,
+        nextRunAt,
+      });
+      if (!claimed) {
+        concurrentSkips += 1;
+        continue;
+      }
+
+      const result = await GeoGridService.runGrid({
+        configId: config.id,
+        projectId: config.projectId,
+        billingCustomer: {
+          organizationId,
+          projectId: config.projectId,
+          userId: "system",
+          userEmail: "system@openseo.so",
+        },
+        skipFailedRunResume: true,
+      });
+      if (result.started) {
+        started += 1;
+        continue;
+      }
+
+      alreadyRunning += 1;
+      // Give the slot back so it can run after the active manual/cron run
+      // clears. A concurrent schedule edit wins the compare-and-set.
+      await LocalSeoRepository.claimDueGeoGridConfig({
+        configId: config.id,
+        projectId: config.projectId,
+        observedNextRunAt: nextRunAt,
+        nextRunAt: observedNextRunAt,
+      });
+    } catch (error) {
+      const resumeRunId = retryRunId(error);
+      if (resumeRunId) {
+        try {
+          const recovered = await retryExactScheduledRun({
+            configId: config.id,
+            projectId: config.projectId,
+            organizationId,
+            runId: resumeRunId,
+          });
+          started += Number(recovered);
+          retryRecovered += Number(recovered);
+          alreadyRunning += Number(!recovered);
+          continue;
+        } catch (retryError) {
+          errors += 1;
+          retryExhausted += 1;
+          console.error(
+            `[cron] Geo-grid config ${config.id} retry failed:`,
+            retryError,
+          );
+          continue;
+        }
+      }
+      errors += 1;
+      console.error(`[cron] Geo-grid config ${config.id} failed:`, error);
+    }
+  }
+
+  const summary = {
+    event: "local_seo_geo_grid_scheduler_summary",
+    candidates: due.length,
+    started,
+    skippedFree,
+    concurrentSkips,
+    alreadyRunning,
+    retryRecovered,
+    retryExhausted,
+    errors,
+  };
+  (errors > 0 ? console.error : console.log)(summary);
+  return summary;
+}

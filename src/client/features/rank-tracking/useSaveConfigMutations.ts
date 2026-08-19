@@ -9,6 +9,7 @@ import { captureClientEvent } from "@/client/lib/posthog";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
 
 type ConfigFields = {
+  engine: RankTrackingConfig["engine"];
   devices: "both" | "desktop" | "mobile";
   serpDepth: number;
   locationCode: number;
@@ -16,6 +17,7 @@ type ConfigFields = {
   targetingMode: "national" | "local";
   locationName: string | undefined;
   schedule: RankTrackingConfig["scheduleInterval"];
+  maxCostCredits: number | null;
 };
 
 export function useSaveConfigMutations(input: {
@@ -33,6 +35,11 @@ export function useSaveConfigMutations(input: {
     languageCode: fields.languageCode,
     scheduleInterval: fields.schedule,
   };
+  // A manual tracker carries no recurring approval, so clear any stored one
+  // rather than leaving a ceiling that would silently apply if the schedule is
+  // turned back on later.
+  const maxCostCredits =
+    fields.schedule === "manual" ? null : fields.maxCostCredits;
 
   const createMutation = useMutation({
     mutationFn: (normalizedDomain: string) =>
@@ -40,7 +47,9 @@ export function useSaveConfigMutations(input: {
         data: {
           projectId,
           domain: normalizedDomain,
+          engine: fields.engine,
           ...common,
+          maxCostCredits: maxCostCredits ?? undefined,
           locationName:
             fields.targetingMode === "local" ? fields.locationName : undefined,
         },
@@ -63,6 +72,7 @@ export function useSaveConfigMutations(input: {
           configId: existingConfig!.id,
           domain: normalizedDomain,
           ...common,
+          maxCostCredits,
           // null clears a previously-set local target; undefined would leave
           // the old location_name in the DB and silently keep city targeting.
           locationName:

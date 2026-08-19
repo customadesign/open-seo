@@ -30,6 +30,9 @@ vi.mock("@/server/features/audit/repositories/AuditRepository", () => ({
     updateAuditProgress: updateAuditProgressMock,
   },
 }));
+vi.mock("@/server/features/audit/services/AuditChangeEventService", () => ({
+  AuditChangeEventService: { recordAuditCompleted: vi.fn() },
+}));
 vi.mock("@/server/features/audit/AuditScratchpad", () => ({
   getAuditScratchpad: vi.fn(),
 }));

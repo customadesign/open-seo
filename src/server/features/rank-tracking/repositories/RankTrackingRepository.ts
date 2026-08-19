@@ -1,26 +1,22 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNull,
-  lte,
-  max,
-  ne,
-} from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 import { db } from "@/db";
 import {
   rankTrackingConfigs,
   rankCheckRuns,
   rankSnapshots,
+  rankSerpEntries,
   rankTrackingKeywords,
-  projects,
+  savedKeywordTagAssignments,
+  savedKeywordTags,
+  savedKeywords,
 } from "@/db/schema";
 import { DB_BATCH_SIZE, executeInBatches } from "@/db/runBatch";
-import type { RankTrackingSkipReason } from "@/shared/rank-tracking";
+import type { RankTrackingEngine } from "@/shared/rank-tracking";
+import {
+  claimDueConfig,
+  getDueConfigsWithOrganization,
+} from "./schedulingQueries";
 import {
   getLatestSnapshotsForKeywords,
   getSnapshotsBeforeDate,
@@ -28,7 +24,16 @@ import {
   getKeywordHistory,
   getConfigTrend,
   getPositionMatrix,
+  getCompletedFullRuns,
+  getSnapshotsForRuns,
+  getSerpEntriesForRuns,
+  getHistorySourceSummaries,
+  getHistorySourceMovement,
 } from "./snapshotQueries";
+import {
+  getLatestComparableRunForConfig,
+  getLatestComparableRunSummaries,
+} from "./comparableRunQueries";
 
 // ---------------------------------------------------------------------------
 // Config CRUD
@@ -70,6 +75,7 @@ async function getConfigById({
 async function getConfigByProjectDomainLocation(
   projectId: string,
   domain: string,
+  engine: RankTrackingEngine,
   locationCode: number,
   locationName: string | null,
 ) {
@@ -80,6 +86,9 @@ async function getConfigByProjectDomainLocation(
       and(
         eq(rankTrackingConfigs.projectId, projectId),
         eq(rankTrackingConfigs.domain, domain),
+        // Matches the engine-scoped partial unique indexes: a Google and a
+        // Bing config for the same domain+location are separate rows.
+        eq(rankTrackingConfigs.engine, engine),
         eq(rankTrackingConfigs.locationCode, locationCode),
         // National (NULL) and per-city configs are distinct rows — mirrors
         // the partial unique indexes, so a national config and any number of
@@ -115,89 +124,6 @@ async function updateConfig(
     );
 }
 
-// Caps per-tick loop work (claims, per-org plan checks) against the cron
-// wall clock; paid-heavy ticks are stopped earlier by the unit budget and
-// slow ticks by TICK_DEADLINE_MS in scheduledRankChecks.ts.
-const DUE_CONFIGS_PER_TICK = 500;
-
-async function getDueConfigsWithOrganization(nowIso: string) {
-  return (
-    db
-      .select({
-        id: rankTrackingConfigs.id,
-        projectId: rankTrackingConfigs.projectId,
-        domain: rankTrackingConfigs.domain,
-        locationCode: rankTrackingConfigs.locationCode,
-        languageCode: rankTrackingConfigs.languageCode,
-        locationName: rankTrackingConfigs.locationName,
-        devices: rankTrackingConfigs.devices,
-        serpDepth: rankTrackingConfigs.serpDepth,
-        scheduleInterval: rankTrackingConfigs.scheduleInterval,
-        nextCheckAt: rankTrackingConfigs.nextCheckAt,
-        organizationId: projects.organizationId,
-      })
-      .from(rankTrackingConfigs)
-      .innerJoin(projects, eq(rankTrackingConfigs.projectId, projects.id))
-      .where(
-        and(
-          eq(rankTrackingConfigs.isActive, true),
-          // A manual config can keep a stale non-null next_check_at; without this
-          // it would be selected every tick and never advanced.
-          ne(rankTrackingConfigs.scheduleInterval, "manual"),
-          lte(rankTrackingConfigs.nextCheckAt, nowIso),
-          isNull(projects.archivedAt),
-        ),
-      )
-      // Oldest first so a large backlog drains in order instead of the same
-      // arbitrary rows filling every batch. `lte` already excludes NULL, so both
-      // ordering columns are non-null and SQLite/Postgres agree.
-      .orderBy(
-        asc(rankTrackingConfigs.nextCheckAt),
-        asc(rankTrackingConfigs.id),
-      )
-      .limit(DUE_CONFIGS_PER_TICK)
-  );
-}
-
-/**
- * Conditionally advance a due config's schedule, returning false when the
- * config changed underneath us (manual edit, deactivation).
- *
- * `next_check_at` equality is the compare-and-set token. `schedule_interval` is
- * deliberately absent from the predicate: every schedule edit rewrites
- * `next_check_at` (updateConfig recomputes it, or nulls it for "manual"), so
- * the timestamp check already detects interval changes.
- *
- * `lastSkipReason` is written only when the caller passes it — the restore
- * path omits it so it can't clobber a reason the blocking run just wrote.
- */
-async function claimDueConfig(input: {
-  configId: string;
-  projectId: string;
-  observedNextCheckAt: string;
-  nextCheckAt: string;
-  lastSkipReason?: RankTrackingSkipReason | null;
-}): Promise<boolean> {
-  const claimed = await db
-    .update(rankTrackingConfigs)
-    .set({
-      nextCheckAt: input.nextCheckAt,
-      ...(input.lastSkipReason !== undefined && {
-        lastSkipReason: input.lastSkipReason,
-      }),
-    })
-    .where(
-      and(
-        eq(rankTrackingConfigs.id, input.configId),
-        eq(rankTrackingConfigs.projectId, input.projectId),
-        eq(rankTrackingConfigs.isActive, true),
-        eq(rankTrackingConfigs.nextCheckAt, input.observedNextCheckAt),
-      ),
-    )
-    .returning({ id: rankTrackingConfigs.id });
-  return claimed.length > 0;
-}
-
 // ---------------------------------------------------------------------------
 // Run CRUD
 // ---------------------------------------------------------------------------
@@ -216,6 +142,10 @@ async function tryCreateRun(data: {
   projectId: string;
   keywordsTotal: number;
   isSubsetRun?: boolean;
+  targetLocationCode: number;
+  targetLocationName: string | null;
+  targetLanguageCode: string;
+  targetSerpDepth: number;
 }) {
   const inserted = await db
     .insert(rankCheckRuns)
@@ -237,16 +167,6 @@ async function getRunById(runId: string) {
     .select()
     .from(rankCheckRuns)
     .where(eq(rankCheckRuns.id, runId))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-async function getLatestRunForConfig(configId: string) {
-  const rows = await db
-    .select()
-    .from(rankCheckRuns)
-    .where(eq(rankCheckRuns.configId, configId))
-    .orderBy(desc(rankCheckRuns.startedAt))
     .limit(1);
   return rows[0] ?? null;
 }
@@ -300,6 +220,26 @@ async function insertSnapshots(
 
 async function getSnapshotsForRun(runId: string) {
   return db.select().from(rankSnapshots).where(eq(rankSnapshots.runId, runId));
+}
+
+async function insertSerpEntries(
+  entries: Array<Omit<InferInsertModel<typeof rankSerpEntries>, "id">>,
+) {
+  if (entries.length === 0) return;
+  await executeInBatches(entries, (tx, entry) =>
+    tx
+      .insert(rankSerpEntries)
+      .values(entry)
+      .onConflictDoNothing({
+        target: [
+          rankSerpEntries.runId,
+          rankSerpEntries.trackingKeywordId,
+          rankSerpEntries.device,
+          rankSerpEntries.rowKind,
+          rankSerpEntries.identity,
+        ],
+      }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -366,49 +306,9 @@ async function getConfigSummaries(projectId: string) {
   if (configs.length === 0) return [];
 
   const kwCountMap = await getKeywordCountsForConfigs(configs.map((c) => c.id));
-
-  // Subquery: latest startedAt per config
-  const latestStarted = db
-    .select({
-      configId: rankCheckRuns.configId,
-      maxStartedAt: max(rankCheckRuns.startedAt).as("maxStartedAt"),
-    })
-    .from(rankCheckRuns)
-    .where(
-      inArray(
-        rankCheckRuns.configId,
-        configs.map((c) => c.id),
-      ),
-    )
-    .groupBy(rankCheckRuns.configId)
-    .as("latestStarted");
-
-  // Join back to get status + completedAt for each config's latest run
-  const latestRuns = await db
-    .select({
-      configId: rankCheckRuns.configId,
-      status: rankCheckRuns.status,
-      completedAt: rankCheckRuns.completedAt,
-    })
-    .from(rankCheckRuns)
-    .innerJoin(
-      latestStarted,
-      and(
-        eq(rankCheckRuns.configId, latestStarted.configId),
-        eq(rankCheckRuns.startedAt, latestStarted.maxStartedAt),
-      ),
-    );
-
-  const latestRunMap = new Map<
-    string,
-    { status: string; completedAt: string | null }
-  >();
-  for (const run of latestRuns) {
-    latestRunMap.set(run.configId, {
-      status: run.status,
-      completedAt: run.completedAt,
-    });
-  }
+  const latestRunMap = await getLatestComparableRunSummaries(
+    configs.map((config) => config.id),
+  );
 
   return configs.map((config) => ({
     ...config,
@@ -448,6 +348,41 @@ async function getKeywordCountForConfig(configId: string) {
   return rows[0]?.value ?? 0;
 }
 
+async function getTagAssignmentsForConfig(params: {
+  projectId: string;
+  configId: string;
+  locationCode: number;
+  languageCode: string;
+}) {
+  return db
+    .select({
+      trackingKeywordId: rankTrackingKeywords.id,
+      keyword: rankTrackingKeywords.keyword,
+      tagId: savedKeywordTags.id,
+      tagName: savedKeywordTags.name,
+      tagColor: savedKeywordTags.color,
+    })
+    .from(rankTrackingKeywords)
+    .innerJoin(
+      savedKeywords,
+      and(
+        eq(savedKeywords.projectId, params.projectId),
+        eq(savedKeywords.keyword, rankTrackingKeywords.keyword),
+        eq(savedKeywords.locationCode, params.locationCode),
+        eq(savedKeywords.languageCode, params.languageCode),
+      ),
+    )
+    .innerJoin(
+      savedKeywordTagAssignments,
+      eq(savedKeywordTagAssignments.savedKeywordId, savedKeywords.id),
+    )
+    .innerJoin(
+      savedKeywordTags,
+      eq(savedKeywordTags.id, savedKeywordTagAssignments.tagId),
+    )
+    .where(eq(rankTrackingKeywords.configId, params.configId));
+}
+
 /** Keyword counts keyed by config id. Configs with no keywords are absent. */
 async function getKeywordCountsForConfigs(configIds: string[]) {
   // Chunked so the IN list stays under D1's ~100 bound-parameter cap.
@@ -475,9 +410,11 @@ export const RankTrackingRepository = {
   tryCreateRun,
   updateRun,
   getRunById,
-  getLatestRunForConfig,
+  getLatestRunForConfig: getLatestComparableRunForConfig,
   getActiveRunForConfig,
   insertSnapshots,
+  insertSerpEntries,
+  getSerpEntriesForRuns,
   getSnapshotsForRun,
   getKeywordsForConfig,
   addKeywordsToConfig,
@@ -492,4 +429,9 @@ export const RankTrackingRepository = {
   getKeywordHistory,
   getConfigTrend,
   getPositionMatrix,
+  getCompletedFullRuns,
+  getSnapshotsForRuns,
+  getTagAssignmentsForConfig,
+  getHistorySourceSummaries,
+  getHistorySourceMovement,
 };

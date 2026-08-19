@@ -11,6 +11,7 @@ export function makeToolContext(
       clientId: "client_123",
       scopes: ["mcp"],
       baseUrl: "https://open-seo.test",
+      delegated: true,
       ...overrides,
     },
   };

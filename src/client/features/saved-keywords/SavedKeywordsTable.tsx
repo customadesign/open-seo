@@ -33,6 +33,7 @@ export function SavedKeywordsTable({
   hasActiveFilters,
   onRowSelectionChange,
   onSortingChange,
+  readOnly = false,
 }: {
   rows: SavedKeywordRow[];
   rowSelection: RowSelectionState;
@@ -41,11 +42,14 @@ export function SavedKeywordsTable({
   hasActiveFilters: boolean;
   onRowSelectionChange: OnChangeFn<RowSelectionState>;
   onSortingChange: OnChangeFn<SortingState>;
+  readOnly?: boolean;
 }) {
   const selectAnchorRef = useSelectionAnchor();
   const columns = useMemo<ColumnDef<SavedKeywordRow>[]>(
     () => [
-      makeSelectionColumn<SavedKeywordRow>(selectAnchorRef),
+      ...(!readOnly
+        ? [makeSelectionColumn<SavedKeywordRow>(selectAnchorRef)]
+        : []),
       columnHelper.accessor("keyword", {
         header: ({ column }) => (
           <SortableHeader column={column} label="Keyword" />
@@ -115,7 +119,7 @@ export function SavedKeywordsTable({
         ),
       }),
     ],
-    [selectAnchorRef],
+    [readOnly, selectAnchorRef],
   );
   const table = useAppTable({
     data: rows,
@@ -124,7 +128,7 @@ export function SavedKeywordsTable({
     onRowSelectionChange,
     onSortingChange,
     getRowId: (row) => row.id,
-    enableRowSelection: true,
+    enableRowSelection: !readOnly,
     manualSorting: true,
   });
 

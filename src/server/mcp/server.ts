@@ -11,6 +11,9 @@ import {
 } from "@/server/mcp/context";
 import { objectSchema } from "@/server/mcp/output-schemas";
 import { instrumentMcpToolHandler } from "@/server/mcp/instrumentation";
+import { analyzeBacklinksBulkTool } from "@/server/mcp/tools/analyze-backlinks-bulk";
+import { estimateBacklinksBulkAnalysisTool } from "@/server/mcp/tools/estimate-backlinks-bulk";
+import { getBacklinksAnchorsTool } from "@/server/mcp/tools/get-backlinks-anchors";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
@@ -19,6 +22,8 @@ import { addRankTrackingKeywordsTool } from "@/server/mcp/tools/add-rank-trackin
 import { createRankTrackerTool } from "@/server/mcp/tools/create-rank-tracker";
 import { estimateRankTrackerCostTool } from "@/server/mcp/tools/estimate-rank-tracker-cost";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
+import { getRankCannibalizationTool } from "@/server/mcp/tools/get-rank-cannibalization";
+import { getRankingsDistributionTool } from "@/server/mcp/tools/get-rankings-distribution";
 import { removeRankTrackingKeywordsTool } from "@/server/mcp/tools/remove-rank-tracking-keywords";
 import { runRankTrackerTool } from "@/server/mcp/tools/run-rank-tracker";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
@@ -46,18 +51,38 @@ import {
   searchLocalBusinessesTool,
 } from "@/server/mcp/tools/dataforseo-research-tools";
 import { researchKeywordsTool } from "@/server/mcp/tools/research-keywords";
+import { researchKeywordClustersTool } from "@/server/mcp/tools/research-keyword-clusters";
 import { saveKeywordsTool } from "@/server/mcp/tools/save-keywords";
 import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
+import { getOrganicTrafficInsightsTool } from "@/server/mcp/tools/traffic-insights-tools";
+import { getCrawlBudgetTool } from "@/server/mcp/tools/get-crawl-budget";
 import {
   getAuditIssuesTool,
   getAuditPagesTool,
   getAuditStatusTool,
   runSiteAuditTool,
 } from "@/server/mcp/tools/site-audit-tools";
+import { getOnPageIdeasTool } from "@/server/mcp/tools/get-on-page-ideas";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
+import {
+  getCitationAuditsTool,
+  getGeoGridHistoryTool,
+  getLocalListingStatusTool,
+  recordCitationEvidenceTool,
+  runCitationAuditTool,
+  runGeoGridTool,
+} from "@/server/mcp/tools/local-seo-tools";
+import {
+  estimateKeywordGapTool,
+  getKeywordGapTool,
+} from "@/server/mcp/tools/keyword-gap-tools";
+import {
+  estimateBacklinkGapTool,
+  getBacklinkGapTool,
+} from "@/server/mcp/tools/backlink-gap-tools";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
 
@@ -119,9 +144,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
     {
       name: "OpenSEO MCP",
       title: "OpenSEO",
-      version: "0.0.11",
+      version: "0.0.12",
       description:
-        "SEO research tools for AI agents: keyword research and metrics, SERP and local SERP results, domain and backlink analysis, rank tracking, and Google Search Console performance.",
+        "SEO research and operations for AI agents: keyword and competitor research, backlinks, rank tracking, local SEO geo-grids and citation evidence, site audits, access-log crawl budget, and Google performance data.",
       websiteUrl: "https://openseo.so",
       icons: [
         {
@@ -146,14 +171,24 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(createProjectTool);
   register(listSavedKeywordsTool);
   register(researchKeywordsTool);
+  register(researchKeywordClustersTool);
   register(saveKeywordsTool);
   register(getDomainOverviewTool);
   register(getDomainKeywordSuggestionsTool);
   register(getBacklinksOverviewTool);
   register(getBacklinksProfileTool);
+  register(getBacklinksAnchorsTool);
+  register(estimateBacklinksBulkAnalysisTool);
+  register(analyzeBacklinksBulkTool);
+  register(estimateKeywordGapTool);
+  register(getKeywordGapTool);
+  register(estimateBacklinkGapTool);
+  register(getBacklinkGapTool);
   register(getSerpResultsTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);
+  register(getRankCannibalizationTool);
+  register(getRankingsDistributionTool);
   register(addRankTrackingKeywordsTool);
   register(removeRankTrackingKeywordsTool);
   register(estimateRankTrackerCostTool);
@@ -164,12 +199,19 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getLocalSerpResultsTool);
   register(getGoogleBusinessQuestionsTool);
   register(getKeywordMetricsTool);
+  register(getLocalListingStatusTool);
+  register(getGeoGridHistoryTool);
+  register(runGeoGridTool);
+  register(getCitationAuditsTool);
+  register(recordCitationEvidenceTool);
+  register(runCitationAuditTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
   register(getGoogleAnalyticsOrganicLandingPagesTool);
   register(getGoogleAnalyticsPagePerformanceTool);
   register(getGoogleAnalyticsKeyEventsTool);
   register(getSearchOpportunitiesTool);
+  register(getOrganicTrafficInsightsTool);
   register(getGoogleAnalyticsOrganicOverviewTool);
   register(getGoogleAnalyticsTrafficAcquisitionTool);
   register(getGoogleAnalyticsMeasurementHealthTool);
@@ -180,6 +222,8 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getAuditStatusTool);
   register(getAuditIssuesTool);
   register(getAuditPagesTool);
+  register(getCrawlBudgetTool);
+  register(getOnPageIdeasTool);
 
   return server;
 }

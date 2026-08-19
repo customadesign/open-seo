@@ -1,0 +1,2 @@
+-- Reserved lineage slot. The idempotent combined schema migration applies
+-- Google Ads and monthly-reporting objects after both historical branches converge.

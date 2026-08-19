@@ -21,9 +21,26 @@ const toolCategories: ToolCategory[] = [
         description: "Get keyword ideas with volume, difficulty, and CPC.",
       },
       {
+        name: "research_keyword_clusters",
+        title: "Research clustered keywords",
+        description:
+          "Expand a seed into topic clusters with volume, KD, and CPC.",
+      },
+      {
         name: "get_rank_tracker",
         title: "Get rank tracking positions",
         description: "Read tracked keyword positions.",
+      },
+      {
+        name: "get_rank_cannibalization",
+        title: "Get rank cannibalization",
+        description:
+          "Find keywords with two project URLs on one SERP, or ranking URL flips.",
+      },
+      {
+        name: "get_rankings_distribution",
+        title: "Get rankings distribution",
+        description: "Count tracked keywords in each position band over time.",
       },
       {
         name: "create_rank_tracker",
@@ -66,6 +83,11 @@ const toolCategories: ToolCategory[] = [
         title: "Save keywords",
         description: "Save keywords back to OpenSEO.",
       },
+      {
+        name: "get_on_page_ideas",
+        title: "Get on-page ideas",
+        description: "Read stored on-page tasks for a project or page.",
+      },
     ],
   },
   {
@@ -105,6 +127,42 @@ const toolCategories: ToolCategory[] = [
         name: "get_backlinks_profile",
         title: "Get backlinks profile",
         description: "Fetch paginated link-level backlink rows.",
+      },
+      {
+        name: "get_backlinks_anchors",
+        title: "Get backlinks anchors",
+        description: "See anchor-text distribution and concentration.",
+      },
+      {
+        name: "estimate_backlinks_bulk_analysis",
+        title: "Estimate backlinks bulk analysis",
+        description: "Estimate credits for analyzing many domains at once.",
+      },
+      {
+        name: "analyze_backlinks_bulk",
+        title: "Analyze backlinks in bulk",
+        description:
+          "Compare authority, backlinks, and traffic for many domains.",
+      },
+      {
+        name: "estimate_keyword_gap",
+        title: "Estimate keyword gap cost",
+        description: "Preview the cost of a multi-domain keyword comparison.",
+      },
+      {
+        name: "get_keyword_gap",
+        title: "Get keyword gap",
+        description: "Compare ranked keywords against competitor domains.",
+      },
+      {
+        name: "estimate_backlink_gap",
+        title: "Estimate backlink gap cost",
+        description: "Preview the cost of a referring-domain comparison.",
+      },
+      {
+        name: "get_backlink_gap",
+        title: "Get backlink gap",
+        description: "Find referring domains competitors have that you lack.",
       },
     ],
   },
@@ -175,6 +233,12 @@ const toolCategories: ToolCategory[] = [
         title: "Get search opportunities",
         description:
           "Join Search Console demand with Analytics outcomes to prioritize pages.",
+      },
+      {
+        name: "get_organic_traffic_insights",
+        title: "Get organic traffic insights",
+        description:
+          "See which queries and tracked keywords drove sessions to each landing page.",
       },
       {
         name: "get_google_analytics_traffic_acquisition",

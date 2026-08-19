@@ -6,6 +6,7 @@ import {
   estimateScheduledRankCheckCredits,
   isScheduledRankTrackingInterval,
   MAX_KEYWORDS_PER_CONFIG,
+  rankCheckMethod,
 } from "@/shared/rank-tracking";
 
 async function addKeywords(
@@ -132,11 +133,14 @@ async function estimateCost(
       existingKeywordCount + additionalKeywordCount,
     ),
   );
+  // An explicit run on a Bing config is queued, not live, so quoting live
+  // pricing here would ask the user to approve a ceiling the run never needs.
+  const method = rankCheckMethod({ trigger: "manual", engine: config.engine });
   const { costUsd, costCredits } = estimateRankCheckCredits(
     keywordCount,
     config.devices,
     config.serpDepth,
-    "live",
+    method,
   );
   const scheduleInterval = isScheduledRankTrackingInterval(
     config.scheduleInterval,
@@ -149,7 +153,8 @@ async function estimateCost(
     keywordCount,
     devicesCount: devicesCount(config.devices),
     totalChecks: keywordCount * devicesCount(config.devices),
-    method: "live" as const,
+    method,
+    engine: config.engine,
     existingKeywordCount,
     additionalKeywordCount: keywordCount - existingKeywordCount,
     scheduledEstimate: scheduleInterval
@@ -180,7 +185,7 @@ function scheduledApprovalError(
 ) {
   return new AppError(
     "VALIDATION_ERROR",
-    `Adding these keywords would make each ${scheduleInterval} scheduled check cost a nominal queued estimate of ${estimate.costCredits} credits (~$${estimate.costUsd.toFixed(4)} per check; ~${estimate.monthlyCostCredits} credits/month). Call estimate_rank_tracker_cost with additionalKeywordCount, show the recurring estimate and live-fallback caveat to the user, then retry with maxEstimatedScheduledCheckCredits set to the approved per-check estimate. Live fallback for rejected, failed, or timed-out queued tasks may use additional separately billed credits.`,
+    `Adding these keywords would make each ${scheduleInterval} scheduled check cost an estimated ${estimate.costCredits} credits (~$${estimate.costUsd.toFixed(4)} per check; ~${estimate.monthlyCostCredits} credits/month). Call estimate_rank_tracker_cost with additionalKeywordCount, show the recurring estimate, then retry with maxEstimatedScheduledCheckCredits set to the approved total per-check ceiling. That ceiling caps the queued check plus any live fallback; results stay incomplete when no approved credits remain.`,
   );
 }
 

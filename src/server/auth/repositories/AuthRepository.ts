@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { member, organization, user as authUser } from "@/db/schema";
+import { randomUUID } from "node:crypto";
 
 type DelegatedOrganizationInput = {
   id: string;
@@ -28,6 +29,27 @@ async function upsertDelegatedOrganization(input: DelegatedOrganizationInput) {
     });
 }
 
+// Idempotent: `member` has a unique (organization_id, user_id) index, so a
+// concurrent second call is a no-op rather than a duplicate or a failure.
+async function ensureMembership(
+  userId: string,
+  organizationId: string,
+  role: string,
+) {
+  await db
+    .insert(member)
+    .values({
+      id: randomUUID(),
+      organizationId,
+      userId,
+      role,
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing({
+      target: [member.organizationId, member.userId],
+    });
+}
+
 async function findFirstOrganizationIdForUser(userId: string) {
   const [existingMembership] = await db
     .select({ organizationId: member.organizationId })
@@ -52,6 +74,7 @@ async function getHostedUser(userId: string) {
 
 export const AuthRepository = {
   upsertDelegatedOrganization,
+  ensureMembership,
   findFirstOrganizationIdForUser,
   getHostedUser,
 } as const;

@@ -14,12 +14,13 @@ import { captureClientEvent } from "@/client/lib/posthog";
 import { FreePlanAlert } from "./FreePlanAlert";
 import { RankTrackingDetailHeader } from "./RankTrackingDetailHeader";
 import { RankTrackingOverview } from "./RankTrackingOverview";
-import { RankTrackingTable } from "./RankTrackingTable";
-import {
-  countMatrixRuns,
-  RankTrackingHistoryMatrix,
-} from "./RankTrackingHistoryMatrix";
+import { countMatrixRuns } from "./RankTrackingHistoryMatrix";
 import { RankTrackingTableToolbar } from "./RankTrackingTableToolbar";
+import {
+  RankTrackingReportTabs,
+  type RankReportTab,
+} from "./RankTrackingReportTabs";
+import { RankTrackingReportBody } from "./RankTrackingReportBody";
 import {
   exportRankTrackingCsv,
   exportRankTrackingToSheets,
@@ -29,6 +30,7 @@ import type {
   ComparePeriod,
 } from "@/types/schemas/rank-tracking";
 import { AddKeywordsPanel } from "./AddKeywordsPanel";
+import { rankTrackingSkipReasonLabel } from "./rankTrackingUi";
 import {
   FilterPanel,
   applyFilters,
@@ -40,6 +42,7 @@ import { CheckConfirmModal } from "./CheckConfirmModal";
 import { useMetricsRefresh } from "./useMetricsRefresh";
 import { useRankCheckTrigger } from "./useRankCheckTrigger";
 import { useRankRunPolling } from "./useRankRunPolling";
+import { ImportedRankHistory } from "./ImportedRankHistory";
 
 function deviceVisibility(
   devices: RankTrackingConfig["devices"],
@@ -62,15 +65,17 @@ export function RankTrackingDomainDetail({
   projectId,
   onBack,
   onEdit,
+  readOnly = false,
 }: {
   config: RankTrackingConfig;
   projectId: string;
   onBack: () => void;
   onEdit: () => void;
+  readOnly?: boolean;
 }) {
   const { data: session } = useSession();
   const customerQuery = useCustomer({
-    queryOptions: { enabled: Boolean(session?.user?.id) },
+    queryOptions: { enabled: Boolean(session?.user?.id) && !readOnly },
   });
   const isFreePlan =
     !!customerQuery.data &&
@@ -90,7 +95,7 @@ export function RankTrackingDomainDetail({
   const [activeDevice, setActiveDevice] = useState<"desktop" | "mobile">(
     config.devices === "mobile" ? "mobile" : "desktop",
   );
-  const [viewMode, setViewMode] = useState<"table" | "history">("table");
+  const [viewMode, setViewMode] = useState<RankReportTab>("keywords");
 
   const { data: resultsData, isLoading: resultsLoading } = useQuery({
     queryKey: ["rankTrackingResults", projectId, config.id, comparePeriod],
@@ -117,6 +122,7 @@ export function RankTrackingDomainDetail({
     queryKey: ["rankTrackingCostEstimate", projectId, config.id],
     queryFn: () =>
       estimateRankCheckCost({ data: { projectId, configId: config.id } }),
+    enabled: !readOnly,
   });
 
   const [pendingCheck, setPendingCheck] = useState<{
@@ -183,8 +189,11 @@ export function RankTrackingDomainDetail({
   );
   const activeFilterCount = countActiveFilters(filters);
   const defaultSortId = showDesktop ? "desktopPosition" : "mobilePosition";
-  // Fall back to the table if history disappears (e.g. device switch).
-  const effectiveViewMode = historyAvailable ? viewMode : "table";
+  // Fall back to keywords if history disappears (e.g. device switch).
+  const effectiveViewMode =
+    viewMode === "history" && !historyAvailable ? "keywords" : viewMode;
+  const showKeywordTable =
+    effectiveViewMode === "keywords" || effectiveViewMode === "history";
 
   return (
     <div className="space-y-3">
@@ -196,12 +205,13 @@ export function RankTrackingDomainDetail({
         Back to domains
       </button>
 
-      {config.lastSkipReason === "insufficient_credits" && (
+      {rankTrackingSkipReasonLabel(config.lastSkipReason) && (
         <div className="alert alert-warning text-sm py-2">
           <AlertTriangle className="size-4" />
           <span>
-            Last scheduled check was skipped due to insufficient credits. Top up
-            your balance to resume automatic tracking.
+            The last scheduled check was skipped —{" "}
+            {rankTrackingSkipReasonLabel(config.lastSkipReason)}. The schedule
+            still advances; fix the cause to resume automatic tracking.
           </span>
         </div>
       )}
@@ -215,7 +225,7 @@ export function RankTrackingDomainDetail({
         </div>
       )}
 
-      <FreePlanAlert visible={isFreePlan} />
+      <FreePlanAlert visible={!readOnly && isFreePlan} />
 
       {/* Results card */}
       <div className="flex-1 flex flex-col min-w-0 border border-base-300 rounded-xl bg-base-100 overflow-hidden">
@@ -231,9 +241,10 @@ export function RankTrackingDomainDetail({
           onComparePeriodChange={setComparePeriod}
           onEdit={onEdit}
           onToggleAddKeywords={() => setShowAddKeywords((c) => !c)}
+          readOnly={readOnly}
         />
 
-        {showAddKeywords && (
+        {showAddKeywords && !readOnly && (
           <div className="px-4 pb-3">
             <AddKeywordsPanel
               configId={config.id}
@@ -244,14 +255,21 @@ export function RankTrackingDomainDetail({
           </div>
         )}
 
-        {/* Portfolio overview */}
-        {(rows?.length ?? 0) > 0 && (
+        {(rows?.length ?? 0) > 0 && effectiveViewMode === "keywords" && (
           <RankTrackingOverview
             device={activeDevice}
             projectId={projectId}
             configId={config.id}
           />
         )}
+
+        <RankTrackingReportTabs
+          value={effectiveViewMode}
+          onChange={setViewMode}
+          historyAvailable={historyAvailable}
+        />
+
+        <ImportedRankHistory projectId={projectId} configId={config.id} />
 
         {/* Table toolbar */}
         <RankTrackingTableToolbar
@@ -261,9 +279,12 @@ export function RankTrackingDomainDetail({
           isRunning={isRunning}
           latestRun={latestRun}
           keywordCount={filtered.length}
-          viewMode={effectiveViewMode}
-          onViewModeChange={setViewMode}
-          historyAvailable={historyAvailable}
+          viewMode={effectiveViewMode === "history" ? "history" : "table"}
+          onViewModeChange={(mode) =>
+            setViewMode(mode === "history" ? "history" : "keywords")
+          }
+          historyAvailable={false}
+          showFilterButton={showKeywordTable}
           onExport={() =>
             exportRankTrackingCsv(
               filtered,
@@ -296,10 +317,10 @@ export function RankTrackingDomainDetail({
           checkBusy={isBusy}
           checkDisabled={isFreePlan}
           hasData={filtered.length > 0}
+          readOnly={readOnly}
         />
 
-        {/* Filters panel */}
-        {showFilters && (
+        {showKeywordTable && showFilters && (
           <FilterPanel
             filters={filters}
             setFilters={setFilters}
@@ -308,41 +329,30 @@ export function RankTrackingDomainDetail({
           />
         )}
 
-        {/* Table */}
         <div className="p-4">
-          {effectiveViewMode === "history" ? (
-            <RankTrackingHistoryMatrix
-              cells={matrixCells ?? []}
-              isLoading={matrixLoading}
-              keywords={filtered.map((r) => ({
-                trackingKeywordId: r.trackingKeywordId,
-                keyword: r.keyword,
-              }))}
-            />
-          ) : (
-            <RankTrackingTable
-              key={defaultSortId}
-              totalCount={rows?.length ?? 0}
-              rows={filtered}
-              resultsLoading={resultsLoading}
-              showDesktop={showDesktop}
-              showMobile={showMobile}
-              defaultSortId={defaultSortId}
-              domain={config.domain}
-              configId={config.id}
-              projectId={projectId}
-              locationCode={config.locationCode}
-              locationName={config.locationName}
-              serpDepth={config.serpDepth}
-            />
-          )}
+          <RankTrackingReportBody
+            tab={effectiveViewMode}
+            projectId={projectId}
+            config={config}
+            device={activeDevice}
+            readOnly={readOnly}
+            rows={rows ?? []}
+            filtered={filtered}
+            resultsLoading={resultsLoading}
+            showDesktop={showDesktop}
+            showMobile={showMobile}
+            defaultSortId={defaultSortId}
+            matrixCells={matrixCells}
+            matrixLoading={matrixLoading}
+          />
         </div>
       </div>
 
-      {pendingCheck && (
+      {pendingCheck && !readOnly && (
         <CheckConfirmModal
           keywordCount={pendingCheck.count}
           devices={config.devices}
+          engine={config.engine}
           serpDepth={config.serpDepth}
           isPending={isPending}
           onRunNow={() =>
