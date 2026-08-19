@@ -1,5 +1,7 @@
+import { env } from "cloudflare:workers";
 import { db } from "@/db";
 import { user } from "@/db/schema";
+import { isSingleTenant } from "@/lib/auth-policy";
 import {
   ensureDelegatedOrganizationForUser,
   ensureSharedWorkspaceOrganization,
@@ -107,5 +109,16 @@ export async function resolveSharedWorkspaceContext(
 }
 
 export async function resolveLocalNoAuthContext(): Promise<EnsuredUserContext> {
+  // A single-tenant deployment has one workspace whichever mode it is running,
+  // so dropping back to local_noauth (the escape hatch when hosted auth is
+  // misconfigured) must land on the same data rather than an empty per-user
+  // workspace.
+  if (isSingleTenant(Reflect.get(env, "SINGLE_TENANT") as string | undefined)) {
+    return resolveSharedWorkspaceContext(
+      LOCAL_ADMIN_USER_ID,
+      LOCAL_ADMIN_EMAIL,
+    );
+  }
+
   return resolveDelegatedContext(LOCAL_ADMIN_USER_ID, LOCAL_ADMIN_EMAIL);
 }
