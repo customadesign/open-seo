@@ -82,7 +82,7 @@ function createAuth() {
       // provision themselves an account. DISABLE_PUBLIC_SIGNUP defaults on for
       // self-hosters and must be explicitly set to "false" by the multi-tenant
       // hosted deployment, which does want public signup.
-      disableSignUp: Reflect.get(env, "DISABLE_PUBLIC_SIGNUP") !== "false",
+      disableSignUp: isPublicSignupDisabled(),
       requireEmailVerification: !bypassEmail,
       resetPasswordTokenExpiresIn: 60 * 60,
       revokeSessionsOnPasswordReset: true,
@@ -247,6 +247,13 @@ function getHostedSecret() {
   return secret;
 }
 
+// Public registration policy. Self-hosted deployments exist to serve one
+// known group and are reached through the OnePagePM handoff, so registration
+// is closed unless a deployment explicitly opts in.
+export function isPublicSignupDisabled() {
+  return Reflect.get(env, "DISABLE_PUBLIC_SIGNUP") !== "false";
+}
+
 function getSocialProviders() {
   // Google social login is hosted-only. Self-hosted builds the auth instance
   // solely for Search Console token ops, which use the genericOAuth provider
@@ -258,7 +265,14 @@ function getSocialProviders() {
   }
 
   return {
-    google: getGoogleSocialProviderConfig(),
+    google: {
+      ...getGoogleSocialProviderConfig(),
+      // Closing /sign-up/email is not enough on its own: Better Auth creates a
+      // user on first social login too, so leaving this off would let anyone
+      // with a Google account self-provision on a public hostname. With it set,
+      // Google works only for users that already exist.
+      disableImplicitSignUp: isPublicSignupDisabled(),
+    },
   };
 }
 
