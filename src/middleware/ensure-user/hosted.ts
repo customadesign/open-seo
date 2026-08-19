@@ -1,4 +1,6 @@
+import { env } from "cloudflare:workers";
 import { getAuth, hasHostedAuthConfig } from "@/lib/auth";
+import { isSingleTenant } from "@/lib/auth-policy";
 import { getActiveOrganizationId } from "@/lib/auth-session";
 import { getOrCreateDefaultHostedOrganization } from "@/server/auth/default-hosted-organization";
 import { AuthRepository } from "@/server/auth/repositories/AuthRepository";
@@ -27,9 +29,16 @@ export async function resolveHostedContext(
   headers: Headers,
 ): Promise<EnsuredUserContext> {
   const session = await requireHostedSession(headers);
-  let organizationId = getActiveOrganizationId(session);
+  const singleTenant = isSingleTenant(
+    Reflect.get(env, "SINGLE_TENANT") as string | undefined,
+  );
+  // The active organization is stamped onto a session when it is created, so a
+  // session issued before this deployment became single-tenant still points at
+  // a private workspace. Re-resolving every request lets those sessions heal
+  // instead of stranding people in a workspace whose contents have moved.
+  let organizationId = singleTenant ? null : getActiveOrganizationId(session);
 
-  if (!organizationId) {
+  if (!organizationId && !singleTenant) {
     organizationId = await AuthRepository.findFirstOrganizationIdForUser(
       session.user.id,
     );
