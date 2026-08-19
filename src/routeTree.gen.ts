@@ -17,6 +17,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as ProjectRouteRouteImport } from './routes/_project/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as ApiSsoRouteImport } from './routes/api/sso'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedSubscribeRouteImport } from './routes/_authenticated.subscribe'
 import { Route as AuthenticatedOauthConsentRouteImport } from './routes/_authenticated.oauth-consent'
@@ -102,6 +103,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRouteRoute,
+} as any)
+const ApiSsoRoute = ApiSsoRouteImport.update({
+  id: '/api/sso',
+  path: '/api/sso',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
@@ -391,6 +397,7 @@ export interface FileRoutesByFullPath {
   '/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/subscribe': typeof AuthenticatedSubscribeRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/sso': typeof ApiSsoRoute
   '/p/$projectId': typeof ProjectPProjectIdRouteRouteWithChildren
   '/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
   '/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
@@ -446,6 +453,7 @@ export interface FileRoutesByTo {
   '/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/subscribe': typeof AuthenticatedSubscribeRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/sso': typeof ApiSsoRoute
   '/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
   '/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
   '/onboarding/chat': typeof AuthenticatedOnboardingChatRoute
@@ -501,6 +509,7 @@ export interface FileRoutesById {
   '/_authenticated/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/_authenticated/subscribe': typeof AuthenticatedSubscribeRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/sso': typeof ApiSsoRoute
   '/_app/': typeof AppIndexRoute
   '/_project/p/$projectId': typeof ProjectPProjectIdRouteRouteWithChildren
   '/_app/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
@@ -559,6 +568,7 @@ export interface FileRouteTypes {
     | '/oauth-consent'
     | '/subscribe'
     | '/api/health'
+    | '/api/sso'
     | '/p/$projectId'
     | '/help/dataforseo-api-key'
     | '/help/openrouter-api-key'
@@ -614,6 +624,7 @@ export interface FileRouteTypes {
     | '/oauth-consent'
     | '/subscribe'
     | '/api/health'
+    | '/api/sso'
     | '/help/dataforseo-api-key'
     | '/help/openrouter-api-key'
     | '/onboarding/chat'
@@ -668,6 +679,7 @@ export interface FileRouteTypes {
     | '/_authenticated/oauth-consent'
     | '/_authenticated/subscribe'
     | '/api/health'
+    | '/api/sso'
     | '/_app/'
     | '/_project/p/$projectId'
     | '/_app/help/dataforseo-api-key'
@@ -719,6 +731,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   Char91DotwellKnownChar93OpenaiAppsChallengeRoute: typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiSsoRoute: typeof ApiSsoRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAutumnSplatRoute: typeof ApiAutumnSplatRoute
   ApiGa4OauthCallbackRoute: typeof ApiGa4OauthCallbackRoute
@@ -784,6 +797,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRouteRoute
+    }
+    '/api/sso': {
+      id: '/api/sso'
+      path: '/api/sso'
+      fullPath: '/api/sso'
+      preLoaderRoute: typeof ApiSsoRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/health': {
       id: '/api/health'
@@ -1318,6 +1338,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OpenaiAppsChallengeRoute:
     Char91DotwellKnownChar93OpenaiAppsChallengeRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiSsoRoute: ApiSsoRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAutumnSplatRoute: ApiAutumnSplatRoute,
   ApiGa4OauthCallbackRoute: ApiGa4OauthCallbackRoute,
