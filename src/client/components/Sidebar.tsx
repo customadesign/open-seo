@@ -22,6 +22,7 @@ import { closeDropdown } from "@/client/lib/dropdown";
 import { signOutAndRedirect, useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
 import { BILLING_ROUTE } from "@/shared/billing";
+import { isSingleTenantOnClient } from "@/lib/auth-policy";
 import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 interface SidebarProps {
@@ -282,7 +283,7 @@ function SidebarFooter({
                 </Link>
               </li>
             ) : null}
-            {isHostedMode && role === "owner" ? (
+            {isHostedMode && role === "owner" && !isSingleTenantOnClient() ? (
               <li>
                 <Link to={BILLING_ROUTE} onClick={closeMenu}>
                   <CreditCard className="h-4 w-4" />

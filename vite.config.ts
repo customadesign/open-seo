@@ -28,6 +28,7 @@ export default defineConfig(({ mode }) => {
       "BYPASS_EMAIL_VERIFICATION",
       "DISABLE_PUBLIC_SIGNUP",
       "DISABLE_SOCIAL_LOGIN",
+      "SINGLE_TENANT",
       "POSTHOG_PUBLIC_KEY",
       "POSTHOG_HOST",
       "TURNSTILE_SITE_KEY",

@@ -18,10 +18,22 @@ export function isSocialLoginDisabled(value: string | null | undefined) {
   return value === "true";
 }
 
+// A single-tenant deployment serves one organization rather than many
+// customers. Two things follow: everyone shares one workspace instead of each
+// user getting their own, and there is nothing to bill, so the billing surface
+// is removed rather than merely empty.
+export function isSingleTenant(value: string | null | undefined) {
+  return value === "true";
+}
+
 export function isPublicSignupDisabledOnClient() {
   return isPublicSignupDisabled(import.meta.env.DISABLE_PUBLIC_SIGNUP);
 }
 
 export function isSocialLoginDisabledOnClient() {
   return isSocialLoginDisabled(import.meta.env.DISABLE_SOCIAL_LOGIN);
+}
+
+export function isSingleTenantOnClient() {
+  return isSingleTenant(import.meta.env.SINGLE_TENANT);
 }

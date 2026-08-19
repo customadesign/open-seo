@@ -34,6 +34,9 @@ declare namespace Cloudflare {
     // Set to "true" to unregister the Google social provider entirely, leaving
     // email and password as the only credential path. Unset keeps Google on.
     DISABLE_SOCIAL_LOGIN?: string;
+    // Set to "true" for a deployment that serves one organization: every user
+    // shares a single workspace and the billing surface is removed.
+    SINGLE_TENANT?: string;
     DATABASE_PROVIDER?: "d1" | "postgres";
     HYPERDRIVE?: {
       connectionString: string;
@@ -83,6 +86,7 @@ interface ImportMetaEnv {
   readonly BYPASS_EMAIL_VERIFICATION?: string;
   readonly DISABLE_PUBLIC_SIGNUP?: string;
   readonly DISABLE_SOCIAL_LOGIN?: string;
+  readonly SINGLE_TENANT?: string;
   readonly POSTHOG_PUBLIC_KEY?: string;
   readonly POSTHOG_HOST?: string;
   readonly TURNSTILE_SITE_KEY?: string;

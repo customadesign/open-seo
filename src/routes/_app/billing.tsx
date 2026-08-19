@@ -3,6 +3,7 @@ import { useCustomer } from "autumn-js/react";
 import { useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { isSingleTenantOnClient } from "@/lib/auth-policy";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { buildCheckoutSuccessUrl } from "@/client/features/billing/checkout-url";
@@ -25,7 +26,9 @@ import { useWorkspaceAccess } from "@/client/features/auth/useWorkspaceAccess";
 
 export const Route = createFileRoute("/_app/billing")({
   beforeLoad: () => {
-    if (!isHostedClientAuthMode()) {
+    // Hosted auth is also how a single-tenant self-host gets real sessions, so
+    // the mode alone no longer implies there is anything to bill.
+    if (!isHostedClientAuthMode() || isSingleTenantOnClient()) {
       throw notFound();
     }
   },
