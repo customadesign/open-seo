@@ -24,6 +24,13 @@ declare namespace Cloudflare {
     POSTHOG_HOST?: string;
     BETTER_AUTH_SECRET?: string;
     BETTER_AUTH_URL?: string;
+    // Shared HS256 secret for the OnePagePM SSO handoff. Bearer-equivalent:
+    // whoever holds it can mint a session for any email, so it lives only in
+    // deployment env on both sides. Absent = the SSO endpoint is not mounted.
+    OPENSEO_SSO_SECRET?: string;
+    // Set to "false" only on a deployment that genuinely wants open public
+    // registration. Anything else (including unset) closes /sign-up/email.
+    DISABLE_PUBLIC_SIGNUP?: string;
     DATABASE_PROVIDER?: "d1" | "postgres";
     HYPERDRIVE?: {
       connectionString: string;

@@ -14,6 +14,10 @@ import { z } from "zod";
 import { isHostedAuthMode } from "@/lib/auth-mode";
 import { createApiKeyPlugin } from "@/lib/auth-api-key";
 import { createWorkspaceAccessControlPlugin } from "@/lib/auth-workspace-access";
+import {
+  createOnePagePmSsoPlugin,
+  hasOnePagePmSsoConfig,
+} from "@/lib/auth-onepagepm-sso";
 import { createBaseAuthConfig } from "@/lib/auth-config";
 import {
   getHostedTurnstileSecretKey,
@@ -72,6 +76,13 @@ function createAuth() {
     ...baseAuthConfig,
     emailAndPassword: {
       ...baseAuthConfig.emailAndPassword,
+      // Self-hosted deployments reach hosted mode only to get real sessions for
+      // the OnePagePM SSO handoff — they have no public signup story, and an
+      // open /sign-up/email on an internet-facing host would let any visitor
+      // provision themselves an account. DISABLE_PUBLIC_SIGNUP defaults on for
+      // self-hosters and must be explicitly set to "false" by the multi-tenant
+      // hosted deployment, which does want public signup.
+      disableSignUp: Reflect.get(env, "DISABLE_PUBLIC_SIGNUP") !== "false",
       requireEmailVerification: !bypassEmail,
       resetPasswordTokenExpiresIn: 60 * 60,
       revokeSessionsOnPasswordReset: true,
@@ -101,6 +112,9 @@ function createAuth() {
       ...baseAuthConfig.plugins,
       ...(isHostedAuthMode(env.AUTH_MODE)
         ? [createApiKeyPlugin(), createWorkspaceAccessControlPlugin()]
+        : []),
+      ...(isHostedAuthMode(env.AUTH_MODE) && hasOnePagePmSsoConfig()
+        ? [createOnePagePmSsoPlugin()]
         : []),
       ...(turnstileSecretKey
         ? [
