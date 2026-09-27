@@ -59,6 +59,7 @@ vi.mock("@/server/billing/autumn", () => ({
 }));
 vi.mock("@/server/lib/runtime-env", () => ({
   isHostedServerAuthMode: mocks.isHostedServerAuthMode,
+  isSingleTenantServer: vi.fn().mockResolvedValue(false),
 }));
 
 const billingCustomer = {

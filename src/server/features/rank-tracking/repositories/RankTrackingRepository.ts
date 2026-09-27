@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -169,6 +169,25 @@ async function getRunById(runId: string) {
     .where(eq(rankCheckRuns.id, runId))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Live check runs for a config, newest first — every attempt including failed
+ * ones, so the check log shows what happened each time Check rankings ran.
+ * Runs backfilled from imported history are excluded; they were never checks.
+ */
+async function listCheckRunsForConfig(configId: string, limit: number) {
+  return db
+    .select()
+    .from(rankCheckRuns)
+    .where(
+      and(
+        eq(rankCheckRuns.configId, configId),
+        isNull(rankCheckRuns.historySourceId),
+      ),
+    )
+    .orderBy(desc(rankCheckRuns.startedAt))
+    .limit(limit);
 }
 
 /**
@@ -412,6 +431,7 @@ export const RankTrackingRepository = {
   getRunById,
   getLatestRunForConfig: getLatestComparableRunForConfig,
   getActiveRunForConfig,
+  listCheckRunsForConfig,
   insertSnapshots,
   insertSerpEntries,
   getSerpEntriesForRuns,

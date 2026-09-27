@@ -31,6 +31,9 @@ export function useRankCheckTrigger({
       void queryClient.invalidateQueries({
         queryKey: ["rankTrackingLatestRun", projectId, configId],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["rankCheckRuns", projectId, configId],
+      });
       if (!result.ok) {
         toast.info("A rank check is already running");
         return;

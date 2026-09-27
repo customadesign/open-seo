@@ -1,6 +1,7 @@
 import type { RankPositionMatrixCell } from "@/serverFunctions/rank-tracking";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
 import type { RankTrackingRow } from "@/types/schemas/rank-tracking";
+import { RankCheckLogPanel } from "./RankCheckLogPanel";
 import { RankTrackingHistoryMatrix } from "./RankTrackingHistoryMatrix";
 import { RankTrackingTable } from "./RankTrackingTable";
 import type { RankReportTab } from "./RankTrackingReportTabs";
@@ -56,6 +57,9 @@ export function RankTrackingReportBody({
         }))}
       />
     );
+  }
+  if (tab === "checks") {
+    return <RankCheckLogPanel projectId={projectId} configId={config.id} />;
   }
   if (tab === "distribution") {
     return (

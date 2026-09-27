@@ -26,6 +26,9 @@ export function useRankRunPolling(projectId: string, configId: string) {
         void queryClient.invalidateQueries({
           queryKey: ["rankTrackingResults", projectId, configId],
         });
+        void queryClient.invalidateQueries({
+          queryKey: ["rankCheckRuns", projectId, configId],
+        });
       }
 
       // Keep polling active runs, including stale ones (they'll be cleaned up

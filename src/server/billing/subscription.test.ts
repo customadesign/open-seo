@@ -45,6 +45,7 @@ vi.mock("@/server/lib/posthog", () => ({
 
 import {
   assertUsageCreditsAvailable,
+  assertUsageCreditsCover,
   customerHasPaidPlan,
   getOrCreateOrganizationCustomer,
 } from "./subscription";
@@ -89,6 +90,9 @@ describe("subscription billing", () => {
     await expect(assertUsageCreditsAvailable("org_123")).resolves.toStrictEqual(
       { monthlyRemaining: 0 },
     );
+    await expect(
+      assertUsageCreditsCover("org_123", 500, "Insufficient credits"),
+    ).resolves.toBeUndefined();
 
     expect(checkMock).not.toHaveBeenCalled();
     expect(getOrCreateMock).not.toHaveBeenCalled();

@@ -8,6 +8,7 @@ export const RANK_REPORT_TABS = [
   { id: "snippets", label: "Snippets" },
   { id: "competitors", label: "Competitors" },
   { id: "visibility", label: "Visibility" },
+  { id: "checks", label: "Check log" },
 ] as const;
 
 export type RankReportTab = (typeof RANK_REPORT_TABS)[number]["id"];

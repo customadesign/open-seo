@@ -5,7 +5,10 @@ import {
 } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { withPgClient } from "@/db";
-import type { BillingCustomerContext } from "@/server/billing/subscription";
+import {
+  assertUsageCreditsCover,
+  type BillingCustomerContext,
+} from "@/server/billing/subscription";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import { failRunIfActive } from "@/server/features/rank-tracking/services/rankCheckRunGuards";
 import { pruneExpiredSerpEntries } from "@/server/features/rank-tracking/services/rankSerpRetention";
@@ -18,11 +21,6 @@ import { pgStep } from "@/server/workflows/pgStep";
 import { createDataforseoClient } from "@/server/lib/dataforseo";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { AppError } from "@/server/lib/errors";
-import { autumn } from "@/server/billing/autumn";
-import {
-  AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
-  AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-} from "@/shared/billing";
 import {
   estimateRankCheckCredits,
   rankCheckCostApprovalError,
@@ -123,25 +121,11 @@ export async function prepareRankCheckKeywords(input: {
   // Scheduled checks and every Bing check go through the cheaper task queue,
   // so estimate at queued pricing. Bing intentionally crawls the full depth.
   if (await isHostedServerAuthMode()) {
-    const [monthlyCheck, topupCheck] = await Promise.all([
-      autumn.check({
-        customerId: input.billingCustomer.organizationId,
-        featureId: AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
-      }),
-      autumn.check({
-        customerId: input.billingCustomer.organizationId,
-        featureId: AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-      }),
-    ]);
-    const available =
-      (monthlyCheck.balance?.remaining ?? 0) +
-      (topupCheck.balance?.remaining ?? 0);
-    if (available < costCredits) {
-      throw new AppError(
-        "INSUFFICIENT_CREDITS",
-        "Insufficient credits for rank check",
-      );
-    }
+    await assertUsageCreditsCover(
+      input.billingCustomer.organizationId,
+      costCredits,
+      "Insufficient credits for rank check",
+    );
   }
 
   await RankTrackingRepository.updateRun(input.runId, {

@@ -308,6 +308,17 @@ async function getLatestRun(configId: string, projectId: string) {
   return formatRun(run);
 }
 
+const CHECK_LOG_LIMIT = 100;
+
+async function listCheckRuns(configId: string, projectId: string) {
+  await getValidatedConfig(configId, projectId);
+  const runs = await RankTrackingRepository.listCheckRunsForConfig(
+    configId,
+    CHECK_LOG_LIMIT,
+  );
+  return runs.map((run) => formatRun(run));
+}
+
 // ---------------------------------------------------------------------------
 // Keyword metrics (volume, difficulty, CPC)
 // ---------------------------------------------------------------------------
@@ -445,6 +456,7 @@ export const RankTrackingService = {
   removeKeywords: RankTrackingKeywordService.removeKeywords,
   triggerCheck,
   getLatestRun,
+  listCheckRuns,
   estimateCost: RankTrackingKeywordService.estimateCost,
   refreshKeywordMetrics,
   getConfigs,
