@@ -243,16 +243,18 @@ export type KeywordPreset =
   | "all"
   | "workOnNext"
   | "createPage"
+  | "dropped"
   | "considerRemoving";
 
-// Rule thresholds, named so they are easy to tune.
+// Rule thresholds, named so they are easy to tune. Reported volume bottoms out
+// at 10 for most local terms, so paid-click value (CPC) is the second demand
+// signal: advertisers only bid on searches that bring customers.
 const STRIKING_DISTANCE_MIN = 11;
 const STRIKING_DISTANCE_MAX = 30;
-const PAGE_WORTHY_MIN_VOLUME = 20;
+const DEMAND_MIN_VOLUME = 20;
+const DEMAND_MIN_CPC = 2;
 const PAGE_MISSING_BEYOND = 30;
 const HOMEPAGE_ONLY_BEYOND = 10;
-const REMOVE_BEYOND = 50;
-const REMOVE_BELOW_VOLUME = 20;
 
 export const KEYWORD_PRESETS: ReadonlyArray<{
   id: KeywordPreset;
@@ -268,14 +270,27 @@ export const KEYWORD_PRESETS: ReadonlyArray<{
   {
     id: "createPage",
     label: "Create a page",
-    description: `Volume ${PAGE_WORTHY_MIN_VOLUME}+ and not in the top ${PAGE_MISSING_BEYOND}, or only the homepage ranks below #${HOMEPAGE_ONLY_BEYOND}`,
+    description: `Volume ${DEMAND_MIN_VOLUME}+ or CPC $${DEMAND_MIN_CPC}+, and not in the top ${PAGE_MISSING_BEYOND} or only the homepage ranks below #${HOMEPAGE_ONLY_BEYOND}`,
+  },
+  {
+    id: "dropped",
+    label: "Dropped",
+    description:
+      "Ranked in an earlier check but not found in the top 100 in the latest one",
   },
   {
     id: "considerRemoving",
     label: "Consider removing",
-    description: `Not in the top ${REMOVE_BEYOND} and volume under ${REMOVE_BELOW_VOLUME} (or unknown)`,
+    description: `Checked in the latest run, never ranked in any check, volume under ${DEMAND_MIN_VOLUME} and CPC under $${DEMAND_MIN_CPC}`,
   },
 ];
+
+function hasDemand(row: RankTrackingRow): boolean {
+  return (
+    (row.searchVolume ?? 0) >= DEMAND_MIN_VOLUME ||
+    (row.cpc ?? 0) >= DEMAND_MIN_CPC
+  );
+}
 
 /** Path part of a ranking URL ("/" for the homepage); raw value if unparseable. */
 export function toPath(url: string): string {
@@ -291,8 +306,8 @@ export function matchesKeywordPreset(
   preset: KeywordPreset,
   device: "desktop" | "mobile",
 ): boolean {
-  const { position, rankingUrl } = row[device];
-  const volume = row.searchVolume;
+  const { position, bestPosition, checkedInLatestCheck, rankingUrl } =
+    row[device];
 
   switch (preset) {
     case "all":
@@ -304,7 +319,7 @@ export function matchesKeywordPreset(
         position <= STRIKING_DISTANCE_MAX
       );
     case "createPage": {
-      if (volume == null || volume < PAGE_WORTHY_MIN_VOLUME) return false;
+      if (!hasDemand(row)) return false;
       if (position == null || position > PAGE_MISSING_BEYOND) return true;
       return (
         rankingUrl != null &&
@@ -312,10 +327,11 @@ export function matchesKeywordPreset(
         position > HOMEPAGE_ONLY_BEYOND
       );
     }
+    // Both lists below need a real "not found" from the newest check — a
+    // keyword that check skipped has no evidence either way.
+    case "dropped":
+      return checkedInLatestCheck && position == null && bestPosition != null;
     case "considerRemoving":
-      return (
-        (position == null || position > REMOVE_BEYOND) &&
-        (volume == null || volume < REMOVE_BELOW_VOLUME)
-      );
+      return checkedInLatestCheck && bestPosition == null && !hasDemand(row);
   }
 }

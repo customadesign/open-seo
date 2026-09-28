@@ -47,6 +47,7 @@ export async function getLatestResults(
     currentSnapshots,
     comparisonSnapshots,
     latestRun,
+    bestPositionRows,
   ] = await Promise.all([
     RankTrackingRepository.getConfigById({ configId, projectId }),
     RankTrackingRepository.getKeywordsForConfig(configId),
@@ -55,6 +56,7 @@ export async function getLatestResults(
     // Comparison snapshots from before the target date
     RankTrackingRepository.getSnapshotsBeforeDate(configId, targetDate),
     RankTrackingRepository.getLatestRunForConfig(configId),
+    RankTrackingRepository.getBestPositionsForConfig(configId),
   ]);
   if (!config) {
     throw new AppError("INTERNAL_ERROR", "Rank tracking config not found");
@@ -93,6 +95,24 @@ export async function getLatestResults(
     }
   }
 
+  const bestPositions = new Map(
+    bestPositionRows.map((row) => [
+      `${row.trackingKeywordId}:${row.device}`,
+      row.bestPosition,
+    ]),
+  );
+  const bestPositionFor = (key: string) => bestPositions.get(key) ?? null;
+
+  // The newest check is the run that wrote the most recent snapshot; a keyword
+  // whose latest snapshot came from an older run was skipped by it.
+  let latestSnapshot: SnapshotRow | null = null;
+  for (const snap of currentSnapshots) {
+    if (!latestSnapshot || snap.checkedAt > latestSnapshot.checkedAt) {
+      latestSnapshot = snap;
+    }
+  }
+  const latestCheckRunId = latestSnapshot?.runId ?? null;
+
   // Build result rows
   const rows = new Map<string, RankTrackingRow>(
     activeKeywords.map((keyword) => [
@@ -105,31 +125,25 @@ export async function getLatestResults(
         cpc: keyword.cpc,
         desktop: createEmptyDeviceResult(
           previousPositions.get(`${keyword.id}:desktop`) ?? null,
+          bestPositionFor(`${keyword.id}:desktop`),
         ),
         mobile: createEmptyDeviceResult(
           previousPositions.get(`${keyword.id}:mobile`) ?? null,
+          bestPositionFor(`${keyword.id}:mobile`),
         ),
       },
     ]),
   );
 
-  // Freshness comes from the newest snapshot regardless of which run wrote
-  // it, so a newer failed run doesn't erase the date of the results shown.
-  let latestStartedAt: string | null = null;
-
   for (const snapshot of currentSnapshots) {
     const row = rows.get(snapshot.trackingKeywordId);
     if (!row) continue;
-    row[snapshot.device] = toDeviceResult(
-      snapshot,
-      previousPositions.get(
-        `${snapshot.trackingKeywordId}:${snapshot.device}`,
-      ) ?? null,
-    );
-
-    if (!latestStartedAt || snapshot.checkedAt > latestStartedAt) {
-      latestStartedAt = snapshot.checkedAt;
-    }
+    const key = `${snapshot.trackingKeywordId}:${snapshot.device}`;
+    row[snapshot.device] = {
+      ...toDeviceResult(snapshot, previousPositions.get(key) ?? null),
+      bestPosition: bestPositionFor(key),
+      checkedInLatestCheck: snapshot.runId === latestCheckRunId,
+    };
   }
 
   return {
@@ -137,7 +151,9 @@ export async function getLatestResults(
     run: latestRun
       ? {
           id: latestRun.id,
-          lastCheckedAt: latestStartedAt,
+          // Freshness comes from the newest snapshot regardless of which run
+          // wrote it, so a newer failed run doesn't erase the results' date.
+          lastCheckedAt: latestSnapshot?.checkedAt ?? null,
           status: latestRun.status,
           errorMessage: latestRun.errorMessage,
         }
@@ -160,10 +176,13 @@ function parseSerpFeatures(raw: string | null): string[] {
 
 function createEmptyDeviceResult(
   previousPosition: number | null,
+  bestPosition: number | null,
 ): RankTrackingDeviceResult {
   return {
     position: null,
     previousPosition,
+    bestPosition,
+    checkedInLatestCheck: false,
     rankingUrl: null,
     serpFeatures: [],
   };
@@ -172,7 +191,7 @@ function createEmptyDeviceResult(
 function toDeviceResult(
   snapshot: SnapshotRow,
   previousPosition: number | null,
-): RankTrackingDeviceResult {
+): Omit<RankTrackingDeviceResult, "bestPosition" | "checkedInLatestCheck"> {
   return {
     position: snapshot.position,
     previousPosition,

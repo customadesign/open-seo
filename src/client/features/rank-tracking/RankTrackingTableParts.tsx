@@ -128,7 +128,7 @@ export function SerpFeatureTags({ features }: { features: string[] }) {
 export function DeviceRankCell({
   result,
 }: {
-  result: RankTrackingDeviceResult;
+  result: Pick<RankTrackingDeviceResult, "position" | "previousPosition">;
 }) {
   const { position, previousPosition } = result;
 

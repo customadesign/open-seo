@@ -41,12 +41,16 @@ function makeRow(
     desktop: {
       position: desktopPosition,
       previousPosition: null,
+      bestPosition: desktopPosition,
+      checkedInLatestCheck: true,
       rankingUrl: null,
       serpFeatures: [],
     },
     mobile: {
       position: mobilePosition,
       previousPosition: null,
+      bestPosition: mobilePosition,
+      checkedInLatestCheck: true,
       rankingUrl: null,
       serpFeatures: [],
     },
@@ -289,14 +293,13 @@ describe("keyword presets", () => {
       .filter((row) => matchesKeywordPreset(row, preset, "desktop"))
       .map((row) => row.keyword);
 
-  function ranked(
-    keyword: string,
-    position: number | null,
-    url: string | null,
-    volume: number | null,
+  function keyword(
+    name: string,
+    desktop: Partial<RankTrackingRow["desktop"]>,
+    metrics: { volume?: number | null; cpc?: number | null } = {},
   ) {
-    const row = makeRow(keyword, position, null, { volume });
-    row.desktop.rankingUrl = url;
+    const row = makeRow(name, null, null, metrics);
+    row.desktop = { ...row.desktop, bestPosition: null, ...desktop };
     return row;
   }
 
@@ -312,26 +315,40 @@ describe("keyword presets", () => {
     ).toEqual(["p11", "p30"]);
   });
 
-  it("create a page flags homepage-only or missing rankings with demand", () => {
+  // Local terms report the volume floor of 10, so CPC must count as demand.
+  it("create a page needs demand by volume or CPC and no dedicated page", () => {
+    const home = "https://example.com/";
     expect(
       matching("createPage", [
-        ranked("homepage 15", 15, "https://example.com/", 50),
-        ranked("dedicated 15", 15, "https://example.com/dallas/", 50),
-        ranked("homepage low volume", 15, "https://example.com/", 10),
-        ranked("homepage top 10", 8, "https://example.com/", 50),
-        ranked("unranked", null, null, 50),
+        keyword(
+          "homepage 15",
+          { position: 15, rankingUrl: home },
+          { volume: 50 },
+        ),
+        keyword(
+          "dedicated 15",
+          { position: 15, rankingUrl: `${home}dallas/` },
+          { volume: 50 },
+        ),
+        keyword(
+          "homepage top 10",
+          { position: 8, rankingUrl: home },
+          { volume: 50 },
+        ),
+        keyword("city term", { position: null }, { volume: 10, cpc: 12 }),
+        keyword("no demand", { position: null }, { volume: 10, cpc: 1 }),
       ]),
-    ).toEqual(["homepage 15", "unranked"]);
+    ).toEqual(["homepage 15", "city term"]);
   });
 
-  it("consider removing needs both a poor rank and little demand", () => {
-    expect(
-      matching("considerRemoving", [
-        ranked("unranked unknown volume", null, null, null),
-        ranked("unranked with demand", null, null, 20),
-        ranked("ranked low volume", 40, null, 5),
-        ranked("p51 low volume", 51, null, 5),
-      ]),
-    ).toEqual(["unranked unknown volume", "p51 low volume"]);
+  it("dropped and removal lists ignore keywords the latest check skipped", () => {
+    const rows = [
+      keyword("lost ranking", { position: null, bestPosition: 11 }),
+      keyword("never ranked", { position: null }),
+      keyword("never ranked, valuable", { position: null }, { cpc: 5 }),
+      keyword("skipped", { position: null, checkedInLatestCheck: false }),
+    ];
+    expect(matching("dropped", rows)).toEqual(["lost ranking"]);
+    expect(matching("considerRemoving", rows)).toEqual(["never ranked"]);
   });
 });

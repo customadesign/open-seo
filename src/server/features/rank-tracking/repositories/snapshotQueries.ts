@@ -363,6 +363,23 @@ export async function getSnapshotsForRuns(runIds: string[]) {
     .orderBy(asc(rankCheckRuns.startedAt));
 }
 
+/**
+ * Best (lowest) position each keyword+device ever reached across this config's
+ * comparable completed checks, imported continuous history included. A null
+ * best means it was never found within any check's depth.
+ */
+export async function getBestPositionsForConfig(configId: string) {
+  return db
+    .select({
+      trackingKeywordId: rankSnapshots.trackingKeywordId,
+      device: rankSnapshots.device,
+      bestPosition: min(rankSnapshots.position),
+    })
+    .from(rankSnapshots)
+    .where(inArray(rankSnapshots.runId, completedRunIdsForConfig(configId)))
+    .groupBy(rankSnapshots.trackingKeywordId, rankSnapshots.device);
+}
+
 export async function getLatestSnapshotsForKeywords(configId: string) {
   return getSnapshotsForConfig(configId, { order: "latest" });
 }

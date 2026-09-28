@@ -19,6 +19,7 @@ import {
 } from "./schedulingQueries";
 import {
   getLatestSnapshotsForKeywords,
+  getBestPositionsForConfig,
   getSnapshotsBeforeDate,
   getEarliestSnapshotsForKeywords,
   getKeywordHistory,
@@ -444,6 +445,7 @@ export const RankTrackingRepository = {
   getKeywordCountsForConfigs,
   getConfigSummaries,
   getLatestSnapshotsForKeywords,
+  getBestPositionsForConfig,
   getSnapshotsBeforeDate,
   getEarliestSnapshotsForKeywords,
   getKeywordHistory,
