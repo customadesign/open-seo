@@ -7,10 +7,12 @@ import {
   EMPTY_DOMAIN_LIST_FILTERS,
   EMPTY_FILTERS,
   getDomainListFilterOptions,
+  matchesKeywordPreset,
   matchesMetricRangeFilter,
   matchesPositionFilter,
   type DomainListFilters,
   type Filters,
+  type KeywordPreset,
 } from "./RankTrackingFilters";
 
 type DomainSummary = {
@@ -278,5 +280,58 @@ describe("applyFilters metric ranges", () => {
         (row) => row.keyword,
       ),
     ).toEqual(["high volume", "low volume"]);
+  });
+});
+
+describe("keyword presets", () => {
+  const matching = (preset: KeywordPreset, rows: RankTrackingRow[]) =>
+    rows
+      .filter((row) => matchesKeywordPreset(row, preset, "desktop"))
+      .map((row) => row.keyword);
+
+  function ranked(
+    keyword: string,
+    position: number | null,
+    url: string | null,
+    volume: number | null,
+  ) {
+    const row = makeRow(keyword, position, null, { volume });
+    row.desktop.rankingUrl = url;
+    return row;
+  }
+
+  it("work on next is positions 11 through 30", () => {
+    expect(
+      matching("workOnNext", [
+        makeRow("p10", 10, null),
+        makeRow("p11", 11, null),
+        makeRow("p30", 30, null),
+        makeRow("p31", 31, null),
+        makeRow("unranked", null, null),
+      ]),
+    ).toEqual(["p11", "p30"]);
+  });
+
+  it("create a page flags homepage-only or missing rankings with demand", () => {
+    expect(
+      matching("createPage", [
+        ranked("homepage 15", 15, "https://example.com/", 50),
+        ranked("dedicated 15", 15, "https://example.com/dallas/", 50),
+        ranked("homepage low volume", 15, "https://example.com/", 10),
+        ranked("homepage top 10", 8, "https://example.com/", 50),
+        ranked("unranked", null, null, 50),
+      ]),
+    ).toEqual(["homepage 15", "unranked"]);
+  });
+
+  it("consider removing needs both a poor rank and little demand", () => {
+    expect(
+      matching("considerRemoving", [
+        ranked("unranked unknown volume", null, null, null),
+        ranked("unranked with demand", null, null, 20),
+        ranked("ranked low volume", 40, null, 5),
+        ranked("p51 low volume", 51, null, 5),
+      ]),
+    ).toEqual(["unranked unknown volume", "p51 low volume"]);
   });
 });

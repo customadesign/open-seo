@@ -1,11 +1,10 @@
-import { CalendarDays, Loader2, SlidersHorizontal, Table } from "lucide-react";
+import type { ReactNode } from "react";
+import { CalendarDays, Loader2, Table } from "lucide-react";
 import { SegmentedToggle } from "@/client/components/SegmentedToggle";
 import { ExportMenu, MoreMenu } from "./ToolbarMenus";
 
 export function RankTrackingTableToolbar({
-  showFilters,
-  onToggleFilters,
-  activeFilterCount,
+  filterBar,
   isRunning,
   latestRun,
   keywordCount,
@@ -22,11 +21,9 @@ export function RankTrackingTableToolbar({
   checkDisabled,
   hasData,
   readOnly = false,
-  showFilterButton = true,
 }: {
-  showFilters: boolean;
-  onToggleFilters: () => void;
-  activeFilterCount: number;
+  /** Keyword filter controls; omitted on report tabs that don't list keywords. */
+  filterBar?: ReactNode;
   isRunning: boolean;
   latestRun:
     | { status: string; keywordsChecked: number; keywordsTotal: number }
@@ -46,7 +43,6 @@ export function RankTrackingTableToolbar({
   checkDisabled: boolean;
   hasData: boolean;
   readOnly?: boolean;
-  showFilterButton?: boolean;
 }) {
   return (
     <div className="shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 border-y border-base-300">
@@ -72,21 +68,7 @@ export function RankTrackingTableToolbar({
         />
       )}
 
-      {showFilterButton ? (
-        <button
-          className={`btn btn-ghost btn-sm gap-1.5 ${showFilters ? "btn-active" : ""}`}
-          onClick={onToggleFilters}
-          title="Toggle table filters"
-        >
-          <SlidersHorizontal className="size-3.5" />
-          Filters
-          {activeFilterCount > 0 && (
-            <span className="badge badge-xs badge-primary border-0 text-primary-content">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
-      ) : null}
+      {filterBar}
 
       {isRunning && latestRun ? (
         <div className="flex items-center gap-2 text-sm text-base-content/70">

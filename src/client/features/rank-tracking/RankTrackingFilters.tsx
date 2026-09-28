@@ -1,5 +1,10 @@
-import { RotateCcw } from "lucide-react";
-import type { DomainListFilters, Filters } from "./RankTrackingFilters.logic";
+import { RotateCcw, SlidersHorizontal } from "lucide-react";
+import {
+  KEYWORD_PRESETS,
+  type DomainListFilters,
+  type Filters,
+  type KeywordPreset,
+} from "./RankTrackingFilters.logic";
 
 export * from "./RankTrackingFilters.logic";
 
@@ -7,6 +12,59 @@ type DomainListFilterOption = {
   value: string;
   label: string;
 };
+
+export function KeywordPresetBar({
+  preset,
+  onPresetChange,
+  counts,
+  showCustomFilters,
+  onToggleCustomFilters,
+  activeFilterCount,
+}: {
+  preset: KeywordPreset;
+  onPresetChange: (preset: KeywordPreset) => void;
+  counts: Record<KeywordPreset, number>;
+  showCustomFilters: boolean;
+  onToggleCustomFilters: () => void;
+  activeFilterCount: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {KEYWORD_PRESETS.map((option) => {
+        const active = preset === option.id;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            className={`btn btn-sm gap-1.5 ${active ? "btn-primary" : "btn-ghost"}`}
+            aria-pressed={active}
+            title={option.description}
+            onClick={() => onPresetChange(option.id)}
+          >
+            {option.label}
+            <span className={active ? "opacity-80" : "text-base-content/50"}>
+              {counts[option.id]}
+            </span>
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        className={`btn btn-ghost btn-xs gap-1 text-base-content/60 ${showCustomFilters ? "btn-active" : ""}`}
+        onClick={onToggleCustomFilters}
+        title="Filter by position, volume, difficulty or CPC ranges"
+      >
+        <SlidersHorizontal className="size-3" />
+        Custom filter
+        {activeFilterCount > 0 && (
+          <span className="badge badge-xs badge-primary border-0 text-primary-content">
+            {activeFilterCount}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
 
 export function FilterPanel({
   filters,

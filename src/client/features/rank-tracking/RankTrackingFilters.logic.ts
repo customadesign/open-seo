@@ -234,3 +234,88 @@ export function countActiveDomainListFilters(
   if (filters.locationCode !== "all") count++;
   return count;
 }
+
+// ---------------------------------------------------------------------------
+// Keyword presets: one-click action lists over the tracked keywords.
+// ---------------------------------------------------------------------------
+
+export type KeywordPreset =
+  | "all"
+  | "workOnNext"
+  | "createPage"
+  | "considerRemoving";
+
+// Rule thresholds, named so they are easy to tune.
+const STRIKING_DISTANCE_MIN = 11;
+const STRIKING_DISTANCE_MAX = 30;
+const PAGE_WORTHY_MIN_VOLUME = 20;
+const PAGE_MISSING_BEYOND = 30;
+const HOMEPAGE_ONLY_BEYOND = 10;
+const REMOVE_BEYOND = 50;
+const REMOVE_BELOW_VOLUME = 20;
+
+export const KEYWORD_PRESETS: ReadonlyArray<{
+  id: KeywordPreset;
+  label: string;
+  description: string;
+}> = [
+  { id: "all", label: "All", description: "Every tracked keyword" },
+  {
+    id: "workOnNext",
+    label: "Work on next",
+    description: `Positions ${STRIKING_DISTANCE_MIN}–${STRIKING_DISTANCE_MAX}: closest to page 1, highest volume first`,
+  },
+  {
+    id: "createPage",
+    label: "Create a page",
+    description: `Volume ${PAGE_WORTHY_MIN_VOLUME}+ and not in the top ${PAGE_MISSING_BEYOND}, or only the homepage ranks below #${HOMEPAGE_ONLY_BEYOND}`,
+  },
+  {
+    id: "considerRemoving",
+    label: "Consider removing",
+    description: `Not in the top ${REMOVE_BEYOND} and volume under ${REMOVE_BELOW_VOLUME} (or unknown)`,
+  },
+];
+
+/** Path part of a ranking URL ("/" for the homepage); raw value if unparseable. */
+export function toPath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+export function matchesKeywordPreset(
+  row: RankTrackingRow,
+  preset: KeywordPreset,
+  device: "desktop" | "mobile",
+): boolean {
+  const { position, rankingUrl } = row[device];
+  const volume = row.searchVolume;
+
+  switch (preset) {
+    case "all":
+      return true;
+    case "workOnNext":
+      return (
+        position != null &&
+        position >= STRIKING_DISTANCE_MIN &&
+        position <= STRIKING_DISTANCE_MAX
+      );
+    case "createPage": {
+      if (volume == null || volume < PAGE_WORTHY_MIN_VOLUME) return false;
+      if (position == null || position > PAGE_MISSING_BEYOND) return true;
+      return (
+        rankingUrl != null &&
+        toPath(rankingUrl) === "/" &&
+        position > HOMEPAGE_ONLY_BEYOND
+      );
+    }
+    case "considerRemoving":
+      return (
+        (position == null || position > REMOVE_BEYOND) &&
+        (volume == null || volume < REMOVE_BELOW_VOLUME)
+      );
+  }
+}

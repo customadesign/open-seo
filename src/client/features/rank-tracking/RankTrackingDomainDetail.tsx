@@ -33,7 +33,11 @@ import { AddKeywordsPanel } from "./AddKeywordsPanel";
 import { rankTrackingSkipReasonLabel } from "./rankTrackingUi";
 import {
   FilterPanel,
+  KEYWORD_PRESETS,
+  KeywordPresetBar,
   applyFilters,
+  matchesKeywordPreset,
+  type KeywordPreset,
   countActiveFilters,
   EMPTY_FILTERS,
   type Filters,
@@ -85,6 +89,7 @@ export function RankTrackingDomainDetail({
   const [showAddKeywords, setShowAddKeywords] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [preset, setPreset] = useState<KeywordPreset>("all");
   const [comparePeriod, setComparePeriod] = useState<ComparePeriod>(
     config.scheduleInterval === "daily"
       ? "1d"
@@ -183,12 +188,41 @@ export function RankTrackingDomainDetail({
     config.devices,
     activeDevice,
   );
-  const filtered = useMemo(
+  const presetDevice = showDesktop ? "desktop" : "mobile";
+  // Custom range filters apply first; each preset button counts what it would
+  // show from that set, so the numbers match the rows a click produces.
+  const customFiltered = useMemo(
     () => applyFilters(rows ?? [], filters),
     [rows, filters],
   );
+  const presetCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        KEYWORD_PRESETS.map(({ id }) => [
+          id,
+          customFiltered.filter((row) =>
+            matchesKeywordPreset(row, id, presetDevice),
+          ).length,
+        ]),
+      ) as Record<KeywordPreset, number>,
+    [customFiltered, presetDevice],
+  );
+  const filtered = useMemo(
+    () =>
+      customFiltered.filter((row) =>
+        matchesKeywordPreset(row, preset, presetDevice),
+      ),
+    [customFiltered, preset, presetDevice],
+  );
   const activeFilterCount = countActiveFilters(filters);
-  const defaultSortId = showDesktop ? "desktopPosition" : "mobilePosition";
+  // "Work on next" leads with the biggest prizes; everything else by position.
+  const tableSort =
+    preset === "workOnNext"
+      ? { id: "volume", desc: true }
+      : {
+          id: showDesktop ? "desktopPosition" : "mobilePosition",
+          desc: false,
+        };
   // Fall back to keywords if history disappears (e.g. device switch).
   const effectiveViewMode =
     viewMode === "history" && !historyAvailable ? "keywords" : viewMode;
@@ -284,9 +318,18 @@ export function RankTrackingDomainDetail({
 
         {/* Table toolbar */}
         <RankTrackingTableToolbar
-          showFilters={showFilters}
-          onToggleFilters={() => setShowFilters((c) => !c)}
-          activeFilterCount={activeFilterCount}
+          filterBar={
+            showKeywordTable ? (
+              <KeywordPresetBar
+                preset={preset}
+                onPresetChange={setPreset}
+                counts={presetCounts}
+                showCustomFilters={showFilters}
+                onToggleCustomFilters={() => setShowFilters((c) => !c)}
+                activeFilterCount={activeFilterCount}
+              />
+            ) : undefined
+          }
           isRunning={isRunning}
           latestRun={latestRun}
           keywordCount={filtered.length}
@@ -295,7 +338,6 @@ export function RankTrackingDomainDetail({
             setViewMode(mode === "history" ? "history" : "keywords")
           }
           historyAvailable={false}
-          showFilterButton={showKeywordTable}
           onExport={() =>
             exportRankTrackingCsv(
               filtered,
@@ -352,7 +394,7 @@ export function RankTrackingDomainDetail({
             resultsLoading={resultsLoading}
             showDesktop={showDesktop}
             showMobile={showMobile}
-            defaultSortId={defaultSortId}
+            defaultSort={tableSort}
             matrixCells={matrixCells}
             matrixLoading={matrixLoading}
           />

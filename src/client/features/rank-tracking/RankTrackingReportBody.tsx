@@ -28,7 +28,7 @@ export function RankTrackingReportBody({
   resultsLoading,
   showDesktop,
   showMobile,
-  defaultSortId,
+  defaultSort,
   matrixCells,
   matrixLoading,
 }: {
@@ -42,7 +42,7 @@ export function RankTrackingReportBody({
   resultsLoading: boolean;
   showDesktop: boolean;
   showMobile: boolean;
-  defaultSortId: string;
+  defaultSort: { id: string; desc: boolean };
   matrixCells: RankPositionMatrixCell[] | undefined;
   matrixLoading: boolean;
 }) {
@@ -128,13 +128,13 @@ export function RankTrackingReportBody({
   }
   return (
     <RankTrackingTable
-      key={defaultSortId}
+      key={`${defaultSort.id}:${defaultSort.desc}`}
       totalCount={rows.length}
       rows={filtered}
       resultsLoading={resultsLoading}
       showDesktop={showDesktop}
       showMobile={showMobile}
-      defaultSortId={defaultSortId}
+      defaultSort={defaultSort}
       domain={config.domain}
       configId={config.id}
       projectId={projectId}

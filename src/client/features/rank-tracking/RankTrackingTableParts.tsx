@@ -9,6 +9,7 @@ import { buildCsv, downloadCsv } from "@/client/lib/csv";
 import { exportTableToSheets } from "@/client/lib/exportToSheets";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { formatLocationLabel } from "@/shared/keyword-locations";
+import { toPath } from "./RankTrackingFilters.logic";
 import type {
   RankTrackingDeviceResult,
   RankTrackingRow,
@@ -340,14 +341,6 @@ export function exportRankTrackingCsv(
   );
   downloadCsv(`rank-tracking-${domain}.csv`, buildCsv(headers, csvRows));
   captureClientEvent("rank_tracking:export_csv");
-}
-
-function toPath(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url;
-  }
 }
 
 function toFullUrl(url: string, domain: string): string {
