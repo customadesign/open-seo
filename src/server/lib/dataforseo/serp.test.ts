@@ -10,6 +10,13 @@ import {
   postRankCheckTasks,
 } from "@/server/lib/dataforseo/serp";
 
+const RETIRED_SERP_TARGET_KEYS = [
+  "stop_crawl_on_match",
+  "target_search_mode",
+  "find_targets_in",
+  "ignore_targets_in",
+];
+
 function parseDataforseoRequestBody(init: RequestInit | undefined): unknown {
   const body = init?.body;
   if (typeof body !== "string") {
@@ -118,18 +125,19 @@ describe("rank check task queue", () => {
       ),
     ).toEqual(["https://api.dataforseo.com/v3/serp/google/organic/task_post"]);
 
-    // Every posted task asks DataForSEO to stop crawling at the target's
-    // organic listing — that is what cuts the actual crawl cost for ranking
-    // domains without false "not ranking" stops on sitelinks/PAA mentions.
-    const stopCrawl = {
-      stop_crawl_on_match: [
-        { match_value: "example.com", match_type: "with_subdomains" },
-      ],
-      find_targets_in: ["organic"],
-    };
-    expect(
-      parseDataforseoRequestBody(fetchMock.mock.calls[0]?.[1]),
-    ).toMatchObject([stopCrawl, stopCrawl, stopCrawl]);
+    // DataForSEO discontinued early-stop targeting on Google Organic SERPs
+    // (ignored now, tasks REJECTED from 2026-11-23). No posted task may carry
+    // any of the retired keys — not even the null the SDK writes for unset
+    // fields — and every task crawls the full configured depth.
+    const googleBody = parseDataforseoRequestBody(fetchMock.mock.calls[0]?.[1]);
+    expect(googleBody).toMatchObject([
+      { depth: 20 },
+      { depth: 20 },
+      { depth: 20 },
+    ]);
+    for (const key of RETIRED_SERP_TARGET_KEYS) {
+      expect(JSON.stringify(googleBody)).not.toContain(key);
+    }
     expect(result.data).toEqual([
       {
         keyword: "alpha",
@@ -264,15 +272,14 @@ describe("Bing rank checks", () => {
       ),
     ).toEqual(["https://api.dataforseo.com/v3/serp/bing/organic/task_post"]);
 
-    // Bing has no `find_targets_in`, so `stop_crawl_on_match` could stop on a
-    // sitelink or answer-box mention and record a false "not ranking". Neither
-    // field may be set (the SDK serializes unset fields as null), and the full
-    // configured depth must be crawled.
+    // Bing never used early stop (no `find_targets_in` to keep a match on
+    // organic results). The transport strips the null the SDK writes for the
+    // unset field, and the full configured depth is crawled.
     const bingBody = parseDataforseoRequestBody(fetchMock.mock.calls[0]?.[1]);
-    expect(bingBody).toMatchObject([{ stop_crawl_on_match: null, depth: 40 }]);
-    // Bing's task_post has no `find_targets_in` field at all, which is exactly
-    // why the early stop above must stay unset.
-    expect(JSON.stringify(bingBody)).not.toContain("find_targets_in");
+    expect(bingBody).toMatchObject([{ depth: 40 }]);
+    for (const key of RETIRED_SERP_TARGET_KEYS) {
+      expect(JSON.stringify(bingBody)).not.toContain(key);
+    }
 
     expect(result.billing.path).toEqual([
       "v3",

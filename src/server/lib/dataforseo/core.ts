@@ -60,6 +60,51 @@ function formatDataforseoRequestPath(url: RequestInfo): string {
 }
 
 /**
+ * SERP early-stop targeting keys DataForSEO retired (announced 2026-11-06):
+ * Google now wraps result URLs in redirects, so a target domain cannot be
+ * matched mid-crawl. Until 2026-11-23 the keys are ignored with a validation
+ * warning; from 2026-11-23 any task that contains them is REJECTED.
+ */
+const RETIRED_SERP_TARGET_KEYS = [
+  "stop_crawl_on_match",
+  "target_search_mode",
+  "find_targets_in",
+  "ignore_targets_in",
+] as const;
+
+/**
+ * Removes the retired keys from a SERP request body. Our code no longer sets
+ * them, but the SDK's toJSON() still writes `stop_crawl_on_match: null` into
+ * every request, and "contains the parameter" may include a null. Non-SERP
+ * paths and bodies that are not a JSON task array pass through unchanged.
+ */
+export function stripRetiredSerpTargetParams(
+  path: string,
+  body: RequestInit["body"],
+): RequestInit["body"] {
+  if (!path.startsWith("/v3/serp/") || typeof body !== "string") return body;
+  let tasks: unknown;
+  try {
+    tasks = JSON.parse(body);
+  } catch {
+    return body;
+  }
+  if (!Array.isArray(tasks)) return body;
+  let changed = false;
+  const cleaned: unknown[] = tasks.map((task: unknown) => {
+    if (!task || typeof task !== "object" || Array.isArray(task)) return task;
+    const entries = Object.entries(task);
+    const kept = entries.filter(
+      ([key]) => !(RETIRED_SERP_TARGET_KEYS as readonly string[]).includes(key),
+    );
+    if (kept.length === entries.length) return task;
+    changed = true;
+    return Object.fromEntries(kept);
+  });
+  return changed ? JSON.stringify(cleaned) : body;
+}
+
+/**
  * The single authenticated `fetch` used by every DataForSEO SDK call. Throws on
  * non-2xx so the SDK's own `ApiException` path never fires; task-level failures
  * (which return HTTP 200) are handled downstream by {@link assertOk}. An
@@ -78,6 +123,7 @@ export function createAuthenticatedFetch(
     const signal =
       init?.signal ?? AbortSignal.timeout(DATAFORSEO_REQUEST_TIMEOUT_MS);
     const path = formatDataforseoRequestPath(url);
+    const body = stripRetiredSerpTargetParams(path, init?.body);
     // DataForSEO can charge live and task_post requests even when their HTTP
     // response is unsuccessful. Replaying those calls risks paying more than
     // once for no result, so only free/idempotent reads receive 5xx retries.
@@ -86,7 +132,7 @@ export function createAuthenticatedFetch(
       : maxServerErrorRetries;
 
     for (let attempt = 0; ; attempt++) {
-      const response = await fetch(url, { ...init, headers, signal });
+      const response = await fetch(url, { ...init, body, headers, signal });
       if (response.ok) return response;
 
       // Transient upstream 5xx on an idempotent read -> back off and retry.

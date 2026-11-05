@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  SerpApiStopCrawlOnMatchInfo,
   SerpBingOrganicLiveAdvancedRequestInfo,
   SerpBingOrganicTaskPostRequestInfo,
   SerpGoogleLocalFinderLiveAdvancedRequestInfo,
@@ -29,40 +28,14 @@ function clampSerpDepth(depth: number): number {
   return Math.min(100, Math.max(10, depth));
 }
 
-/**
- * Stop crawling SERP pages once the target domain is found — DataForSEO only
- * bills the pages crawled, so a page-1 ranking at depth 20 costs one page
- * instead of two. Matching is restricted to organic results and uses
- * with_subdomains, mirroring buildRankCheckResult exactly: without
- * find_targets_in, a sitelink or PAA mention could stop the crawl before the
- * domain's organic listing and record a false "not ranking".
+/*
+ * No early stop. DataForSEO retired `stop_crawl_on_match` and its companions
+ * (`target_search_mode`, `find_targets_in`, `ignore_targets_in`) on Google
+ * Organic SERPs: ignored until 2026-11-23, tasks REJECTED after. Every rank
+ * check, Google or Bing, crawls the full configured depth and is billed for
+ * every page, so the settled cost equals the estimate. The transport in
+ * core.ts also strips the keys from every SERP body as a backstop.
  */
-function stopCrawlOnTarget(targetDomain: string) {
-  return {
-    stop_crawl_on_match: [
-      new SerpApiStopCrawlOnMatchInfo({
-        match_value: targetDomain,
-        match_type: "with_subdomains",
-      }),
-    ],
-    find_targets_in: ["organic"],
-  };
-}
-
-/**
- * Early-stop params for the engine, or `{}` when the engine cannot support
- * them safely.
- *
- * Bing's SERP endpoints accept `stop_crawl_on_match` but have NO
- * `find_targets_in` field, so a match cannot be restricted to organic results.
- * A sitelink, answer box, or "people also ask" mention of the domain would end
- * the crawl before its organic listing and record a false "not ranking" —
- * corrupting the very data we are collecting. Bing therefore always crawls the
- * full configured depth and pays for every page.
- */
-function earlyStopParams(engine: RankTrackingEngine, targetDomain: string) {
-  return engine === "bing" ? {} : stopCrawlOnTarget(targetDomain);
-}
 
 // Kept as a hand-written schema: the SDK's BaseSerpApiElementItem type omits
 // etv / estimated_paid_traffic_cost / backlinks_info / rank_changes, which we
@@ -169,7 +142,6 @@ export async function fetchRankCheckSerp(input: {
     device: input.device,
     os: input.device === "desktop" ? "windows" : "android",
     depth,
-    ...earlyStopParams(engine, input.targetDomain),
   };
   const endpoint = `${engine}-organic-live-advanced`;
   const response =
@@ -236,12 +208,8 @@ export async function postRankCheckTasks(input: {
     device: task.device,
     os: task.device === "desktop" ? "windows" : "android",
     depth,
-    // Queued Google tasks are billed provisionally at full depth at post time;
-    // task_get later reports the reduced actual cost when the crawl stopped
-    // early. We meter customers on the post-time amount — collection-time
-    // metering is a possible future optimization. Bing has no early stop
-    // (see earlyStopParams), so its settled cost equals the posted cost.
-    ...earlyStopParams(engine, input.targetDomain),
+    // Billed at full depth at post time; with no early stop the settled cost
+    // reported by task_get equals the posted cost for both engines.
     // Echoed back on the response entry and task_get; used to map a
     // DataForSEO task id back to our keyword without relying on order.
     tag: `${task.keywordId}:${task.device}`,
@@ -311,7 +279,7 @@ const TASK_IN_PROGRESS_STATUS_CODES = new Set([20100, 40601, 40602]);
  * Collect one queued task's result. Deliberately not metered and not wrapped
  * in the billing envelope: collection is free (the task was charged at
  * task_post), and the task_get response carries the task's settled cost
- * (reduced when stop_crawl_on_match ended the crawl early) — running it
+ * (equal to the posted cost now that early stop is retired) — running it
  * through the metering seam would charge the customer twice.
  */
 export async function fetchRankCheckTaskResult(input: {
