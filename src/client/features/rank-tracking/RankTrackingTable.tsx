@@ -33,7 +33,7 @@ export function RankTrackingTable({
   resultsLoading,
   showDesktop,
   showMobile,
-  defaultSortId,
+  defaultSort,
   domain,
   configId,
   projectId,
@@ -47,7 +47,7 @@ export function RankTrackingTable({
   resultsLoading: boolean;
   showDesktop: boolean;
   showMobile: boolean;
-  defaultSortId: string;
+  defaultSort: { id: string; desc: boolean };
   domain: string;
   configId: string;
   projectId: string;
@@ -85,7 +85,7 @@ export function RankTrackingTable({
     data: rows,
     columns,
     initialState: {
-      sorting: [{ id: defaultSortId, desc: false }],
+      sorting: [defaultSort],
     },
     withSorting: true,
     getRowId: (row) => row.trackingKeywordId,

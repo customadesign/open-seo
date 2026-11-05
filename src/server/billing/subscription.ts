@@ -250,6 +250,26 @@ export async function assertUsageCreditsAvailable(
 }
 
 /**
+ * Throws INSUFFICIENT_CREDITS unless the org's usage + topup credits cover
+ * `costCredits`. Workflows call this before starting a metered batch so a run
+ * is refused up front instead of failing halfway through its spend.
+ */
+export async function assertUsageCreditsCover(
+  customerId: string,
+  costCredits: number,
+  message: string,
+): Promise<void> {
+  if (await isBillingDisabled()) return;
+
+  const { monthlyRemaining, topupRemaining } =
+    await getUsageCreditsRemaining(customerId);
+
+  if (monthlyRemaining + topupRemaining < costCredits) {
+    throw new AppError("INSUFFICIENT_CREDITS", message);
+  }
+}
+
+/**
  * Deducts a USD provider cost from the org's shared usage-credit pool: applies
  * the platform markup, converts to credits, spends monthly `usage_credits`
  * first then `topup_credits`, and emits the usage:credits_consume event. Both

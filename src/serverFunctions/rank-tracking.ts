@@ -187,6 +187,13 @@ export const getLatestRankRun = createServerFn({ method: "POST" })
     return RankTrackingService.getLatestRun(data.configId, context.projectId);
   });
 
+export const getRankCheckRuns = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getLatestRunSchema)
+  .handler(async ({ data, context }) => {
+    return RankTrackingService.listCheckRuns(data.configId, context.projectId);
+  });
+
 export const estimateRankCheckCost = createServerFn({ method: "POST" })
   .middleware(requireProjectUse)
   .validator(estimateCostSchema)

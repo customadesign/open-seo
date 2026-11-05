@@ -5,8 +5,10 @@ import {
 } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { withPgClient } from "@/db";
-import { autumn } from "@/server/billing/autumn";
-import type { BillingCustomerContext } from "@/server/billing/subscription";
+import {
+  assertUsageCreditsCover,
+  type BillingCustomerContext,
+} from "@/server/billing/subscription";
 import { AiVisibilityRepository } from "@/server/features/ai-visibility/repositories/AiVisibilityRepository";
 import { failAiVisibilityRunIfActive } from "@/server/features/ai-visibility/services/aiVisibilityRunGuards";
 import { createDataforseoClient } from "@/server/lib/dataforseo";
@@ -18,10 +20,6 @@ import {
   runAiVisibilityCollection,
   type AiVisibilityRunStats,
 } from "@/server/workflows/aiVisibilityPaths";
-import {
-  AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
-  AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-} from "@/shared/billing";
 import {
   aiVisibilityCostApprovalError,
   estimateAiVisibilityRunCredits,
@@ -89,25 +87,11 @@ async function prepareAiVisibilityRun(input: {
   }
 
   if (await isHostedServerAuthMode()) {
-    const [monthlyCheck, topupCheck] = await Promise.all([
-      autumn.check({
-        customerId: input.billingCustomer.organizationId,
-        featureId: AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
-      }),
-      autumn.check({
-        customerId: input.billingCustomer.organizationId,
-        featureId: AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-      }),
-    ]);
-    const available =
-      (monthlyCheck.balance?.remaining ?? 0) +
-      (topupCheck.balance?.remaining ?? 0);
-    if (available < costCredits) {
-      throw new AppError(
-        "INSUFFICIENT_CREDITS",
-        "Insufficient credits for AI visibility run",
-      );
-    }
+    await assertUsageCreditsCover(
+      input.billingCustomer.organizationId,
+      costCredits,
+      "Insufficient credits for AI visibility run",
+    );
   }
 
   await AiVisibilityRepository.updateRun(input.runId, {

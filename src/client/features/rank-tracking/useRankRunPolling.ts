@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getLatestRankRun } from "@/serverFunctions/rank-tracking";
 
 /**
- * Polls the latest rank check run for a config, auto-refreshing results
- * when a run transitions from "running" to "completed".
+ * Polls the latest rank check run for a config, auto-refreshing every
+ * run-derived query when a run finishes.
  */
 export function useRankRunPolling(projectId: string, configId: string) {
   const queryClient = useQueryClient();
@@ -18,13 +18,18 @@ export function useRankRunPolling(projectId: string, configId: string) {
       const prev = prevStatusRef.current;
       prevStatusRef.current = run?.status;
 
-      // When a run transitions to a terminal state, invalidate results
+      // When a run transitions to a terminal state, refresh everything built
+      // from this config's runs — results, trend chart, history matrix, report
+      // tabs and the check log all key as [name, projectId, configId, ...].
       const isTerminal =
         run?.status === "completed" || run?.status === "failed";
       const wasActive = prev === "running" || prev === "pending";
       if (wasActive && isTerminal) {
         void queryClient.invalidateQueries({
-          queryKey: ["rankTrackingResults", projectId, configId],
+          predicate: ({ queryKey }) =>
+            queryKey[0] !== "rankTrackingLatestRun" &&
+            queryKey[1] === projectId &&
+            queryKey[2] === configId,
         });
       }
 

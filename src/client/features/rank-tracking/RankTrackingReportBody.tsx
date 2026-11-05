@@ -1,6 +1,7 @@
 import type { RankPositionMatrixCell } from "@/serverFunctions/rank-tracking";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
 import type { RankTrackingRow } from "@/types/schemas/rank-tracking";
+import { RankCheckLogPanel } from "./RankCheckLogPanel";
 import { RankTrackingHistoryMatrix } from "./RankTrackingHistoryMatrix";
 import { RankTrackingTable } from "./RankTrackingTable";
 import type { RankReportTab } from "./RankTrackingReportTabs";
@@ -27,7 +28,7 @@ export function RankTrackingReportBody({
   resultsLoading,
   showDesktop,
   showMobile,
-  defaultSortId,
+  defaultSort,
   matrixCells,
   matrixLoading,
 }: {
@@ -41,7 +42,7 @@ export function RankTrackingReportBody({
   resultsLoading: boolean;
   showDesktop: boolean;
   showMobile: boolean;
-  defaultSortId: string;
+  defaultSort: { id: string; desc: boolean };
   matrixCells: RankPositionMatrixCell[] | undefined;
   matrixLoading: boolean;
 }) {
@@ -56,6 +57,9 @@ export function RankTrackingReportBody({
         }))}
       />
     );
+  }
+  if (tab === "checks") {
+    return <RankCheckLogPanel projectId={projectId} configId={config.id} />;
   }
   if (tab === "distribution") {
     return (
@@ -124,13 +128,13 @@ export function RankTrackingReportBody({
   }
   return (
     <RankTrackingTable
-      key={defaultSortId}
+      key={`${defaultSort.id}:${defaultSort.desc}`}
       totalCount={rows.length}
       rows={filtered}
       resultsLoading={resultsLoading}
       showDesktop={showDesktop}
       showMobile={showMobile}
-      defaultSortId={defaultSortId}
+      defaultSort={defaultSort}
       domain={config.domain}
       configId={config.id}
       projectId={projectId}

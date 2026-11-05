@@ -234,3 +234,104 @@ export function countActiveDomainListFilters(
   if (filters.locationCode !== "all") count++;
   return count;
 }
+
+// ---------------------------------------------------------------------------
+// Keyword presets: one-click action lists over the tracked keywords.
+// ---------------------------------------------------------------------------
+
+export type KeywordPreset =
+  | "all"
+  | "workOnNext"
+  | "createPage"
+  | "dropped"
+  | "considerRemoving";
+
+// Rule thresholds, named so they are easy to tune. Reported volume bottoms out
+// at 10 for most local terms, so paid-click value (CPC) is the second demand
+// signal: advertisers only bid on searches that bring customers.
+const STRIKING_DISTANCE_MIN = 11;
+const STRIKING_DISTANCE_MAX = 30;
+const DEMAND_MIN_VOLUME = 20;
+const DEMAND_MIN_CPC = 2;
+const PAGE_MISSING_BEYOND = 30;
+const HOMEPAGE_ONLY_BEYOND = 10;
+
+export const KEYWORD_PRESETS: ReadonlyArray<{
+  id: KeywordPreset;
+  label: string;
+  description: string;
+}> = [
+  { id: "all", label: "All", description: "Every tracked keyword" },
+  {
+    id: "workOnNext",
+    label: "Work on next",
+    description: `Positions ${STRIKING_DISTANCE_MIN}–${STRIKING_DISTANCE_MAX}: closest to page 1, highest volume first`,
+  },
+  {
+    id: "createPage",
+    label: "Create a page",
+    description: `Volume ${DEMAND_MIN_VOLUME}+ or CPC $${DEMAND_MIN_CPC}+, and not in the top ${PAGE_MISSING_BEYOND} or only the homepage ranks below #${HOMEPAGE_ONLY_BEYOND}`,
+  },
+  {
+    id: "dropped",
+    label: "Dropped",
+    description:
+      "Ranked in an earlier check but not found in the top 100 in the latest one",
+  },
+  {
+    id: "considerRemoving",
+    label: "Consider removing",
+    description: `Checked in the latest run, never ranked in any check, volume under ${DEMAND_MIN_VOLUME} and CPC under $${DEMAND_MIN_CPC}`,
+  },
+];
+
+function hasDemand(row: RankTrackingRow): boolean {
+  return (
+    (row.searchVolume ?? 0) >= DEMAND_MIN_VOLUME ||
+    (row.cpc ?? 0) >= DEMAND_MIN_CPC
+  );
+}
+
+/** Path part of a ranking URL ("/" for the homepage); raw value if unparseable. */
+export function toPath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+export function matchesKeywordPreset(
+  row: RankTrackingRow,
+  preset: KeywordPreset,
+  device: "desktop" | "mobile",
+): boolean {
+  const { position, bestPosition, checkedInLatestCheck, rankingUrl } =
+    row[device];
+
+  switch (preset) {
+    case "all":
+      return true;
+    case "workOnNext":
+      return (
+        position != null &&
+        position >= STRIKING_DISTANCE_MIN &&
+        position <= STRIKING_DISTANCE_MAX
+      );
+    case "createPage": {
+      if (!hasDemand(row)) return false;
+      if (position == null || position > PAGE_MISSING_BEYOND) return true;
+      return (
+        rankingUrl != null &&
+        toPath(rankingUrl) === "/" &&
+        position > HOMEPAGE_ONLY_BEYOND
+      );
+    }
+    // Both lists below need a real "not found" from the newest check — a
+    // keyword that check skipped has no evidence either way.
+    case "dropped":
+      return checkedInLatestCheck && position == null && bestPosition != null;
+    case "considerRemoving":
+      return checkedInLatestCheck && bestPosition == null && !hasDemand(row);
+  }
+}

@@ -29,6 +29,11 @@ export type RankCheckTriggerResult =
 export interface RankTrackingDeviceResult {
   position: number | null;
   previousPosition: number | null;
+  /** Best position across every comparable check; null = never found. */
+  bestPosition: number | null;
+  /** False when the newest check skipped this keyword (e.g. a failed lookup),
+   *  so `position` is carried over from an older check. */
+  checkedInLatestCheck: boolean;
   rankingUrl: string | null;
   serpFeatures: string[];
 }

@@ -9,7 +9,14 @@ function device(
   position: number | null,
   previousPosition: number | null,
 ): RankTrackingDeviceResult {
-  return { position, previousPosition, rankingUrl: null, serpFeatures: [] };
+  return {
+    position,
+    previousPosition,
+    bestPosition: position,
+    checkedInLatestCheck: true,
+    rankingUrl: null,
+    serpFeatures: [],
+  };
 }
 
 function row(
